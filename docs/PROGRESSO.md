@@ -16,9 +16,15 @@ Decisões tomadas: direção visual **Sálvia**; fuso principal **Brasília** (`
 | 0.4 | Painel: indicadores, lista "Hoje" com ações rápidas, a receber, receita por paciente | ✅ |
 | 0.5 | Pacientes: lista com filtros (status/origem) e ficha com abas | ✅ |
 | 0.6 | Finanças: contas por moeda, transações, gráfico | ⬜ |
-| 0.7 | Calendário: Dia/Semana/Mês, linha do agora, arrastar, painel lateral, dois fusos | ⬜ |
-| 0.8 | Configurações (tema, fusos, modo discreto) | ⬜ |
-| 0.9 | Testes visuais Playwright (1440/390, claro/escuro) + axe, `pnpm test:visual` | ⬜ |
+| 0.7 | Divulgação (básico): campanhas de anúncios, gasto, contatos, custo por paciente | ⬜ |
+| 0.8 | Calendário: Dia/Semana/Mês, linha do agora, arrastar, painel lateral, dois fusos | ⬜ |
+| 0.9 | Configurações (tema, fusos, modo discreto) | ⬜ |
+| 0.10 | Testes visuais Playwright (1440/390, claro/escuro) + axe, `pnpm test:visual` | ⬜ |
+
+### Lembretes para etapas futuras
+
+- **Excluir paciente** (Etapa 1): só para status *interrompido*, com confirmação. Padrão = arquivar (guarda de 5 anos do CFP); exclusão definitiva com aviso.
+- **Divulgação avançada** (Etapas 3 e 5): gasto vindo do extrato/cartão, retorno por campanha, funil, orçamento de anúncios.
 
 ### Commits
 

@@ -22,9 +22,10 @@ O centro do módulo é a ficha do paciente: dali você vê sessões, pagamentos 
 
 **Pacientes**
 
-- Cadastro: nome (ou iniciais/pseudônimo), contato, data de início, origem (clínica-escola, particular, indicação), modalidade (online/presencial), status (ativo, pausa, alta, interrompido).
+- Cadastro: nome (ou iniciais/pseudônimo), contato, data de início, origem (clínica-escola, particular, indicação, anúncio), modalidade (online/presencial), status (ativo, pausa, alta, interrompido).
 - Contrato: frequência (1x, 2x semana…), dia e horário fixos, valor por sessão, moeda, forma de cobrança (por sessão ou fechamento mensal) e política de faltas.
 - Histórico de reajustes de valor, com data, para os relatórios não distorcerem o passado.
+- **Excluir paciente:** permitido só para quem está com status *interrompido*, sempre com confirmação. Por padrão é um **arquivamento** (some das listas, mas o prontuário fica guardado, por causa da guarda mínima de 5 anos do CFP). A exclusão definitiva fica disponível com aviso explícito. *(Entra na Fase 1, junto com o CRUD.)*
 
 **Sessões e agenda**
 
@@ -87,6 +88,24 @@ O objetivo é responder em uma tela: quanto entrou, quanto saiu, onde está guar
 - Painéis: patrimônio líquido ao longo do tempo, fluxo de caixa mensal, gastos por categoria, taxa de poupança.
 - Câmbio: tabela de cotações diárias; todo valor é guardado na moeda original e convertido só na exibição.
 
+## Módulo Divulgação (anúncios)
+
+Ajuda a controlar quanto se gasta com anúncios (Instagram, Google, outros) e se isso traz pacientes. Começa simples e será refinado depois.
+
+**Básico (já na Etapa 0, com dados fictícios)**
+
+- Campanhas: nome, plataforma (Instagram, Google, Facebook, outro), período, orçamento, valor gasto, alcance/impressões, cliques e contatos recebidos.
+- Pacientes captados: pacientes com origem "anúncio" ligados à campanha.
+- Indicadores do mês: gasto total, contatos, custo por contato, pacientes captados e custo por paciente captado.
+- O gasto com anúncios entra em Finanças como despesa na categoria *Divulgação*.
+
+**Depois (a definir)**
+
+- Gasto lançado automaticamente a partir da fatura do cartão ou da importação de extrato.
+- Retorno por campanha: receita gerada pelos pacientes captados × gasto.
+- Funil simples (contato → primeira sessão → paciente ativo) e orçamento mensal de divulgação com alerta.
+- Talvez importar relatórios CSV do Meta/Google Ads.
+
 ## Arquitetura e stack
 
 Uma aplicação web que roda só no seu computador: o navegador mostra a interface, uma API local fala com um arquivo SQLite, e o sync manda cópias cifradas para o Drive.
@@ -126,6 +145,7 @@ São 14 tabelas; a ponte entre os módulos é `pagamentos.transacao_id`, que lig
 | movimentos\_investimento | data, tipo (aporte/resgate/dividendo), quantidade, valor\_centavos | ativos, contas |
 | cotacoes | data, de\_moeda, para\_moeda (ou ativo), valor | ativos |
 | orcamentos\_metas | categoria ou meta, valor\_alvo, periodo/prazo | categorias, contas |
+| campanhas | nome, plataforma, inicio, fim, orcamento\_centavos, gasto\_centavos, moeda, impressoes, cliques, contatos | pacientes (captados), transacoes |
 
 Uma tabela extra `meta_sistema` guarda versão do esquema, id do dispositivo e data do último sync — é o que torna a importação/exportação com o Drive segura.
 
@@ -173,7 +193,7 @@ Cinco fases, cada uma termina num app que você já usa de verdade; a fase 1 soz
 **Fase 1 — Consultório básico**
 
 - [ ] Estrutura do projeto, banco, migrações e tela de login com senha
-- [ ] CRUD de pacientes e contratos
+- [ ] CRUD de pacientes e contratos (com arquivar/excluir só para *interrompido*)
 - [ ] Geração de sessões pela grade fixa e marcação de estado
 - [ ] Registro de pagamentos e saldo por paciente
 - [ ] Exportar/importar snapshot cifrado para uma pasta do Drive
@@ -189,6 +209,7 @@ Cinco fases, cada uma termina num app que você já usa de verdade; a fase 1 soz
 - [ ] Contas, categorias, transações e transferências multimoeda
 - [ ] Pagamentos de pacientes criando receita automaticamente
 - [ ] Recorrências e importação de extratos CSV/OFX com regras
+- [ ] Divulgação com dados reais: campanhas, gasto ligado às transações, pacientes captados
 - [ ] Sincronização com o Drive pela API (push/pull com detecção de conflito)
 
 **Fase 4 — Investimentos e patrimônio**
@@ -202,6 +223,7 @@ Cinco fases, cada uma termina num app que você já usa de verdade; a fase 1 soz
 - [ ] Orçamento e metas
 - [ ] Recibos em PDF e fechamento mensal
 - [ ] Visão fiscal mensal (carnê-leão / PJ)
+- [ ] Divulgação avançada: retorno por campanha, funil, orçamento de anúncios
 - [ ] Cotações automáticas e, se quiser, empacotar como app de desktop (Tauri)
 
 ## Como começar no Claude Code
