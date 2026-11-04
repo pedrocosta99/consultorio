@@ -1,0 +1,13 @@
+node_modules
+dist
+*.local
+.DS_Store
+# banco e snapshots NUNCA vão para o git
+*.db
+*.db-*
+*.sqlite
+*.snapshot
+data/
+# artefatos do Playwright (as baselines em __screenshots__ SÃO versionadas)
+apps/web/test-results
+apps/web/playwright-report

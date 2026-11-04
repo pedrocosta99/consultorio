@@ -1,0 +1,19 @@
+{
+  "name": "consultorio",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.34.7",
+  "scripts": {
+    "dev": "concurrently -k -n api,web -c blue,green \"pnpm --filter @consultorio/api dev\" \"pnpm --filter @consultorio/web dev\"",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "vitest run",
+    "test:visual": "pnpm --filter @consultorio/web test:visual",
+    "test:visual:update": "pnpm --filter @consultorio/web test:visual --update-snapshots"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.6",
+    "typescript": "~5.9.3",
+    "vitest": "^5.0.5"
+  }
+}
