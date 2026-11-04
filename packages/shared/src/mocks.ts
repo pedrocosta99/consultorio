@@ -8,6 +8,7 @@ import { chaveDiaNoFuso, instanteDeParede, paraParede } from "./fuso";
 import { dinheiro, type Moeda } from "./money";
 import {
   sessaoCobravel,
+  type Campanha,
   type Conta,
   type Contrato,
   type EstadoSessao,
@@ -29,6 +30,7 @@ export interface Mocks {
   notas: Nota[];
   contas: Conta[];
   transacoes: Transacao[];
+  campanhas: Campanha[];
 }
 
 // PRNG determinístico (mulberry32) semeado por string.
@@ -118,6 +120,35 @@ const PACIENTES: PacienteBase[] = [
     id: "p12", nome: "André Pacheco Luz", apelido: "A.P.", origem: "particular",
     modalidade: "online", status: "interrompido", inicioEm: "2025-09-01", fuso: FUSO_CONSULTORIO,
   },
+  {
+    id: "p13", nome: "Paula Siqueira Dantas", apelido: "P.S.", origem: "anuncio",
+    modalidade: "online", status: "ativo", inicioEm: "2026-10-13", fuso: FUSO_CONSULTORIO,
+    contrato: { dias: [2], horario: "17:00", valor: 20000, cobranca: "sessao" },
+  },
+  {
+    id: "p14", nome: "Igor Menezes Tavares", apelido: "I.M.", origem: "anuncio",
+    modalidade: "presencial", status: "ativo", inicioEm: "2026-09-21", fuso: FUSO_CONSULTORIO,
+    contrato: { dias: [1], horario: "18:00", valor: 21000, cobranca: "sessao" },
+  },
+];
+
+const CAMPANHAS: Campanha[] = [
+  {
+    id: "cp1", nome: "Perfil · psicanálise online", plataforma: "instagram", inicio: "2026-10-01", fim: "2026-10-31",
+    orcamento: dinheiro(60000), gasto: dinheiro(58740), impressoes: 18400, cliques: 412, contatos: 9, pacientesIds: ["p13"],
+  },
+  {
+    id: "cp2", nome: "Stories · primeira conversa", plataforma: "instagram", inicio: "2026-11-01", fim: null,
+    orcamento: dinheiro(40000), gasto: dinheiro(11870), impressoes: 6200, cliques: 140, contatos: 3, pacientesIds: [],
+  },
+  {
+    id: "cp3", nome: "Busca · psicanalista SP", plataforma: "google", inicio: "2026-09-01", fim: "2026-09-30",
+    orcamento: dinheiro(50000), gasto: dinheiro(48900), impressoes: 9100, cliques: 260, contatos: 6, pacientesIds: ["p14"],
+  },
+  {
+    id: "cp4", nome: "Teste · público 30–45", plataforma: "facebook", inicio: "2026-08-10", fim: "2026-08-31",
+    orcamento: dinheiro(20000), gasto: dinheiro(20000), impressoes: 7800, cliques: 95, contatos: 1, pacientesIds: [],
+  },
 ];
 
 const CONTAS: Conta[] = [
@@ -167,9 +198,9 @@ export function gerarMocks(referencia: Date = new Date()): Mocks {
     };
   });
 
-  // Sessões: 6 semanas para trás e 4 para frente.
+  // Sessões: 14 semanas para trás e 4 para frente.
   const sessoes: Sessao[] = [];
-  for (let w = -6; w <= 4; w++) {
+  for (let w = -14; w <= 4; w++) {
     const inicioSemana = addWeeks(semanaAtual, w);
     for (const c of contratos) {
       const [hh, mm] = c.horario.split(":").map(Number) as [number, number];
@@ -202,7 +233,8 @@ export function gerarMocks(referencia: Date = new Date()): Mocks {
   const pagamentos: Pagamento[] = sessoes
     .filter((s) => s.pago)
     .map((s, i) => {
-      const data = chaveDiaNoFuso(Date.parse(s.inicio) + 86_400_000, FUSO_CONSULTORIO);
+      // Pago no dia seguinte, mas nunca no futuro.
+      const data = chaveDiaNoFuso(Math.min(Date.parse(s.inicio) + 86_400_000, refMs), FUSO_CONSULTORIO);
       return {
         id: `pg${String(i + 1).padStart(3, "0")}`,
         pacienteId: s.pacienteId,
@@ -218,7 +250,7 @@ export function gerarMocks(referencia: Date = new Date()): Mocks {
 
   // Transações: receitas da clínica (dos pagamentos) + gastos mensais fictícios.
   const transacoes: Transacao[] = [];
-  const inicioPeriodo = addWeeks(semanaAtual, -6);
+  const inicioPeriodo = addWeeks(semanaAtual, -15);
   transacoes.push(
     { id: "t-si-1", data: format(inicioPeriodo, "yyyy-MM-dd"), valor: dinheiro(1_284_550), tipo: "receita", descricao: "Saldo inicial", contaId: "c-nubank", categoria: "Ajuste" },
     { id: "t-si-2", data: format(inicioPeriodo, "yyyy-MM-dd"), valor: dinheiro(3_150_000), tipo: "receita", descricao: "Saldo inicial", contaId: "c-itau", categoria: "Ajuste" },
@@ -236,31 +268,42 @@ export function gerarMocks(referencia: Date = new Date()): Mocks {
   }
 
   const GASTOS: Array<[dia: number, descricao: string, centavos: number, conta: string, cat: string, sub: string]> = [
-    [5, "Aluguel do apartamento", -320000, "c-nubank", "Moradia", "Aluguel"],
-    [5, "Sublocação da sala", -120000, "c-nubank", "Consultório", "Sala"],
-    [8, "Supervisão", -45000, "c-nubank", "Formação", "Supervisão"],
-    [10, "Análise pessoal", -100000, "c-nubank", "Formação", "Análise"],
-    [12, "Parcela do carro", -138000, "c-nubank", "Transporte", "Parcela do carro"],
-    [14, "Supermercado", -86450, "c-cartao", "Alimentação", "Mercado"],
+    [5, "Aluguel do apartamento", -240000, "c-nubank", "Moradia", "Aluguel"],
+    [5, "Sublocação da sala", -90000, "c-nubank", "Consultório", "Sala"],
+    [8, "Supervisão", -40000, "c-nubank", "Formação", "Supervisão"],
+    [10, "Análise pessoal", -80000, "c-nubank", "Formação", "Análise"],
+    [12, "Parcela do carro", -110000, "c-nubank", "Transporte", "Parcela do carro"],
+    [14, "Supermercado", -75000, "c-cartao", "Alimentação", "Mercado"],
     [17, "Internet + celular", -21990, "c-cartao", "Moradia", "Contas"],
-    [19, "Livraria", -18900, "c-cartao", "Formação", "Livros"],
-    [21, "Restaurantes", -42370, "c-cartao", "Alimentação", "Restaurantes"],
-    [24, "Combustível e apps", -31280, "c-cartao", "Transporte", "Combustível"],
-    [26, "Aporte mensal", -200000, "c-nubank", "Investimentos", "Aporte"],
-    [26, "Aporte mensal", 200000, "c-corretora", "Investimentos", "Aporte"],
+    [19, "Livraria", -15900, "c-cartao", "Formação", "Livros"],
+    [21, "Restaurantes", -38000, "c-cartao", "Alimentação", "Restaurantes"],
+    [24, "Combustível e apps", -28000, "c-cartao", "Transporte", "Combustível"],
+    [26, "Aporte mensal", -100000, "c-nubank", "Investimentos", "Aporte"],
+    [26, "Aporte mensal", 100000, "c-corretora", "Investimentos", "Aporte"],
   ];
-  for (let m = -2; m <= 0; m++) {
+  for (let m = -3; m <= 0; m++) {
     const base = new Date(ref.getFullYear(), ref.getMonth() + m, 1, 12, 0);
     GASTOS.forEach(([dia, descricao, centavos, conta, cat, sub], i) => {
       const d = new Date(base.getFullYear(), base.getMonth(), dia, 12, 0);
       if (d.getTime() > ref.getTime()) return;
       const variacao = cat === "Alimentação" || cat === "Transporte" ? Math.round((rnd() - 0.5) * 20000) : 0;
       transacoes.push({
-        id: `t-g${m + 3}-${i}`, data: format(d, "yyyy-MM-dd"),
+        id: `t-g${m + 4}-${i}`, data: format(d, "yyyy-MM-dd"),
         valor: dinheiro(centavos + Math.sign(centavos) * variacao),
         tipo: cat === "Investimentos" ? "transferencia" : "despesa",
         descricao, contaId: conta, categoria: cat, subcategoria: sub,
       });
+    });
+  }
+  // Gasto com anúncios vira despesa em "Divulgação" (no cartão).
+  const hojeChave = chaveDiaNoFuso(refMs, FUSO_CONSULTORIO);
+  for (const c of CAMPANHAS) {
+    const data = c.fim && c.fim <= hojeChave ? c.fim : hojeChave;
+    if (data < c.inicio) continue;
+    transacoes.push({
+      id: `t-${c.id}`, data, valor: dinheiro(-c.gasto.centavos, c.gasto.moeda), tipo: "despesa",
+      descricao: `Anúncio · ${c.nome}`, contaId: "c-cartao", categoria: "Divulgação",
+      subcategoria: c.plataforma === "instagram" ? "Instagram" : c.plataforma === "google" ? "Google" : "Outros",
     });
   }
   transacoes.sort((a, b) => b.data.localeCompare(a.data) || a.id.localeCompare(b.id));
@@ -291,5 +334,5 @@ export function gerarMocks(referencia: Date = new Date()): Mocks {
       });
     });
 
-  return { referencia, pacientes, contratos, sessoes, pagamentos, notas, contas: CONTAS, transacoes };
+  return { referencia, pacientes, contratos, sessoes, pagamentos, notas, contas: CONTAS, transacoes, campanhas: CAMPANHAS };
 }

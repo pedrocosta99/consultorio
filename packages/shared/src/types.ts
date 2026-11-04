@@ -9,7 +9,7 @@ const dataCivil = z.iso.date();
 
 // ── Consultório ───────────────────────────────────────────────
 
-export const ORIGENS = ["clinica_escola", "particular", "indicacao"] as const;
+export const ORIGENS = ["clinica_escola", "particular", "indicacao", "anuncio"] as const;
 export const MODALIDADES = ["online", "presencial"] as const;
 export const STATUS_PACIENTE = ["ativo", "pausa", "alta", "interrompido"] as const;
 
@@ -134,12 +134,42 @@ export const transacaoSchema = z.object({
 });
 export type Transacao = z.infer<typeof transacaoSchema>;
 
+// ── Divulgação (anúncios) ─────────────────────────────────────
+
+export const PLATAFORMAS = ["instagram", "google", "facebook", "outro"] as const;
+
+export const campanhaSchema = z.object({
+  id,
+  nome: z.string().min(1),
+  plataforma: z.enum(PLATAFORMAS),
+  inicio: dataCivil,
+  /** null = campanha em andamento */
+  fim: dataCivil.nullable(),
+  orcamento: dinheiroSchema,
+  gasto: dinheiroSchema,
+  impressoes: z.number().int().nonnegative(),
+  cliques: z.number().int().nonnegative(),
+  /** Mensagens/ligações recebidas por causa do anúncio. */
+  contatos: z.number().int().nonnegative(),
+  /** Pacientes que começaram a partir desta campanha. */
+  pacientesIds: z.array(id),
+});
+export type Campanha = z.infer<typeof campanhaSchema>;
+
+export const ROTULO_PLATAFORMA: Record<Campanha["plataforma"], string> = {
+  instagram: "Instagram",
+  google: "Google",
+  facebook: "Facebook",
+  outro: "Outro",
+};
+
 // ── Rótulos em português para a interface ────────────────────
 
 export const ROTULO_ORIGEM: Record<Paciente["origem"], string> = {
   clinica_escola: "Clínica-escola",
   particular: "Particular",
   indicacao: "Indicação",
+  anuncio: "Anúncio",
 };
 export const ROTULO_MODALIDADE: Record<Paciente["modalidade"], string> = {
   online: "Online",

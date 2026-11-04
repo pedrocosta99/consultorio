@@ -26,7 +26,7 @@ function lerModoMock(): ModoMock {
 }
 
 function mocksVazios(referencia: Date): Mocks {
-  return { referencia, pacientes: [], contratos: [], sessoes: [], pagamentos: [], notas: [], contas: [], transacoes: [] };
+  return { referencia, pacientes: [], contratos: [], sessoes: [], pagamentos: [], notas: [], contas: [], transacoes: [], campanhas: [] };
 }
 
 interface Ctx extends Mocks {
