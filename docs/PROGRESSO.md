@@ -17,7 +17,7 @@ Decisões tomadas: direção visual **Sálvia**; fuso principal **Brasília** (`
 | 0.5 | Pacientes: lista com filtros (status/origem) e ficha com abas | ✅ |
 | 0.6 | Finanças: contas por moeda, transações, gráfico | ✅ |
 | 0.7 | Divulgação (básico): campanhas de anúncios, gasto, contatos, custo por paciente | ✅ |
-| 0.8 | Calendário: Dia/Semana/Mês, linha do agora, arrastar, painel lateral, dois fusos | ⬜ |
+| 0.8 | Calendário: Dia/Semana/Mês, linha do agora, arrastar, painel lateral, dois fusos | ✅ |
 | 0.9 | Configurações (tema, fusos, modo discreto) | ⬜ |
 | 0.10 | Testes visuais Playwright (1440/390, claro/escuro) + axe, `pnpm test:visual` | ⬜ |
 
@@ -56,6 +56,21 @@ Decisões tomadas: direção visual **Sálvia**; fuso principal **Brasília** (`
 
 **0.7**
 - `feat(web): aba Divulgação com campanhas de anúncios`
+
+**0.8**
+- `feat(web): lógica do calendário (sobreposição e encaixe de 15 min) com testes`
+- `feat(web): Agenda com visões Dia/Semana/Mês, arrastar, painel lateral e dois fusos`
+
+### Como testar (pausa após 0.8)
+
+1. **/agenda**: abre na Semana (no celular, no Dia). Use Dia / Semana / Mês, as setas e "Hoje". Atalhos: ← → navegam, T vai para hoje, D/S/M trocam a visão.
+2. **Arrastar**: arraste uma sessão *agendada* para outro horário ou dia; ela encaixa de 15 em 15 min e mostra o horário novo durante o arrasto. Aparece um aviso com **Desfazer**. Sessões realizadas, faltas e canceladas não são arrastáveis (só abrem o painel).
+3. **Mês**: arraste um chip para outro dia (mantém o horário). "+N mais" e o número do dia abrem a visão Dia.
+4. **Painel lateral** (clique numa sessão): Realizada / Falta / Pago, os horários nos fusos e "Remarcar" por data e hora (alternativa ao arrasto, também pelo teclado).
+5. **Dois fusos**: o botão 🌐 "Brasília" escolhe um segundo fuso (ex.: Lisboa). A coluna de horas mostra os dois, e as sessões também.
+6. **Fuso do paciente**: abra uma sessão da Beatriz (Lisboa) ou do Thomas (Nova York); o painel mostra o horário para o paciente.
+7. **Linha do agora**: linha vermelha no dia de hoje, com a hora na coluna da esquerda.
+8. `/agenda?mock=vazio` mostra o aviso de agenda vazia; `/agenda?mock=carregando` mostra os blocos carregando.
 
 ### Como testar (pausa após 0.7)
 

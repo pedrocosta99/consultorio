@@ -63,7 +63,8 @@
   --st-remarcada-fg: oklch(0.4 0.07 300);
   --st-remarcada-bd: oklch(0.7 0.08 300);
 
-  --agora: oklch(0.58 0.17 30);
+  --agora: oklch(0.55 0.18 30);
+  --agora-fg: oklch(0.99 0 0);
 
   /* Gráficos — entrada/saída validados (CVD) contra o fundo do cartão */
   --chart-entrada: oklch(0.5 0.11 170);
@@ -125,6 +126,7 @@
   --st-remarcada-bd: oklch(0.6 0.07 300);
 
   --agora: oklch(0.7 0.16 30);
+  --agora-fg: oklch(0.17 0.02 30);
 
   --chart-entrada: oklch(0.52 0.11 172);
   --chart-saida: oklch(0.67 0.15 50);
@@ -174,6 +176,7 @@
   --color-positivo: var(--positivo);
   --color-negativo: var(--negativo);
   --color-agora: var(--agora);
+  --color-agora-fg: var(--agora-fg);
   --color-chart-entrada: var(--chart-entrada);
   --color-chart-saida: var(--chart-saida);
   --color-chart-1: var(--chart-1);
