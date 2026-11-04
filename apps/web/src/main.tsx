@@ -11,6 +11,7 @@ import { PaginaLab } from "@/pages/Lab";
 import { PaginaPacientes } from "@/pages/Pacientes";
 import { PaginaPacienteFicha } from "@/pages/PacienteFicha";
 import { PaginaEmConstrucao } from "@/pages/EmConstrucao";
+import { PaginaFinancas } from "@/pages/financas/Financas";
 
 const router = createBrowserRouter([
   {
@@ -20,7 +21,7 @@ const router = createBrowserRouter([
       { path: "agenda", element: <PaginaEmConstrucao titulo="Agenda" /> },
       { path: "pacientes", element: <PaginaPacientes /> },
       { path: "pacientes/:id", element: <PaginaPacienteFicha /> },
-      { path: "financas", element: <PaginaEmConstrucao titulo="Finanças" /> },
+      { path: "financas", element: <PaginaFinancas /> },
       { path: "configuracoes", element: <PaginaEmConstrucao titulo="Configurações" /> },
       { path: "lab", element: <PaginaLab /> },
       { path: "*", element: <PaginaEmConstrucao titulo="Página não encontrada" /> },
