@@ -3,8 +3,8 @@
  * pacientes reais. Tudo é gerado de forma determinística a partir de uma data
  * de referência, para que as screenshots dos testes visuais sejam estáveis.
  */
-import { TZDate } from "@date-fns/tz";
 import { addDays, addWeeks, format, startOfWeek } from "date-fns";
+import { chaveDiaNoFuso, instanteDeParede, paraParede } from "./fuso";
 import { dinheiro, type Moeda } from "./money";
 import {
   sessaoCobravel,
@@ -140,7 +140,9 @@ function sortearEstadoPassado(r: number): EstadoSessao {
 }
 
 export function gerarMocks(referencia: Date = new Date()): Mocks {
-  const ref = new TZDate(referencia, FUSO_CONSULTORIO);
+  const refMs = referencia.getTime();
+  // "ref" é a hora de parede em Brasília (Date comum) — só para aritmética de calendário.
+  const ref = paraParede(refMs, FUSO_CONSULTORIO);
   const semanaAtual = startOfWeek(ref, { weekStartsOn: 1 });
   const rnd = semente(format(semanaAtual, "yyyy-MM-dd"));
 
@@ -173,18 +175,19 @@ export function gerarMocks(referencia: Date = new Date()): Mocks {
       const [hh, mm] = c.horario.split(":").map(Number) as [number, number];
       for (const dia of c.diasSemana) {
         const d = addDays(inicioSemana, dia - 1);
-        const inicio = new TZDate(d.getFullYear(), d.getMonth(), d.getDate(), hh, mm, FUSO_CONSULTORIO);
-        if (format(inicio, "yyyy-MM-dd") < c.vigenteDe) continue;
-        const fim = inicio.getTime() + c.duracaoMin * 60_000;
-        const passada = fim <= ref.getTime();
+        const inicioMs = instanteDeParede(d.getFullYear(), d.getMonth(), d.getDate(), hh, mm, FUSO_CONSULTORIO);
+        const diaChave = chaveDiaNoFuso(inicioMs, FUSO_CONSULTORIO);
+        if (diaChave < c.vigenteDe) continue;
+        const fim = inicioMs + c.duracaoMin * 60_000;
+        const passada = fim <= refMs;
         const r = rnd();
         const estado: EstadoSessao = passada ? sortearEstadoPassado(r) : "agendada";
-        const diasAtras = (ref.getTime() - inicio.getTime()) / 86_400_000;
+        const diasAtras = (refMs - inicioMs) / 86_400_000;
         const pago = sessaoCobravel(estado) && (diasAtras > 10 ? rnd() < 0.95 : rnd() < 0.6);
         sessoes.push({
-          id: `s-${c.pacienteId}-${format(inicio, "yyyyMMdd")}`,
+          id: `s-${c.pacienteId}-${diaChave.replace(/-/g, "")}`,
           pacienteId: c.pacienteId,
-          inicio: new Date(inicio.getTime()).toISOString(),
+          inicio: new Date(inicioMs).toISOString(),
           duracaoMin: c.duracaoMin,
           estado,
           valor: c.valor,
@@ -199,7 +202,7 @@ export function gerarMocks(referencia: Date = new Date()): Mocks {
   const pagamentos: Pagamento[] = sessoes
     .filter((s) => s.pago)
     .map((s, i) => {
-      const data = format(addDays(new TZDate(s.inicio, FUSO_CONSULTORIO), 1), "yyyy-MM-dd");
+      const data = chaveDiaNoFuso(Date.parse(s.inicio) + 86_400_000, FUSO_CONSULTORIO);
       return {
         id: `pg${String(i + 1).padStart(3, "0")}`,
         pacienteId: s.pacienteId,
@@ -247,9 +250,9 @@ export function gerarMocks(referencia: Date = new Date()): Mocks {
     [26, "Aporte mensal", 200000, "c-corretora", "Investimentos", "Aporte"],
   ];
   for (let m = -2; m <= 0; m++) {
-    const base = new TZDate(ref.getFullYear(), ref.getMonth() + m, 1, 12, 0, FUSO_CONSULTORIO);
+    const base = new Date(ref.getFullYear(), ref.getMonth() + m, 1, 12, 0);
     GASTOS.forEach(([dia, descricao, centavos, conta, cat, sub], i) => {
-      const d = new TZDate(base.getFullYear(), base.getMonth(), dia, 12, 0, FUSO_CONSULTORIO);
+      const d = new Date(base.getFullYear(), base.getMonth(), dia, 12, 0);
       if (d.getTime() > ref.getTime()) return;
       const variacao = cat === "Alimentação" || cat === "Transporte" ? Math.round((rnd() - 0.5) * 20000) : 0;
       transacoes.push({

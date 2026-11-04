@@ -1,39 +1,45 @@
-import { TZDate } from "@date-fns/tz";
 import { format, type Locale } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { chaveDiaNoFuso, instanteDeParede, paraParede, partesNoFuso } from "@consultorio/shared";
 
 export const locale: Locale = ptBR;
 export const SEMANA = { weekStartsOn: 1 as const, locale: ptBR };
 
-/** Converte um instante (ISO ou Date) para o fuso informado. */
-export function noFuso(instante: string | Date | number, fuso: string): TZDate {
-  const ms = instante instanceof Date ? instante.getTime() : typeof instante === "string" ? Date.parse(instante) : instante;
-  return new TZDate(ms, fuso);
+function ms(instante: string | Date | number): number {
+  return instante instanceof Date ? instante.getTime() : typeof instante === "string" ? Date.parse(instante) : instante;
+}
+
+/**
+ * Hora de parede do instante no fuso, como Date comum (para formatar e para
+ * aritmética de calendário). Não use o resultado como instante real.
+ */
+export function noFuso(instante: string | Date | number, fuso: string): Date {
+  return paraParede(ms(instante), fuso);
 }
 
 export function fmt(data: Date, padrao: string): string {
   return format(data, padrao, { locale: ptBR });
 }
 
-export function hora(instante: string | Date, fuso: string): string {
-  return fmt(noFuso(instante, fuso), "HH:mm");
+export function hora(instante: string | Date | number, fuso: string): string {
+  const p = partesNoFuso(ms(instante), fuso);
+  return `${String(p.hora).padStart(2, "0")}:${String(p.minuto).padStart(2, "0")}`;
 }
 
 /** Minutos desde a meia-noite no fuso informado. */
-export function minutosDoDia(instante: string | Date, fuso: string): number {
-  const d = noFuso(instante, fuso);
-  return d.getHours() * 60 + d.getMinutes();
+export function minutosDoDia(instante: string | Date | number, fuso: string): number {
+  const p = partesNoFuso(ms(instante), fuso);
+  return p.hora * 60 + p.minuto;
 }
 
 /** Chave de dia civil "yyyy-MM-dd" no fuso informado. */
 export function chaveDia(instante: string | Date | number, fuso: string): string {
-  return format(noFuso(instante, fuso), "yyyy-MM-dd");
+  return chaveDiaNoFuso(ms(instante), fuso);
 }
 
-/** Cria um instante a partir de dia civil + minutos no fuso informado. */
+/** Instante real a partir de um dia (Date de parede) + minutos no fuso. */
 export function instanteEm(dia: Date, minutos: number, fuso: string): Date {
-  const d = new TZDate(dia.getFullYear(), dia.getMonth(), dia.getDate(), 0, minutos, fuso);
-  return new Date(d.getTime());
+  return new Date(instanteDeParede(dia.getFullYear(), dia.getMonth(), dia.getDate(), 0, minutos, fuso));
 }
 
 /** Rótulo curto do fuso: "Brasília", "Lisboa"… */
