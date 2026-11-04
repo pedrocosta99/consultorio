@@ -8,6 +8,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppShell } from "@/components/layout/AppShell";
 import { PaginaPainel } from "@/pages/Painel";
 import { PaginaLab } from "@/pages/Lab";
+import { PaginaPacientes } from "@/pages/Pacientes";
+import { PaginaPacienteFicha } from "@/pages/PacienteFicha";
 import { PaginaEmConstrucao } from "@/pages/EmConstrucao";
 
 const router = createBrowserRouter([
@@ -16,8 +18,8 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <PaginaPainel /> },
       { path: "agenda", element: <PaginaEmConstrucao titulo="Agenda" /> },
-      { path: "pacientes", element: <PaginaEmConstrucao titulo="Pacientes" /> },
-      { path: "pacientes/:id", element: <PaginaEmConstrucao titulo="Paciente" /> },
+      { path: "pacientes", element: <PaginaPacientes /> },
+      { path: "pacientes/:id", element: <PaginaPacienteFicha /> },
       { path: "financas", element: <PaginaEmConstrucao titulo="Finanças" /> },
       { path: "configuracoes", element: <PaginaEmConstrucao titulo="Configurações" /> },
       { path: "lab", element: <PaginaLab /> },

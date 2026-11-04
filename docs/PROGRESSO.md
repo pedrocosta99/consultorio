@@ -14,7 +14,7 @@ Decisões tomadas: direção visual **Sálvia**; fuso principal **Brasília** (`
 | 0.2 | Tokens Sálvia (claro/escuro), shadcn/ui, rota `/lab` | ✅ |
 | 0.3 | Shell: sidebar, gaveta mobile, busca Cmd+K, menu "+ Novo", alternar tema | ✅ |
 | 0.4 | Painel: indicadores, lista "Hoje" com ações rápidas, a receber, receita por paciente | ✅ |
-| 0.5 | Pacientes: lista com filtros (status/origem) e ficha com abas | ⬜ |
+| 0.5 | Pacientes: lista com filtros (status/origem) e ficha com abas | ✅ |
 | 0.6 | Finanças: contas por moeda, transações, gráfico | ⬜ |
 | 0.7 | Calendário: Dia/Semana/Mês, linha do agora, arrastar, painel lateral, dois fusos | ⬜ |
 | 0.8 | Configurações (tema, fusos, modo discreto) | ⬜ |
@@ -36,6 +36,19 @@ Decisões tomadas: direção visual **Sálvia**; fuso principal **Brasília** (`
 **0.4**
 - `feat(web): Painel com dados fictícios e ações rápidas de sessão`
 - `docs: CLAUDE.md e PROGRESSO.md`
+
+**0.5**
+- `fix(shared): conversão de fuso só com Intl (sem TZDate)`
+- `feat(web): lista de pacientes com filtros e ficha com abas`
+
+### Como testar (pausa após 0.5)
+
+1. **/pacientes**: filtros de status (o padrão é "Ativo") e de origem; a busca aceita nome ou iniciais. Os filtros ficam na URL. Na largura de celular a lista vira cartões.
+2. **Ficha** (clique num paciente): abas Resumo / Sessões / Pagamentos / Notas. A aba também fica na URL (`?aba=sessoes`).
+3. **Fuso do paciente**: Beatriz (Lisboa) e Thomas (Nova York) mostram o horário local deles ao lado do de Brasília.
+4. **Aba Sessões**: os botões Realizada / Falta / Pago mudam o estado, e o "A receber" do Resumo e da lista acompanha.
+5. **Multimoeda**: Beatriz paga em €, Thomas em US$, o resto em R$.
+6. `/pacientes?mock=vazio` mostra o estado vazio; `/pacientes/xyz` mostra "paciente não encontrado".
 
 ### Como testar (pausa após 0.4)
 
