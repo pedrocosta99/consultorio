@@ -3,10 +3,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDados } from "@/app/dados";
 import { CabecalhoPagina } from "@/components/comuns";
+import { Divulgacao } from "./Divulgacao";
 import { Transacoes } from "./Transacoes";
 import { VisaoGeral } from "./VisaoGeral";
 
-const ABAS = ["visao", "transacoes"] as const;
+const ABAS = ["visao", "transacoes", "divulgacao"] as const;
 type Aba = (typeof ABAS)[number];
 
 export function PaginaFinancas() {
@@ -43,6 +44,7 @@ export function PaginaFinancas() {
             <TabsList>
               <TabsTrigger value="visao">Visão geral</TabsTrigger>
               <TabsTrigger value="transacoes">Transações</TabsTrigger>
+              <TabsTrigger value="divulgacao">Divulgação</TabsTrigger>
             </TabsList>
           </div>
           <TabsContent value="visao" className="mt-4">
@@ -50,6 +52,9 @@ export function PaginaFinancas() {
           </TabsContent>
           <TabsContent value="transacoes" className="mt-4">
             <Transacoes />
+          </TabsContent>
+          <TabsContent value="divulgacao" className="mt-4">
+            <Divulgacao />
           </TabsContent>
         </Tabs>
       )}

@@ -15,8 +15,8 @@ Decisões tomadas: direção visual **Sálvia**; fuso principal **Brasília** (`
 | 0.3 | Shell: sidebar, gaveta mobile, busca Cmd+K, menu "+ Novo", alternar tema | ✅ |
 | 0.4 | Painel: indicadores, lista "Hoje" com ações rápidas, a receber, receita por paciente | ✅ |
 | 0.5 | Pacientes: lista com filtros (status/origem) e ficha com abas | ✅ |
-| 0.6 | Finanças: contas por moeda, transações, gráfico | ⬜ |
-| 0.7 | Divulgação (básico): campanhas de anúncios, gasto, contatos, custo por paciente | ⬜ |
+| 0.6 | Finanças: contas por moeda, transações, gráfico | ✅ |
+| 0.7 | Divulgação (básico): campanhas de anúncios, gasto, contatos, custo por paciente | ✅ |
 | 0.8 | Calendário: Dia/Semana/Mês, linha do agora, arrastar, painel lateral, dois fusos | ⬜ |
 | 0.9 | Configurações (tema, fusos, modo discreto) | ⬜ |
 | 0.10 | Testes visuais Playwright (1440/390, claro/escuro) + axe, `pnpm test:visual` | ⬜ |
@@ -46,6 +46,25 @@ Decisões tomadas: direção visual **Sálvia**; fuso principal **Brasília** (`
 **0.5**
 - `fix(shared): conversão de fuso só com Intl (sem TZDate)`
 - `feat(web): lista de pacientes com filtros e ficha com abas`
+
+**Plano**
+- `docs: módulo Divulgação e regra de exclusão de pacientes no plano`
+
+**0.6**
+- `feat(shared): origem anúncio, campanhas e mocks financeiros mais realistas`
+- `feat(web): Finanças com totais por moeda, fluxo de caixa e transações`
+
+**0.7**
+- `feat(web): aba Divulgação com campanhas de anúncios`
+
+### Como testar (pausa após 0.7)
+
+1. **/financas › Visão geral**: totais por moeda (R$, US$, €), fluxo de caixa em R$ com tooltip e tabela embaixo, gastos do mês por categoria e as contas com saldo (cartão negativo).
+2. **Transações**: começa no mês atual. Filtros de mês, conta, categoria e busca; as entradas e saídas do filtro aparecem no topo.
+3. **Divulgação**: indicadores (gasto, contatos, custo por contato e por paciente) e cartões das campanhas com orçamento usado, métricas e pacientes captados. Clique num paciente captado para abrir a ficha.
+4. Em **Pacientes**, filtre a origem por "Anúncio": aparecem Paula e Igor.
+5. Em Transações, a categoria "Divulgação" mostra o gasto dos anúncios.
+6. Mobile (~390 px) e tema escuro.
 
 ### Como testar (pausa após 0.5)
 
