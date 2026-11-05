@@ -61,6 +61,9 @@ Decisões tomadas: direção visual **Sálvia**; fuso principal **Brasília** (`
 - `feat(web): lógica do calendário (sobreposição e encaixe de 15 min) com testes`
 - `feat(web): Agenda com visões Dia/Semana/Mês, arrastar, painel lateral e dois fusos`
 
+**Extra (entre 0.8 e 0.9)**
+- `chore(mocks): pacientes fictícios famosos (Lírio de Itu, Lila e Lenu, Homem dos Lobos)`
+
 ### Como testar (pausa após 0.8)
 
 1. **/agenda**: abre na Semana (no celular, no Dia). Use Dia / Semana / Mês, as setas e "Hoje". Atalhos: ← → navegam, T vai para hoje, D/S/M trocam a visão.
