@@ -65,6 +65,7 @@ Decisões tomadas: direção visual **Sálvia**; fuso principal **Brasília** (`
 - `chore(mocks): pacientes fictícios famosos (Lírio de Itu, Lila e Lenu, Homem dos Lobos)`
 - `chore(mocks): casos Dora e Aimée (sessões de tempo variável)`
 - `chore(mocks): mantém só os pacientes pedidos (Lírio, Lenu, Lila, Wolfsmann, Dora, Aimée)`
+- `chore(mocks): caricaturas fictícias Severino Rachadinha e Lucrécia Pandeiro`
 
 ### Como testar (pausa após 0.8)
 
@@ -82,7 +83,7 @@ Decisões tomadas: direção visual **Sálvia**; fuso principal **Brasília** (`
 1. **/financas › Visão geral**: totais por moeda (R$, US$, €), fluxo de caixa em R$ com tooltip e tabela embaixo, gastos do mês por categoria e as contas com saldo (cartão negativo).
 2. **Transações**: começa no mês atual. Filtros de mês, conta, categoria e busca; as entradas e saídas do filtro aparecem no topo.
 3. **Divulgação**: indicadores (gasto, contatos, custo por contato e por paciente) e cartões das campanhas com orçamento usado, métricas e pacientes captados. Clique num paciente captado para abrir a ficha.
-4. Em **Pacientes**, filtre a origem por "Anúncio": hoje a lista vem vazia, porque nenhum dos pacientes fictícios atuais chegou por anúncio.
+4. Em **Pacientes**, filtre a origem por "Anúncio": aparece a Lucrécia (veio da campanha do Instagram).
 5. Em Transações, a categoria "Divulgação" mostra o gasto dos anúncios.
 6. Mobile (~390 px) e tema escuro.
 
@@ -92,7 +93,7 @@ Decisões tomadas: direção visual **Sálvia**; fuso principal **Brasília** (`
 2. **Ficha** (clique num paciente): abas Resumo / Sessões / Pagamentos / Notas. A aba também fica na URL (`?aba=sessoes`).
 3. **Fuso do paciente**: Lenu (Roma), Wolfsmann (Viena) e Aimée (Paris) mostram o horário local deles ao lado do de Brasília.
 4. **Aba Sessões**: os botões Realizada / Falta / Pago mudam o estado, e o "A receber" do Resumo e da lista acompanha.
-5. **Multimoeda**: Lenu, Wolfsmann e Aimée pagam em €, o Lírio em R$. US$ só aparece no saldo da conta Wise.
+5. **Multimoeda**: Lenu, Wolfsmann e Aimée pagam em €, Lírio, Severino e Lucrécia em R$. US$ só aparece no saldo da conta Wise.
 6. `/pacientes?mock=vazio` mostra o estado vazio; `/pacientes/xyz` mostra "paciente não encontrado".
 
 ### Como testar (pausa após 0.4)

@@ -138,12 +138,40 @@ const PACIENTES: PacienteBase[] = [
     ].join("\n"),
     contrato: { dias: [2, 4], horario: "12:00", valor: 5000, moeda: "EUR", cobranca: "sessao", duracao: 10 },
   },
+  {
+    id: "p18", nome: "Severino Rachadinha Filho", apelido: "S.R.", contato: "Só via assessor",
+    origem: "indicacao", modalidade: "presencial", status: "ativo", inicioEm: "2026-04-09", fuso: FUSO_CONSULTORIO,
+    pontosFixos: [
+      "Parlamentar no terceiro mandato. Veio porque \"o advogado mandou fazer alguma coisa pela imagem\".",
+      "Queixa: insônia desde que \"começaram a ler os extratos dele\".",
+      "O caso: os assessores devolvem parte do salário todo mês \"por gratidão espontânea\". Uma assessora nunca pisou no gabinete; ele garante que ela \"trabalhava em espírito\".",
+      "Comprou uma mansão pagando boa parte em dinheiro vivo. Diz que é \"fruto de muita economia da mesada\".",
+      "Ato falho recorrente: diz \"minha verba\" querendo dizer \"minha vida\".",
+      "Hipótese: o dinheiro circula como sintoma. Entra, se divide, e ninguém sabe de onde veio. Responde \"não fui eu\" antes de qualquer pergunta.",
+      "Manejo: não aceitar pagamento em caixa de sapato. Emitir recibo SEMPRE.",
+    ].join("\n"),
+    contrato: { dias: [4], horario: "10:00", valor: 50000, cobranca: "sessao" },
+  },
+  {
+    id: "p19", nome: "Lucrécia Pandeiro de Alencar", apelido: "L.P.", contato: "Falar com o mordomo",
+    origem: "anuncio", modalidade: "presencial", status: "ativo", inicioEm: "2026-10-06", fuso: FUSO_CONSULTORIO,
+    pontosFixos: [
+      "Socialite carioca, herdeira, cinco ex-maridos. Chama a cobertura de frente para o mar de \"minha cabaninha\".",
+      "Bordão: \"Que loucura!\". Serve para ressaca, enchente, divórcio e para a cor do sofá.",
+      "O episódio: no meio de uma festa, subiu na mesa e anunciou ser a reencarnação de uma imperatriz bizantina (e, em outra vida, de um peixe-espada). Jogou os sapatos pela janela \"para o mar devolver\". O mar não devolveu.",
+      "Delírio de grandeza com acabamento em lantejoula. Hipótese em aberto: é psicose ou é a temporada de verão? Observar até o carnaval.",
+      "Chegou pelo anúncio do Instagram: achou o filtro \"chiquérrimo\".",
+      "Paga por PIX de sete contas diferentes, todas no nome de ex-maridos.",
+      "Contratransferência: o analista sai das sessões com vontade de comprar um iate.",
+    ].join("\n"),
+    contrato: { dias: [2], horario: "15:00", valor: 45000, cobranca: "sessao" },
+  },
 ];
 
 const CAMPANHAS: Campanha[] = [
   {
     id: "cp1", nome: "Perfil · psicanálise online", plataforma: "instagram", inicio: "2026-10-01", fim: "2026-10-31",
-    orcamento: dinheiro(60000), gasto: dinheiro(58740), impressoes: 18400, cliques: 412, contatos: 9, pacientesIds: [],
+    orcamento: dinheiro(60000), gasto: dinheiro(58740), impressoes: 18400, cliques: 412, contatos: 9, pacientesIds: ["p19"],
   },
   {
     id: "cp2", nome: "Stories · primeira conversa", plataforma: "instagram", inicio: "2026-11-01", fim: null,
@@ -189,6 +217,18 @@ const NOTAS_PROPRIAS: Record<string, string[]> = {
     "Trouxe um capítulo novo do romance. A heroína ataca uma atriz. Achou coincidência.",
     "Falou da irmã mais velha, que criou o filho dela. \"Ela tomou o meu lugar.\" Corte.",
     "Pediu sessão de 50 minutos \"como os freudianos\". Recusado. Sessão de 12.",
+  ],
+  p18: [
+    "Pagou com 37 notas de 50 dobradas em quatro. Perguntei. Disse que é \"organização\".",
+    "Sonhou que o extrato bancário falava. Acordou suando e ligou para o advogado às 3h.",
+    "Disse \"rachar\" seis vezes na sessão (a conta, o bolo, a pizza). Não percebeu.",
+    "Veio com o advogado, que esperou na sala de espera e cobrou a hora dele.",
+  ],
+  p19: [
+    "Chegou de óculos escuros e boá. Disse que o divã \"tem energia de iate\".",
+    "Sonho: um baile no Copacabana Palace em que todos os convidados eram ela.",
+    "Falou \"que loucura\" 41 vezes. Contei.",
+    "Perguntou se podia trazer o cachorro e o mordomo. Só o cachorro.",
   ],
   p15: [
     "Retomou o sonho: os lobos imóveis. \"Por que eles não se mexem?\" A imobilidade é o que assusta.",
