@@ -63,6 +63,7 @@ Decisões tomadas: direção visual **Sálvia**; fuso principal **Brasília** (`
 
 **Extra (entre 0.8 e 0.9)**
 - `chore(mocks): pacientes fictícios famosos (Lírio de Itu, Lila e Lenu, Homem dos Lobos)`
+- `chore(mocks): casos Dora e Aimée (sessões de tempo variável)`
 
 ### Como testar (pausa após 0.8)
 

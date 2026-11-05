@@ -54,7 +54,7 @@ function semente(texto: string): () => number {
 
 type PacienteBase = Omit<Paciente, "pontosFixos"> & {
   pontosFixos?: string;
-  contrato?: { dias: number[]; horario: string; valor: number; moeda?: Moeda; cobranca: Contrato["cobranca"] };
+  contrato?: { dias: number[]; horario: string; valor: number; moeda?: Moeda; cobranca: Contrato["cobranca"]; duracao?: number };
 };
 
 const PACIENTES: PacienteBase[] = [
@@ -169,6 +169,33 @@ const PACIENTES: PacienteBase[] = [
     ].join("\n"),
     contrato: { dias: [1, 3, 5], horario: "12:00", valor: 4000, moeda: "EUR", cobranca: "mensal" },
   },
+  {
+    id: "p16", nome: "Dora", apelido: "Dora", origem: "indicacao",
+    modalidade: "presencial", status: "interrompido", inicioEm: "2025-10-14", fuso: "Europe/Vienna",
+    pontosFixos: [
+      "Caso \"Dora\" (Fragmento da análise de um caso de histeria). 18 anos. Trazida pelo pai, que já tinha sido paciente do analista.",
+      "Queixas: tosse nervosa, afonia, enxaqueca, \"taedium vitae\" e uma carta de despedida deixada onde os pais pudessem achar.",
+      "A trama: o pai tem um caso com a Sra. K.; o Sr. K. a assediou no lago (e antes, aos 14 anos, na loja). Ela sente que foi \"oferecida\" ao Sr. K. em troca da tolerância dele com o caso do pai. Ninguém acredita nela.",
+      "Sonho 1: a casa pegando fogo; o pai não quer que a mãe se demore salvando a caixinha de joias.",
+      "Sonho 2: vaga por uma cidade estranha, recebe carta dizendo que o pai morreu, não consegue chegar à estação.",
+      "Interrompeu na 11ª semana. Avisou com 15 dias de antecedência, \"como uma governanta\". Detalhe: a governanta foi demitida pelo Sr. K.",
+      "Revisão (a posteriori): o analista não viu a transferência a tempo. Também subestimou o amor dela pela Sra. K.; insistiu demais no Sr. K.",
+      "Voltou uma vez, 15 meses depois, só para contar que tinha confrontado os K. e que eles admitiram tudo. Sem retorno.",
+    ].join("\n"),
+  },
+  {
+    id: "p17", nome: "Aimée", apelido: "A.", origem: "indicacao",
+    modalidade: "online", status: "ativo", inicioEm: "2026-06-02", fuso: "Europe/Paris",
+    pontosFixos: [
+      "Caso \"Aimée\" (tese de doutorado, 1932: Da psicose paranoica em suas relações com a personalidade). Funcionária dos correios, escreve romances que ninguém publica.",
+      "Em abril de 1931 esperou uma atriz famosa na porta do teatro e a atacou com uma faca. A atriz segurou a lâmina com a mão. Ninguém morreu.",
+      "Delírio: as atrizes e escritoras famosas querem fazer mal ao filho dela. Escreveu cartas ao Príncipe de Gales pedindo proteção.",
+      "Hipótese: \"paranoia de autopunição\". Ao atacar a atriz, golpeou o próprio ideal, a mulher que ela gostaria de ser. Depois de presa, o delírio cedeu em ~20 dias: a punição bastou.",
+      "Sessões de tempo variável (tempo lógico). Às vezes 10 minutos. O analista corta quando acha que \"é aí\". Ela reclama do preço por minuto.",
+      "Sigilo: o filho dela, anos depois, fez análise com o mesmo analista, sem saber que a mãe era o caso da tese. Não comentar.",
+    ].join("\n"),
+    contrato: { dias: [2, 4], horario: "12:00", valor: 5000, moeda: "EUR", cobranca: "sessao", duracao: 10 },
+  },
 ];
 
 const CAMPANHAS: Campanha[] = [
@@ -215,6 +242,12 @@ const NOTAS_PROPRIAS: Record<string, string[]> = {
     "Releu o que escreveu sobre a infância e achou que estava bom demais. \"A Lila diria que eu enfeitei.\"",
     "Sonho: as duas descem ao porão do Dom Achille para buscar as bonecas. Só uma volta, e ela não sabe qual.",
   ],
+  p17: [
+    "Sessão de 7 minutos. Disse \"eu queria ser ela\" e o analista se levantou. Saiu furiosa e pagou.",
+    "Trouxe um capítulo novo do romance. A heroína ataca uma atriz. Achou coincidência.",
+    "Falou da irmã mais velha, que criou o filho dela. \"Ela tomou o meu lugar.\" Corte.",
+    "Pediu sessão de 50 minutos \"como os freudianos\". Recusado. Sessão de 12.",
+  ],
   p15: [
     "Retomou o sonho: os lobos imóveis. \"Por que eles não se mexem?\" A imobilidade é o que assusta.",
     "Trouxe o envelope da vaquinha deste mês. Culpa e alívio na mesma frase.",
@@ -251,7 +284,7 @@ export function gerarMocks(referencia: Date = new Date()): Mocks {
       frequencia: c.dias.length,
       diasSemana: c.dias,
       horario: c.horario,
-      duracaoMin: 50,
+      duracaoMin: c.duracao ?? 50,
       valor: dinheiro(c.valor, c.moeda ?? "BRL"),
       cobranca: c.cobranca,
       vigenteDe: p.inicioEm,
