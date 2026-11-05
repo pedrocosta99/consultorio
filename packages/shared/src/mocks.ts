@@ -1,7 +1,7 @@
 /**
  * Dados FICTÍCIOS para a Etapa 0 (sem banco). Nenhum nome aqui corresponde a
- * pacientes reais: os genéricos são inventados, e os "famosos" são personagens de
- * ficção (cinema, romance) ou casos clássicos publicados, pelo pseudônimo do caso.
+ * pacientes reais: são personagens de ficção (cinema, romance) ou casos clássicos
+ * publicados da psicanálise, pelo pseudônimo do caso.
  * Tudo é gerado de forma determinística a partir de uma data de referência, para
  * que as screenshots dos testes visuais sejam estáveis.
  */
@@ -59,31 +59,6 @@ type PacienteBase = Omit<Paciente, "pontosFixos"> & {
 
 const PACIENTES: PacienteBase[] = [
   {
-    id: "p01", nome: "Helena Moraes Vidal", apelido: "H.M.", contato: "(11) 90000-0101",
-    origem: "particular", modalidade: "presencial", status: "ativo", inicioEm: "2025-03-10",
-    fuso: FUSO_CONSULTORIO,
-    pontosFixos: "Relação com a mãe atravessa quase todas as sessões.\nSonho recorrente com a casa da infância.",
-    contrato: { dias: [1, 4], horario: "08:00", valor: 25000, cobranca: "mensal" },
-  },
-  {
-    id: "p02", nome: "Rafael Antunes Brito", apelido: "R.A.", contato: "rafael.ficticio@example.com",
-    origem: "indicacao", modalidade: "online", status: "ativo", inicioEm: "2025-08-04",
-    fuso: FUSO_CONSULTORIO,
-    contrato: { dias: [1], horario: "10:00", valor: 22000, cobranca: "sessao" },
-  },
-  {
-    id: "p03", nome: "Lívia Cardoso Pena", apelido: "L.C.", origem: "clinica_escola",
-    modalidade: "presencial", status: "ativo", inicioEm: "2026-02-02", fuso: FUSO_CONSULTORIO,
-    contrato: { dias: [2], horario: "09:00", valor: 6000, cobranca: "sessao" },
-  },
-  {
-    id: "p04", nome: "Marcos Teixeira Lago", apelido: "M.T.", contato: "(21) 90000-0404",
-    origem: "particular", modalidade: "online", status: "ativo", inicioEm: "2024-11-18",
-    fuso: FUSO_CONSULTORIO,
-    pontosFixos: "Hipótese: inibição ligada ao lugar do pai.",
-    contrato: { dias: [2, 5], horario: "14:00", valor: 28000, cobranca: "mensal" },
-  },
-  {
     id: "p05", nome: "Elena Greco", apelido: "Lenu", origem: "indicacao",
     modalidade: "online", status: "ativo", inicioEm: "2025-06-23", fuso: "Europe/Rome",
     pontosFixos: [
@@ -95,11 +70,6 @@ const PACIENTES: PacienteBase[] = [
       "Sigilo: Lila também já foi paciente aqui (ver ficha). Nunca citar uma para a outra.",
     ].join("\n"),
     contrato: { dias: [3], horario: "07:00", valor: 6000, moeda: "EUR", cobranca: "sessao" },
-  },
-  {
-    id: "p06", nome: "Diego Fontes Arruda", apelido: "D.F.", origem: "clinica_escola",
-    modalidade: "presencial", status: "ativo", inicioEm: "2026-05-11", fuso: FUSO_CONSULTORIO,
-    contrato: { dias: [3], horario: "11:00", valor: 6000, cobranca: "sessao" },
   },
   {
     id: "p07", nome: "Lírio de Itu", apelido: "L.I.", contato: "Recado no orelhão da praça",
@@ -117,24 +87,6 @@ const PACIENTES: PacienteBase[] = [
     contrato: { dias: [3], horario: "16:00", valor: 24000, cobranca: "sessao" },
   },
   {
-    id: "p08", nome: "Thomas Albuquerque Reis", apelido: "T.A.", origem: "particular",
-    modalidade: "online", status: "ativo", inicioEm: "2026-01-12", fuso: "America/New_York",
-    contrato: { dias: [4], horario: "18:00", valor: 9000, moeda: "USD", cobranca: "sessao" },
-  },
-  {
-    id: "p09", nome: "Júlia Matos Ferraz", apelido: "J.M.", origem: "particular",
-    modalidade: "presencial", status: "ativo", inicioEm: "2025-10-06", fuso: FUSO_CONSULTORIO,
-    contrato: { dias: [5], horario: "09:30", valor: 23000, cobranca: "sessao" },
-  },
-  {
-    id: "p10", nome: "Otávio Lins Barreto", apelido: "O.L.", origem: "indicacao",
-    modalidade: "online", status: "pausa", inicioEm: "2025-04-01", fuso: FUSO_CONSULTORIO,
-  },
-  {
-    id: "p11", nome: "Sofia Campos Leal", apelido: "S.C.", origem: "clinica_escola",
-    modalidade: "presencial", status: "alta", inicioEm: "2025-02-17", fuso: FUSO_CONSULTORIO,
-  },
-  {
     id: "p12", nome: "Raffaella Cerullo", apelido: "Lila", origem: "indicacao",
     modalidade: "online", status: "interrompido", inicioEm: "2025-09-01", fuso: "Europe/Rome",
     pontosFixos: [
@@ -144,16 +96,6 @@ const PACIENTES: PacienteBase[] = [
       "Interrompeu sem aviso. Aos 66 anos sumiu de Nápoles sem deixar rastro: levou as roupas e recortou-se de todas as fotografias. Não deixou endereço nem dívida.",
       "Candidata a arquivamento (ver regra de exclusão de pacientes interrompidos no plano).",
     ].join("\n"),
-  },
-  {
-    id: "p13", nome: "Paula Siqueira Dantas", apelido: "P.S.", origem: "anuncio",
-    modalidade: "online", status: "ativo", inicioEm: "2026-10-13", fuso: FUSO_CONSULTORIO,
-    contrato: { dias: [2], horario: "17:00", valor: 20000, cobranca: "sessao" },
-  },
-  {
-    id: "p14", nome: "Igor Menezes Tavares", apelido: "I.M.", origem: "anuncio",
-    modalidade: "presencial", status: "ativo", inicioEm: "2026-09-21", fuso: FUSO_CONSULTORIO,
-    contrato: { dias: [1], horario: "18:00", valor: 21000, cobranca: "sessao" },
   },
   {
     id: "p15", nome: "Wolfsmann", apelido: "H.L.", origem: "indicacao",
@@ -201,7 +143,7 @@ const PACIENTES: PacienteBase[] = [
 const CAMPANHAS: Campanha[] = [
   {
     id: "cp1", nome: "Perfil · psicanálise online", plataforma: "instagram", inicio: "2026-10-01", fim: "2026-10-31",
-    orcamento: dinheiro(60000), gasto: dinheiro(58740), impressoes: 18400, cliques: 412, contatos: 9, pacientesIds: ["p13"],
+    orcamento: dinheiro(60000), gasto: dinheiro(58740), impressoes: 18400, cliques: 412, contatos: 9, pacientesIds: [],
   },
   {
     id: "cp2", nome: "Stories · primeira conversa", plataforma: "instagram", inicio: "2026-11-01", fim: null,
@@ -209,7 +151,7 @@ const CAMPANHAS: Campanha[] = [
   },
   {
     id: "cp3", nome: "Busca · psicanalista SP", plataforma: "google", inicio: "2026-09-01", fim: "2026-09-30",
-    orcamento: dinheiro(50000), gasto: dinheiro(48900), impressoes: 9100, cliques: 260, contatos: 6, pacientesIds: ["p14"],
+    orcamento: dinheiro(50000), gasto: dinheiro(48900), impressoes: 9100, cliques: 260, contatos: 6, pacientesIds: [],
   },
   {
     id: "cp4", nome: "Teste · público 30–45", plataforma: "facebook", inicio: "2026-08-10", fim: "2026-08-31",
@@ -228,7 +170,7 @@ const CONTAS: Conta[] = [
 
 const CONTA_POR_MOEDA: Record<Moeda, string> = { BRL: "c-nubank", USD: "c-wise-usd", EUR: "c-wise-eur" };
 
-/** Notas de sessão próprias de alguns pacientes (o resto usa textos genéricos). */
+/** Notas de sessão de cada paciente com contrato. */
 const NOTAS_PROPRIAS: Record<string, string[]> = {
   p07: [
     "Chegou de chapéu de palha. Disse que em Itu ninguém reparava nele; aqui, todo mundo.",
@@ -404,16 +346,9 @@ export function gerarMocks(referencia: Date = new Date()): Mocks {
 
   // Notas: algumas notas de sessão recentes + pontos fixos.
   const notas: Nota[] = [];
-  const TEXTOS = [
-    "Chegou atrasado e falou disso por boa parte da sessão. Associou com a pressa no trabalho.",
-    "Retomou o sonho da casa. Desta vez a porta estava aberta.",
-    "Silêncio longo no início. Depois, lembrança da escola.",
-    "Trouxe a questão do dinheiro: 'nunca sobra'. Lapso: disse 'sobra' por 'obra'.",
-    "Sessão leve. Comentou planos para as férias.",
-  ];
   const contagemPorPaciente = new Map<string, number>();
   sessoes
-    .filter((s) => s.estado === "realizada")
+    .filter((s) => s.estado === "realizada" && NOTAS_PROPRIAS[s.pacienteId])
     .slice(-30)
     .forEach((s, i) => {
       const k = contagemPorPaciente.get(s.pacienteId) ?? 0;
@@ -424,7 +359,7 @@ export function gerarMocks(referencia: Date = new Date()): Mocks {
         pacienteId: s.pacienteId,
         sessaoId: s.id,
         tipo: "sessao",
-        texto: proprios ? proprios[k % proprios.length]! : TEXTOS[i % TEXTOS.length]!,
+        texto: proprios![k % proprios!.length]!,
         tags: i % 3 === 0 ? ["sonho"] : i % 4 === 0 ? ["dinheiro", "lapso"] : [],
         levarSupervisao: i % 6 === 0,
         natureza: i % 2 === 0 ? "documental" : "pessoal",

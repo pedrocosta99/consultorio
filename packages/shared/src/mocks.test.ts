@@ -25,9 +25,9 @@ describe("mocks", () => {
     }
   });
 
-  it("08:00 em São Paulo vira 11:00 UTC", () => {
+  it("16:00 em São Paulo vira 19:00 UTC", () => {
     const m = gerarMocks(REF);
-    const s = m.sessoes.find((x) => x.pacienteId === "p01")!;
-    expect(s.inicio).toMatch(/T11:00:00\.000Z$/);
+    const s = m.sessoes.find((x) => x.pacienteId === "p07")!;
+    expect(s.inicio).toMatch(/T19:00:00\.000Z$/);
   });
 });

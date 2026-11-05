@@ -64,6 +64,7 @@ Decisões tomadas: direção visual **Sálvia**; fuso principal **Brasília** (`
 **Extra (entre 0.8 e 0.9)**
 - `chore(mocks): pacientes fictícios famosos (Lírio de Itu, Lila e Lenu, Homem dos Lobos)`
 - `chore(mocks): casos Dora e Aimée (sessões de tempo variável)`
+- `chore(mocks): mantém só os pacientes pedidos (Lírio, Lenu, Lila, Wolfsmann, Dora, Aimée)`
 
 ### Como testar (pausa após 0.8)
 
@@ -72,7 +73,7 @@ Decisões tomadas: direção visual **Sálvia**; fuso principal **Brasília** (`
 3. **Mês**: arraste um chip para outro dia (mantém o horário). "+N mais" e o número do dia abrem a visão Dia.
 4. **Painel lateral** (clique numa sessão): Realizada / Falta / Pago, os horários nos fusos e "Remarcar" por data e hora (alternativa ao arrasto, também pelo teclado).
 5. **Dois fusos**: o botão 🌐 "Brasília" escolhe um segundo fuso (ex.: Lisboa). A coluna de horas mostra os dois, e as sessões também.
-6. **Fuso do paciente**: abra uma sessão da Lenu (Roma) ou do Thomas (Nova York); o painel mostra o horário para o paciente.
+6. **Fuso do paciente**: abra uma sessão da Lenu (Roma), do Wolfsmann (Viena) ou da Aimée (Paris); o painel mostra o horário para o paciente.
 7. **Linha do agora**: linha vermelha no dia de hoje, com a hora na coluna da esquerda.
 8. `/agenda?mock=vazio` mostra o aviso de agenda vazia; `/agenda?mock=carregando` mostra os blocos carregando.
 
@@ -81,7 +82,7 @@ Decisões tomadas: direção visual **Sálvia**; fuso principal **Brasília** (`
 1. **/financas › Visão geral**: totais por moeda (R$, US$, €), fluxo de caixa em R$ com tooltip e tabela embaixo, gastos do mês por categoria e as contas com saldo (cartão negativo).
 2. **Transações**: começa no mês atual. Filtros de mês, conta, categoria e busca; as entradas e saídas do filtro aparecem no topo.
 3. **Divulgação**: indicadores (gasto, contatos, custo por contato e por paciente) e cartões das campanhas com orçamento usado, métricas e pacientes captados. Clique num paciente captado para abrir a ficha.
-4. Em **Pacientes**, filtre a origem por "Anúncio": aparecem Paula e Igor.
+4. Em **Pacientes**, filtre a origem por "Anúncio": hoje a lista vem vazia, porque nenhum dos pacientes fictícios atuais chegou por anúncio.
 5. Em Transações, a categoria "Divulgação" mostra o gasto dos anúncios.
 6. Mobile (~390 px) e tema escuro.
 
@@ -89,9 +90,9 @@ Decisões tomadas: direção visual **Sálvia**; fuso principal **Brasília** (`
 
 1. **/pacientes**: filtros de status (o padrão é "Ativo") e de origem; a busca aceita nome ou iniciais. Os filtros ficam na URL. Na largura de celular a lista vira cartões.
 2. **Ficha** (clique num paciente): abas Resumo / Sessões / Pagamentos / Notas. A aba também fica na URL (`?aba=sessoes`).
-3. **Fuso do paciente**: Lenu (Roma) e Thomas (Nova York) mostram o horário local deles ao lado do de Brasília.
+3. **Fuso do paciente**: Lenu (Roma), Wolfsmann (Viena) e Aimée (Paris) mostram o horário local deles ao lado do de Brasília.
 4. **Aba Sessões**: os botões Realizada / Falta / Pago mudam o estado, e o "A receber" do Resumo e da lista acompanha.
-5. **Multimoeda**: Lenu paga em €, Thomas em US$, o resto em R$.
+5. **Multimoeda**: Lenu, Wolfsmann e Aimée pagam em €, o Lírio em R$. US$ só aparece no saldo da conta Wise.
 6. `/pacientes?mock=vazio` mostra o estado vazio; `/pacientes/xyz` mostra "paciente não encontrado".
 
 ### Como testar (pausa após 0.4)
