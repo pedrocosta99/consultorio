@@ -52,6 +52,8 @@ const NOMES_FUSO: Record<string, string> = {
   "Europe/Lisbon": "Lisboa",
   "Europe/London": "Londres",
   "Europe/Paris": "Paris",
+  "Europe/Rome": "Roma",
+  "Europe/Vienna": "Viena",
   "Asia/Dubai": "Dubai",
   UTC: "UTC",
 };

@@ -68,7 +68,7 @@ Decisões tomadas: direção visual **Sálvia**; fuso principal **Brasília** (`
 3. **Mês**: arraste um chip para outro dia (mantém o horário). "+N mais" e o número do dia abrem a visão Dia.
 4. **Painel lateral** (clique numa sessão): Realizada / Falta / Pago, os horários nos fusos e "Remarcar" por data e hora (alternativa ao arrasto, também pelo teclado).
 5. **Dois fusos**: o botão 🌐 "Brasília" escolhe um segundo fuso (ex.: Lisboa). A coluna de horas mostra os dois, e as sessões também.
-6. **Fuso do paciente**: abra uma sessão da Beatriz (Lisboa) ou do Thomas (Nova York); o painel mostra o horário para o paciente.
+6. **Fuso do paciente**: abra uma sessão da Lenu (Roma) ou do Thomas (Nova York); o painel mostra o horário para o paciente.
 7. **Linha do agora**: linha vermelha no dia de hoje, com a hora na coluna da esquerda.
 8. `/agenda?mock=vazio` mostra o aviso de agenda vazia; `/agenda?mock=carregando` mostra os blocos carregando.
 
@@ -85,9 +85,9 @@ Decisões tomadas: direção visual **Sálvia**; fuso principal **Brasília** (`
 
 1. **/pacientes**: filtros de status (o padrão é "Ativo") e de origem; a busca aceita nome ou iniciais. Os filtros ficam na URL. Na largura de celular a lista vira cartões.
 2. **Ficha** (clique num paciente): abas Resumo / Sessões / Pagamentos / Notas. A aba também fica na URL (`?aba=sessoes`).
-3. **Fuso do paciente**: Beatriz (Lisboa) e Thomas (Nova York) mostram o horário local deles ao lado do de Brasília.
+3. **Fuso do paciente**: Lenu (Roma) e Thomas (Nova York) mostram o horário local deles ao lado do de Brasília.
 4. **Aba Sessões**: os botões Realizada / Falta / Pago mudam o estado, e o "A receber" do Resumo e da lista acompanha.
-5. **Multimoeda**: Beatriz paga em €, Thomas em US$, o resto em R$.
+5. **Multimoeda**: Lenu paga em €, Thomas em US$, o resto em R$.
 6. `/pacientes?mock=vazio` mostra o estado vazio; `/pacientes/xyz` mostra "paciente não encontrado".
 
 ### Como testar (pausa após 0.4)

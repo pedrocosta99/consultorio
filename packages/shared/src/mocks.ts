@@ -1,7 +1,9 @@
 /**
  * Dados FICTÍCIOS para a Etapa 0 (sem banco). Nenhum nome aqui corresponde a
- * pacientes reais. Tudo é gerado de forma determinística a partir de uma data
- * de referência, para que as screenshots dos testes visuais sejam estáveis.
+ * pacientes reais: os genéricos são inventados, e os "famosos" são personagens de
+ * ficção (cinema, romance) ou casos clássicos publicados, pelo pseudônimo do caso.
+ * Tudo é gerado de forma determinística a partir de uma data de referência, para
+ * que as screenshots dos testes visuais sejam estáveis.
  */
 import { addDays, addWeeks, format, startOfWeek } from "date-fns";
 import { chaveDiaNoFuso, instanteDeParede, paraParede } from "./fuso";
@@ -82,9 +84,16 @@ const PACIENTES: PacienteBase[] = [
     contrato: { dias: [2, 5], horario: "14:00", valor: 28000, cobranca: "mensal" },
   },
   {
-    id: "p05", nome: "Beatriz Nogueira Sá", apelido: "B.N.", origem: "particular",
-    modalidade: "online", status: "ativo", inicioEm: "2025-06-23", fuso: "Europe/Lisbon",
-    pontosFixos: "Mora em Lisboa desde 2024. Sessões em euro.",
+    id: "p05", nome: "Elena Greco", apelido: "Lenu", origem: "indicacao",
+    modalidade: "online", status: "ativo", inicioEm: "2025-06-23", fuso: "Europe/Rome",
+    pontosFixos: [
+      "Escritora, nascida num bairro pobre de Nápoles (o \"rione\"). Sessões em euro, de Turim ou de onde estiver morando no momento.",
+      "Fala da amiga Lila em quase todas as sessões. Pergunta recorrente: \"eu escrevo ou sou escrita por ela?\"",
+      "Amizade e rivalidade desde a infância: Lila largou a escola e era a genial; Lenu estudou e foi embora. Cada uma acha que a vida boa ficou com a outra.",
+      "Nino Sarratore: volta sempre ao mesmo erro, com a mesma convicção.",
+      "Desde que Lila sumiu, decidiu escrever tudo o que aconteceu. Hipótese: tentativa de fixar a amiga no papel para que ela não se dissolva.",
+      "Sigilo: Lila também já foi paciente aqui (ver ficha). Nunca citar uma para a outra.",
+    ].join("\n"),
     contrato: { dias: [3], horario: "07:00", valor: 6000, moeda: "EUR", cobranca: "sessao" },
   },
   {
@@ -93,9 +102,18 @@ const PACIENTES: PacienteBase[] = [
     contrato: { dias: [3], horario: "11:00", valor: 6000, cobranca: "sessao" },
   },
   {
-    id: "p07", nome: "Camila Rezende Prado", apelido: "C.R.", contato: "(11) 90000-0707",
+    id: "p07", nome: "Lírio de Itu", apelido: "L.I.", contato: "Recado no orelhão da praça",
     origem: "indicacao", modalidade: "presencial", status: "ativo", inicioEm: "2025-01-15",
     fuso: FUSO_CONSULTORIO,
+    pontosFixos: [
+      "\"O Homem de Itu\" (O Bem Dotado, pornochanchada de 1978). Rapaz caipira, ingênuo, de Itu, a cidade onde tudo é grande.",
+      "Indicação de Nair e Zilá, duas milionárias que o contrataram como guia turístico e depois o levaram para a cidade grande. Elas pagaram as primeiras sessões.",
+      "O caso: as patroas logo descobriram que ele tem um \"dote\" fora do comum. A notícia correu, e desde então é disputado por todas as mulheres da casa (e da vizinhança). As primeiras experiências amorosas foram uma sequência de situações embaraçosas: portas que se abrem, maridos que chegam mais cedo, gente escondida no armário.",
+      "Queixa: \"Doutor, o povo só me olha da cintura pra baixo.\" Sente que ninguém pergunta o nome dele.",
+      "Hipótese: o atributo tomou o lugar do sujeito. Ele virou um tamanho. Trabalhar o desejo dele, não o das patroas.",
+      "Contratransferência: cuidado com o riso. Ele percebe.",
+      "Paga em dinheiro vivo, embrulhado num lenço.",
+    ].join("\n"),
     contrato: { dias: [3], horario: "16:00", valor: 24000, cobranca: "sessao" },
   },
   {
@@ -117,8 +135,15 @@ const PACIENTES: PacienteBase[] = [
     modalidade: "presencial", status: "alta", inicioEm: "2025-02-17", fuso: FUSO_CONSULTORIO,
   },
   {
-    id: "p12", nome: "André Pacheco Luz", apelido: "A.P.", origem: "particular",
-    modalidade: "online", status: "interrompido", inicioEm: "2025-09-01", fuso: FUSO_CONSULTORIO,
+    id: "p12", nome: "Raffaella Cerullo", apelido: "Lila", origem: "indicacao",
+    modalidade: "online", status: "interrompido", inicioEm: "2025-09-01", fuso: "Europe/Rome",
+    pontosFixos: [
+      "A \"amiga genial\". Largou a escola no fundamental e mesmo assim lê mais que todo mundo. Desenhou sapatos, montou uma empresa de computação no rione e casou cedo demais (Stefano).",
+      "Descreve episódios de \"desmarginação\": as bordas das coisas e das pessoas se dissolvem, e tudo vira uma massa sem contorno. Medo de que aconteça com ela mesma.",
+      "Rejeita qualquer interpretação que soe a Lenu.",
+      "Interrompeu sem aviso. Aos 66 anos sumiu de Nápoles sem deixar rastro: levou as roupas e recortou-se de todas as fotografias. Não deixou endereço nem dívida.",
+      "Candidata a arquivamento (ver regra de exclusão de pacientes interrompidos no plano).",
+    ].join("\n"),
   },
   {
     id: "p13", nome: "Paula Siqueira Dantas", apelido: "P.S.", origem: "anuncio",
@@ -129,6 +154,20 @@ const PACIENTES: PacienteBase[] = [
     id: "p14", nome: "Igor Menezes Tavares", apelido: "I.M.", origem: "anuncio",
     modalidade: "presencial", status: "ativo", inicioEm: "2026-09-21", fuso: FUSO_CONSULTORIO,
     contrato: { dias: [1], horario: "18:00", valor: 21000, cobranca: "sessao" },
+  },
+  {
+    id: "p15", nome: "Wolfsmann", apelido: "H.L.", origem: "indicacao",
+    modalidade: "online", status: "ativo", inicioEm: "2026-03-02", fuso: "Europe/Vienna",
+    pontosFixos: [
+      "O \"Homem dos Lobos\" (der Wolfsmann), da Bergasse 19. Aristocrata russo, chegou depois de passar por Kraepelin e por vários sanatórios. Aparece acompanhado do criado e do médico particular.",
+      "O sonho (aos 4 anos): é noite, a janela se abre sozinha e na nogueira em frente estão seis ou sete lobos brancos, com cauda de raposa, imóveis, olhando fixo para ele. Acorda gritando.",
+      "Hipótese do analista: cena primária vista com 1 ano e meio, reconstruída a partir do sonho. Ele mesmo nunca se lembrou dela, e diz isso a cada entrevista que dá.",
+      "Prisão de ventre crônica, fobia de lobos e de borboletas, devoção religiosa obsessiva na infância (irmã mais velha, a babá Nânia).",
+      "Para vencer a inércia, o analista marcou uma data de término. Funcionou… por um tempo.",
+      "Perdeu a fortuna na Revolução de 1917. Desde então, os analistas fazem uma vaquinha para pagar o tratamento (cobrança mensal, quando há).",
+      "Pinta lobos e nogueiras e assina as cartas com o apelido. Provável paciente para a vida toda.",
+    ].join("\n"),
+    contrato: { dias: [1, 3, 5], horario: "12:00", valor: 4000, moeda: "EUR", cobranca: "mensal" },
   },
 ];
 
@@ -161,6 +200,28 @@ const CONTAS: Conta[] = [
 ];
 
 const CONTA_POR_MOEDA: Record<Moeda, string> = { BRL: "c-nubank", USD: "c-wise-usd", EUR: "c-wise-eur" };
+
+/** Notas de sessão próprias de alguns pacientes (o resto usa textos genéricos). */
+const NOTAS_PROPRIAS: Record<string, string[]> = {
+  p07: [
+    "Chegou de chapéu de palha. Disse que em Itu ninguém reparava nele; aqui, todo mundo.",
+    "Sonhou com o orelhão gigante da praça de Itu tocando sem parar. \"Até o sonho é exagerado, doutor.\"",
+    "Contou que dona Nair \"derrubou a toalha sem querer\" de novo. Riu de nervoso. Primeira vez que falou da mãe.",
+    "Disse que quer ser lembrado por outra coisa. Não soube dizer qual. Ficamos com a pergunta.",
+  ],
+  p05: [
+    "Trouxe um caderno da Lila que guarda há décadas. Não abriu na sessão.",
+    "Falou do Nino de novo. Percebeu que fala dele com a voz da mãe.",
+    "Releu o que escreveu sobre a infância e achou que estava bom demais. \"A Lila diria que eu enfeitei.\"",
+    "Sonho: as duas descem ao porão do Dom Achille para buscar as bonecas. Só uma volta, e ela não sabe qual.",
+  ],
+  p15: [
+    "Retomou o sonho: os lobos imóveis. \"Por que eles não se mexem?\" A imobilidade é o que assusta.",
+    "Trouxe o envelope da vaquinha deste mês. Culpa e alívio na mesma frase.",
+    "Trouxe uma tela nova: a nogueira, a janela aberta, cinco lobos. Perguntei pelos outros dois.",
+    "Lembrou da babá Nânia e da irmã. Depois, longo silêncio. Disse que sente o \"véu\" de novo.",
+  ],
+};
 
 function sortearEstadoPassado(r: number): EstadoSessao {
   if (r < 0.84) return "realizada";
@@ -317,16 +378,20 @@ export function gerarMocks(referencia: Date = new Date()): Mocks {
     "Trouxe a questão do dinheiro: 'nunca sobra'. Lapso: disse 'sobra' por 'obra'.",
     "Sessão leve. Comentou planos para as férias.",
   ];
+  const contagemPorPaciente = new Map<string, number>();
   sessoes
     .filter((s) => s.estado === "realizada")
-    .slice(-24)
+    .slice(-30)
     .forEach((s, i) => {
+      const k = contagemPorPaciente.get(s.pacienteId) ?? 0;
+      contagemPorPaciente.set(s.pacienteId, k + 1);
+      const proprios = NOTAS_PROPRIAS[s.pacienteId];
       notas.push({
         id: `n${String(i + 1).padStart(3, "0")}`,
         pacienteId: s.pacienteId,
         sessaoId: s.id,
         tipo: "sessao",
-        texto: TEXTOS[i % TEXTOS.length]!,
+        texto: proprios ? proprios[k % proprios.length]! : TEXTOS[i % TEXTOS.length]!,
         tags: i % 3 === 0 ? ["sonho"] : i % 4 === 0 ? ["dinheiro", "lapso"] : [],
         levarSupervisao: i % 6 === 0,
         natureza: i % 2 === 0 ? "documental" : "pessoal",
