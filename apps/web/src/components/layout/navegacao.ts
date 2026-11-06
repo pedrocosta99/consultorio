@@ -1,4 +1,4 @@
-import { CalendarDays, LayoutDashboard, Settings, Users, Wallet, type LucideIcon } from "lucide-react";
+import { Bookmark, CalendarDays, LayoutDashboard, Settings, Users, Wallet, type LucideIcon } from "lucide-react";
 
 export interface ItemNav {
   rota: string;
@@ -10,6 +10,7 @@ export const NAVEGACAO: ItemNav[] = [
   { rota: "/", rotulo: "Painel", icone: LayoutDashboard },
   { rota: "/agenda", rotulo: "Agenda", icone: CalendarDays },
   { rota: "/pacientes", rotulo: "Pacientes", icone: Users },
+  { rota: "/supervisao", rotulo: "Supervisão", icone: Bookmark },
   { rota: "/financas", rotulo: "Finanças", icone: Wallet },
   { rota: "/configuracoes", rotulo: "Configurações", icone: Settings },
 ];
