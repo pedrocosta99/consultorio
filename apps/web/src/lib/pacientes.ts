@@ -18,9 +18,17 @@ export function descreverFrequencia(c: Contrato): string {
   return `${c.frequencia}x por semana, às ${lista}`;
 }
 
-/** Contrato vigente (sem data de fim) do paciente. */
-export function contratoVigente(contratos: Contrato[], pacienteId: string): Contrato | undefined {
-  return contratos.find((c) => c.pacienteId === pacienteId && c.vigenteAte === null);
+/**
+ * Contrato vigente do paciente: o que cobre hoje; se não houver, o próximo a começar
+ * (ex.: reajuste agendado) ou o último sem data de fim.
+ */
+export function contratoVigente(contratos: Contrato[], pacienteId: string, hoje = new Date().toISOString().slice(0, 10)): Contrato | undefined {
+  const dele = contratos.filter((c) => c.pacienteId === pacienteId);
+  return (
+    dele.find((c) => c.vigenteDe <= hoje && (c.vigenteAte === null || c.vigenteAte >= hoje)) ??
+    dele.find((c) => c.vigenteDe > hoje) ??
+    dele.find((c) => c.vigenteAte === null)
+  );
 }
 
 export const ESTILO_STATUS: Record<Paciente["status"], string> = {

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
-import { ChevronRight, Search, SearchX, UserPlus, Users } from "lucide-react";
+import { Archive, ChevronRight, Search, SearchX, UserPlus, Users } from "lucide-react";
 import {
   ORIGENS,
   ROTULO_MODALIDADE,
@@ -17,10 +17,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useDados } from "@/app/dados";
 import { CabecalhoPagina, EstadoVazio, PacienteAvatar, Valor, Valores } from "@/components/comuns";
+import { DialogoPaciente } from "@/components/formularios/DialogoPaciente";
 import { contratoVigente, descreverGrade, ESTILO_STATUS } from "@/lib/pacientes";
 import { cn } from "@/lib/utils";
 
-type FiltroStatus = Paciente["status"] | "todos";
+type FiltroStatus = Paciente["status"] | "todos" | "arquivados";
 type FiltroOrigem = Paciente["origem"] | "todas";
 
 export function StatusPaciente({ status, className }: { status: Paciente["status"]; className?: string }) {
@@ -32,7 +33,8 @@ export function StatusPaciente({ status, className }: { status: Paciente["status
 }
 
 export function PaginaPacientes() {
-  const { pacientes, contratos, carregando, nomeExibicao, saldoPaciente } = useDados();
+  const { pacientes, arquivados, contratos, carregando, nomeExibicao, saldoPaciente } = useDados();
+  const [novo, setNovo] = useState(false);
   const navegar = useNavigate();
   const [params, setParams] = useSearchParams();
   const [busca, setBusca] = useState("");
@@ -50,20 +52,20 @@ export function PaginaPacientes() {
     );
 
   const contagem = useMemo(() => {
-    const c: Record<FiltroStatus, number> = { todos: pacientes.length, ativo: 0, pausa: 0, alta: 0, interrompido: 0 };
+    const c: Record<FiltroStatus, number> = { todos: pacientes.length, ativo: 0, pausa: 0, alta: 0, interrompido: 0, arquivados: arquivados.length };
     for (const p of pacientes) c[p.status]++;
     return c;
-  }, [pacientes]);
+  }, [pacientes, arquivados]);
 
   const lista = useMemo(() => {
     const termo = busca.trim().toLowerCase();
-    return pacientes
-      .filter((p) => status === "todos" || p.status === status)
+    return (status === "arquivados" ? arquivados : pacientes)
+      .filter((p) => status === "todos" || status === "arquivados" || p.status === status)
       .filter((p) => origem === "todas" || p.origem === origem)
       .filter((p) => !termo || p.nome.toLowerCase().includes(termo) || p.apelido.toLowerCase().includes(termo))
       .map((p) => ({ p, contrato: contratoVigente(contratos, p.id), saldo: saldoPaciente(p.id).filter((v) => v.centavos > 0) }))
       .sort((a, b) => a.p.nome.localeCompare(b.p.nome, "pt-BR"));
-  }, [pacientes, contratos, status, origem, busca, saldoPaciente]);
+  }, [pacientes, arquivados, contratos, status, origem, busca, saldoPaciente]);
 
   const temFiltro = status !== "ativo" || origem !== "todas" || busca !== "";
   const limpar = () => {
@@ -76,7 +78,13 @@ export function PaginaPacientes() {
       <CabecalhoPagina
         titulo="Pacientes"
         descricao={carregando ? "Carregando…" : `${contagem.ativo} ativos · ${pacientes.length} no total`}
+        acoes={
+          <Button size="sm" onClick={() => setNovo(true)}>
+            <UserPlus aria-hidden /> Novo paciente
+          </Button>
+        }
       />
+      <DialogoPaciente aberto={novo} aoFechar={() => setNovo(false)} />
 
       {/* Filtros */}
       <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center">
@@ -94,6 +102,18 @@ export function PaginaPacientes() {
               <span className="text-xs text-muted-foreground tabular">{contagem[s]}</span>
             </Button>
           ))}
+          {contagem.arquivados > 0 && (
+            <Button
+              size="sm"
+              variant={status === "arquivados" ? "secondary" : "ghost"}
+              aria-pressed={status === "arquivados"}
+              className={cn("shrink-0", status === "arquivados" && "ring-1 ring-primary/25")}
+              onClick={() => mudarFiltro("status", "arquivados", "ativo")}
+            >
+              <Archive aria-hidden /> Arquivados
+              <span className="text-xs text-muted-foreground tabular">{contagem.arquivados}</span>
+            </Button>
+          )}
         </div>
         <div className="flex gap-2 lg:ml-auto">
           <div className="relative min-w-0 flex-1 lg:w-64 lg:flex-none">
@@ -132,14 +152,14 @@ export function PaginaPacientes() {
             </div>
           ))}
         </Card>
-      ) : pacientes.length === 0 ? (
+      ) : pacientes.length === 0 && arquivados.length === 0 ? (
         <Card className="py-0">
           <EstadoVazio
             icone={Users}
             titulo="Nenhum paciente ainda"
             descricao="Cadastre o primeiro paciente para começar a montar a agenda."
             acao={
-              <Button disabled>
+              <Button onClick={() => setNovo(true)}>
                 <UserPlus aria-hidden /> Novo paciente
               </Button>
             }

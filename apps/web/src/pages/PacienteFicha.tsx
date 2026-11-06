@@ -1,6 +1,6 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
-import { ArrowLeft, Bookmark, CalendarX2, Globe2, NotebookPen, Pin, Receipt, UserX } from "lucide-react";
+import { ArrowLeft, Bookmark, CalendarX2, Globe2, NotebookPen, Pin, Receipt, Trash2, UserX } from "lucide-react";
 import {
   ROTULO_MEIO,
   ROTULO_MODALIDADE,
@@ -19,7 +19,11 @@ import { usePreferencias } from "@/app/preferencias";
 import { AcoesSessao } from "@/components/AcoesSessao";
 import { EstadoBadge, EstadoVazio, PacienteAvatar, Valor, Valores } from "@/components/comuns";
 import { capitalizar, fmt, hora, nomeFuso, noFuso, offsetFuso } from "@/lib/datas";
-import { contratoVigente, descreverFrequencia } from "@/lib/pacientes";
+import { AcoesPaciente } from "@/components/formularios/AcoesPaciente";
+import { DialogoConfirmacao } from "@/components/formularios/campos";
+import { DialogoPagamento } from "@/components/formularios/DialogoPagamento";
+import { useAvisos } from "@/app/avisos";
+import { contratoVigente, descreverFrequencia, descreverGrade } from "@/lib/pacientes";
 import { StatusPaciente } from "./Pacientes";
 
 const ABAS = ["resumo", "sessoes", "pagamentos", "notas"] as const;
@@ -69,8 +73,10 @@ export function PaginaPacienteFicha() {
                 · <Globe2 className="size-3.5" aria-hidden /> {nomeFuso(p.fuso)} ({offsetFuso(p.fuso)})
               </span>
             )}
+            {p.arquivadoEm && <Badge variant="secondary">Arquivado</Badge>}
           </div>
         </div>
+        <AcoesPaciente paciente={p} contrato={contrato} />
       </header>
 
       <Tabs
@@ -121,8 +127,9 @@ function Linha({ rotulo, children }: { rotulo: string; children: React.ReactNode
 }
 
 function AbaResumo({ paciente: p, contrato }: { paciente: Paciente; contrato: Contrato | undefined }) {
-  const { sessoes, saldoPaciente } = useDados();
+  const { sessoes, saldoPaciente, contratos } = useDados();
   const { fusoPrincipal } = usePreferencias();
+  const historico = contratos.filter((k) => k.pacienteId === p.id && k.id !== contrato?.id).sort((a, b) => b.vigenteDe.localeCompare(a.vigenteDe));
   const agora = Date.now();
   const doPaciente = sessoes.filter((s) => s.pacienteId === p.id);
   const proximas = doPaciente.filter((s) => new Date(s.inicio).getTime() > agora && s.estado === "agendada").slice(0, 4);
@@ -219,9 +226,27 @@ function AbaResumo({ paciente: p, contrato }: { paciente: Paciente; contrato: Co
                 </Linha>
                 <Linha rotulo="Cobrança">{contrato.cobranca === "mensal" ? "Fechamento mensal" : "Por sessão"}</Linha>
                 <Linha rotulo="Vigente desde">{fmt(new Date(contrato.vigenteDe + "T12:00:00"), "d MMM yyyy")}</Linha>
+                {contrato.vigenteAte && <Linha rotulo="Até">{fmt(new Date(contrato.vigenteAte + "T12:00:00"), "d MMM yyyy")}</Linha>}
               </dl>
             ) : (
               <p className="py-2 text-sm text-muted-foreground">Sem contrato vigente ({p.status === "ativo" ? "cadastre um" : "paciente não está ativo"}).</p>
+            )}
+            {historico.length > 0 && (
+              <details className="mt-3 text-sm">
+                <summary className="cursor-pointer text-xs font-medium text-muted-foreground hover:text-foreground">
+                  Histórico de contratos ({historico.length})
+                </summary>
+                <ul className="mt-2 flex flex-col gap-1.5">
+                  {historico.map((k) => (
+                    <li key={k.id} className="flex items-baseline justify-between gap-3 text-xs">
+                      <span className="text-muted-foreground">
+                        {fmt(new Date(k.vigenteDe + "T12:00:00"), "dd/MM/yy")} – {k.vigenteAte ? fmt(new Date(k.vigenteAte + "T12:00:00"), "dd/MM/yy") : "…"} · {descreverGrade(k)}
+                      </span>
+                      <Valor valor={k.valor} className="font-medium" />
+                    </li>
+                  ))}
+                </ul>
+              </details>
             )}
             {p.contato && <p className="mt-3 text-xs text-muted-foreground">Contato: {p.contato}</p>}
           </CardContent>
@@ -284,21 +309,58 @@ function AbaSessoes({ paciente: p }: { paciente: Paciente }) {
 }
 
 function AbaPagamentos({ paciente: p }: { paciente: Paciente }) {
-  const { pagamentos, contas } = useDados();
+  const { pagamentos, contas, mutar } = useDados();
+  const { avisar } = useAvisos();
+  const [registrar, setRegistrar] = useState(false);
+  const [excluir, setExcluir] = useState<string | null>(null);
   const lista = pagamentos.filter((x) => x.pacienteId === p.id).sort((a, b) => b.data.localeCompare(a.data));
   const contaPorId = new Map(contas.map((c) => [c.id, c]));
+  const dialogos = (
+    <>
+      <DialogoPagamento aberto={registrar} aoFechar={() => setRegistrar(false)} pacienteId={p.id} />
+      <DialogoConfirmacao
+        aberto={excluir !== null}
+        aoFechar={() => setExcluir(null)}
+        titulo="Excluir pagamento"
+        rotuloConfirmar="Excluir"
+        destrutivo
+        descricao="As sessões que ele quitava voltam a ficar em aberto."
+        aoConfirmar={async () => {
+          await mutar("DELETE", `/pagamentos/${excluir}`);
+          avisar("Pagamento excluído.");
+        }}
+      />
+    </>
+  );
 
   if (lista.length === 0) {
-    return <Card className="py-0"><EstadoVazio icone={Receipt} titulo="Nenhum pagamento" descricao="Os pagamentos registrados aparecem aqui e entram como receita em Finanças." /></Card>;
+    return (
+      <Card className="py-0">
+        {dialogos}
+        <EstadoVazio
+          icone={Receipt}
+          titulo="Nenhum pagamento"
+          descricao="Os pagamentos registrados aparecem aqui e entram como receita em Finanças."
+          acao={
+            <Button onClick={() => setRegistrar(true)}>
+              <Receipt aria-hidden /> Registrar pagamento
+            </Button>
+          }
+        />
+      </Card>
+    );
   }
 
   return (
     <Card className="gap-0 overflow-hidden py-0">
-      <div className="flex flex-wrap items-baseline justify-between gap-2 border-b px-5 py-3 text-sm">
-        <span className="text-muted-foreground">{lista.length} pagamentos</span>
-        <span>
-          Total: <Valores valores={somarPorMoeda(lista.map((x) => x.valor))} className="font-medium" />
+      {dialogos}
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b px-5 py-3 text-sm">
+        <span className="text-muted-foreground">
+          {lista.length} pagamentos · Total: <Valores valores={somarPorMoeda(lista.map((x) => x.valor))} className="font-medium text-foreground" />
         </span>
+        <Button size="sm" onClick={() => setRegistrar(true)}>
+          <Receipt aria-hidden /> Registrar pagamento
+        </Button>
       </div>
       <div className="overflow-x-auto">
         <Table>
@@ -307,7 +369,10 @@ function AbaPagamentos({ paciente: p }: { paciente: Paciente }) {
               <TableHead className="pl-5">Data</TableHead>
               <TableHead>Meio</TableHead>
               <TableHead>Conta</TableHead>
-              <TableHead className="pr-5 text-right">Valor</TableHead>
+              <TableHead className="text-right">Valor</TableHead>
+              <TableHead className="w-12 pr-3">
+                <span className="sr-only">Ações</span>
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -318,8 +383,18 @@ function AbaPagamentos({ paciente: p }: { paciente: Paciente }) {
                   <TableCell className="pl-5 tabular">{fmt(new Date(x.data + "T12:00:00"), "dd/MM/yyyy")}</TableCell>
                   <TableCell>{ROTULO_MEIO[x.meio]}</TableCell>
                   <TableCell className="text-muted-foreground">{c ? `${c.instituicao} · ${c.nome}` : "—"}</TableCell>
-                  <TableCell className="pr-5 text-right font-medium">
+                  <TableCell className="text-right font-medium">
                     <Valor valor={x.valor} />
+                    {x.sessaoIds.length > 0 && (
+                      <span className="block text-xs font-normal text-muted-foreground">
+                        {x.sessaoIds.length} {x.sessaoIds.length === 1 ? "sessão" : "sessões"}
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell className="pr-3">
+                    <Button variant="ghost" size="icon-sm" aria-label={`Excluir pagamento de ${fmt(new Date(x.data + "T12:00:00"), "dd/MM/yyyy")}`} onClick={() => setExcluir(x.id)}>
+                      <Trash2 aria-hidden />
+                    </Button>
                   </TableCell>
                 </TableRow>
               );
