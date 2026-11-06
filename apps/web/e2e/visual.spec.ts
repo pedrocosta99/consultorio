@@ -1,4 +1,4 @@
-import { abrir, expect, semViolacoesA11y, test } from "./fixtures";
+import { abrir, entrar, expect, semViolacoesA11y, test } from "./fixtures";
 
 const TELAS: Array<[nome: string, rota: string]> = [
   ["painel", "/"],
@@ -11,6 +11,8 @@ const TELAS: Array<[nome: string, rota: string]> = [
   ["financas", "/financas"],
   ["transacoes", "/financas?aba=transacoes"],
   ["divulgacao", "/financas?aba=divulgacao"],
+  ["ficha-notas", "/pacientes/p07?aba=notas"],
+  ["supervisao", "/supervisao"],
   ["configuracoes", "/configuracoes"],
   ["lab", "/lab"],
   ["painel-vazio", "/?mock=vazio"],
@@ -39,4 +41,16 @@ test("Cmd+K abre a busca global", async ({ page }) => {
   await page.keyboard.press("ControlOrMeta+k");
   await expect(page.getByRole("dialog")).toBeVisible();
   await expect(page).toHaveScreenshot("busca-global.png");
+});
+
+test.describe("tela de PIN", () => {
+  test.use({ semLogin: true });
+  test("pede o PIN", async ({ page }) => {
+    await entrar(page); // garante que o PIN já existe
+    await page.context().clearCookies(); // …mas esta aba não tem sessão
+    await abrir(page, "/");
+    await expect(page.getByText("Digite seu PIN")).toBeVisible();
+    await expect(page).toHaveScreenshot("acesso.png");
+    await semViolacoesA11y(page);
+  });
 });

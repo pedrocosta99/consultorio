@@ -1,11 +1,18 @@
 import { defineConfig, devices } from "@playwright/test";
 
+import os from "node:os";
+import path from "node:path";
+
 /**
  * Testes visuais (screenshots) + acessibilidade (axe).
- * Relógio fixo em 2026-11-04 14:30 (Brasília); ver e2e/fixtures.ts.
- * Sobe um Vite próprio na porta 5174 para não brigar com o `pnpm dev`.
+ * Sobe API + Vite próprios (portas 8798 e 5174), sem tocar no `pnpm dev` nem no
+ * banco real: o banco de teste é temporário, recriado a cada execução, com os
+ * dados fictícios e o relógio da API fixo no mesmo instante do navegador.
  */
 const PORTA = 5174;
+const PORTA_API = 8798;
+export const AGORA_ISO = "2026-11-04T17:30:00.000Z"; // 14:30 em Brasília
+const BANCO = path.join(os.tmpdir(), "consultorio-e2e", "teste.db");
 
 const desktop = { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 };
 const mobile = { ...devices["iPhone 13"], viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, defaultBrowserType: "chromium" as const };
@@ -28,10 +35,20 @@ export default defineConfig({
     { name: "mobile-claro", use: { ...mobile, colorScheme: "light" } },
     { name: "mobile-escuro", use: { ...mobile, colorScheme: "dark" } },
   ],
-  webServer: {
-    command: `pnpm exec vite --port ${PORTA} --strictPort`,
-    url: `http://127.0.0.1:${PORTA}`,
-    reuseExistingServer: !process.env.CI,
-    timeout: 60_000,
-  },
+  webServer: [
+    {
+      command: `rm -rf "${path.dirname(BANCO)}" && pnpm --filter @consultorio/api exec tsx src/index.ts`,
+      url: `http://127.0.0.1:${PORTA_API}/api/health`,
+      env: { API_PORT: String(PORTA_API), CONSULTORIO_DB: BANCO, CONSULTORIO_AGORA: AGORA_ISO },
+      reuseExistingServer: false,
+      timeout: 60_000,
+    },
+    {
+      command: `pnpm exec vite --port ${PORTA} --strictPort`,
+      url: `http://127.0.0.1:${PORTA}`,
+      env: { API_PORT: String(PORTA_API), WEB_PORT: String(PORTA) },
+      reuseExistingServer: false,
+      timeout: 60_000,
+    },
+  ],
 });
