@@ -32,3 +32,21 @@ export async function api<T = { ok: true }>(metodo: "GET" | "POST" | "PATCH" | "
   }
   return dados as T;
 }
+
+/** Baixa um arquivo da API (ex.: PDF) e oferece para salvar. */
+export async function baixar(rota: string, nomeArquivo: string): Promise<void> {
+  const r = await fetch(`/api${rota}`, { headers: { "x-consultorio": "1" }, credentials: "same-origin" });
+  if (!r.ok) {
+    const dados = (await r.json().catch(() => ({}))) as { erro?: string };
+    if (r.status === 401) window.dispatchEvent(new Event(EVENTO_BLOQUEIO));
+    throw new ErroApi(r.status, dados.erro ?? `Erro ${r.status}`);
+  }
+  const url = URL.createObjectURL(await r.blob());
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = nomeArquivo;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}

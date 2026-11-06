@@ -20,6 +20,7 @@ import { bloquear, configurar, desbloquear, estadoAuth, exigirSessao, INATIVIDAD
 import { agora } from "./infra/relogio";
 import * as srv from "./servico";
 import * as backup from "./backup";
+import { gerarProntuario } from "./prontuario";
 import { SenhaOuArquivoInvalido } from "./infra/cofre";
 
 const COOKIE = "consultorio_sessao";
@@ -163,6 +164,13 @@ app.patch("/notas/:id", async (c) => {
 app.delete("/notas/:id", (c) => {
   srv.excluirNota(db(c), c.req.param("id"));
   return ok(c);
+});
+app.get("/pacientes/:id/prontuario.pdf", async (c) => {
+  const pdf = await gerarProntuario(db(c), c.req.param("id"), { pessoais: c.req.query("pessoais") === "1", agora: agora() });
+  return c.body(pdf as Uint8Array<ArrayBuffer>, 200, {
+    "Content-Type": "application/pdf",
+    "Content-Disposition": `attachment; filename="prontuario-${c.req.param("id")}.pdf"`,
+  });
 });
 app.get("/busca", (c) => c.json(srv.buscar(c.get("banco").sqlite, c.req.query("q") ?? "")));
 

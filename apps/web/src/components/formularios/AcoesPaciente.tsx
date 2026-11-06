@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router";
-import { Archive, ArchiveRestore, CalendarClock, CalendarOff, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, CalendarClock, CalendarOff, FileDown, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { FUSO_CONSULTORIO, type Contrato, type Paciente } from "@consultorio/shared";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -8,7 +8,10 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Input } from "@/components/ui/input";
 import { useAvisos } from "@/app/avisos";
 import { useDados } from "@/app/dados";
+import { baixar } from "@/lib/api";
 import { chaveDia, fmt } from "@/lib/datas";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { Campo, DialogoConfirmacao, textoDeDinheiro } from "./campos";
 import { CamposGrade, DialogoPaciente, GRADE_PADRAO, validarGrade, type GradeForm } from "./DialogoPaciente";
 
@@ -89,13 +92,14 @@ export function DialogoContrato({ aberto, aoFechar, paciente, atual }: { aberto:
   );
 }
 
-type Dialogo = null | "editar" | "contrato" | "encerrar" | "arquivar" | "excluir";
+type Dialogo = null | "editar" | "contrato" | "encerrar" | "arquivar" | "excluir" | "pdf";
 
 export function AcoesPaciente({ paciente: p, contrato }: { paciente: Paciente; contrato?: Contrato }) {
   const { mutar, nomeExibicao } = useDados();
   const { avisar } = useAvisos();
   const navegar = useNavigate();
   const [aberto, setAberto] = useState<Dialogo>(null);
+  const [pessoais, setPessoais] = useState(false);
   const [fimContrato, setFimContrato] = useState(() => chaveDia(new Date(), FUSO_CONSULTORIO));
   const fechar = () => setAberto(null);
   const interrompido = p.status === "interrompido";
@@ -121,6 +125,9 @@ export function AcoesPaciente({ paciente: p, contrato }: { paciente: Paciente; c
                 <CalendarOff aria-hidden /> Encerrar horário fixo
               </DropdownMenuItem>
             )}
+            <DropdownMenuItem onSelect={() => setAberto("pdf")}>
+              <FileDown aria-hidden /> Exportar prontuário (PDF)
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             {p.arquivadoEm ? (
               <DropdownMenuItem
@@ -147,6 +154,28 @@ export function AcoesPaciente({ paciente: p, contrato }: { paciente: Paciente; c
 
       <DialogoPaciente aberto={aberto === "editar"} aoFechar={fechar} paciente={p} />
       <DialogoContrato aberto={aberto === "contrato"} aoFechar={fechar} paciente={p} atual={contrato} />
+
+      <DialogoConfirmacao
+        aberto={aberto === "pdf"}
+        aoFechar={fechar}
+        titulo="Exportar prontuário"
+        rotuloConfirmar="Baixar PDF"
+        descricao={
+          <div className="flex flex-col gap-3">
+            <p>Identificação, contratos, pontos fixos, sessões e o registro documental. O arquivo sai sem cifra: guarde-o num lugar seguro.</p>
+            <div className="flex items-center gap-2">
+              <Switch id="pdf-pessoais" checked={pessoais} onCheckedChange={setPessoais} />
+              <Label htmlFor="pdf-pessoais" className="text-sm text-foreground">
+                Incluir anotações pessoais
+              </Label>
+            </div>
+          </div>
+        }
+        aoConfirmar={async () => {
+          await baixar(`/pacientes/${p.id}/prontuario.pdf${pessoais ? "?pessoais=1" : ""}`, `prontuario-${p.apelido.replace(/[^\w-]+/g, "")}.pdf`);
+          avisar("PDF gerado.");
+        }}
+      />
 
       <DialogoConfirmacao
         aberto={aberto === "encerrar"}
