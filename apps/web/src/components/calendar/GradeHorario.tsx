@@ -115,7 +115,7 @@ export function GradeHorario({
   };
 
   return (
-    <div className="overflow-x-auto rounded-xl border bg-card">
+    <div className="overflow-x-auto rounded-xl border bg-card" tabIndex={0} role="region" aria-label="Grade de horários">
       <div style={{ minWidth: dias.length > 1 ? 720 : undefined }}>
         {/* Cabeçalho dos dias */}
         <div className="grid border-b bg-card" style={{ gridTemplateColumns: colunas }}>
@@ -131,7 +131,7 @@ export function GradeHorario({
                 type="button"
                 onClick={() => aoAbrirDia(d)}
                 className="flex flex-col items-center gap-0.5 border-l py-2 text-xs hover:bg-muted/60"
-                aria-label={`Abrir ${fmt(d, "EEEE, d 'de' MMMM")}`}
+                title={`Abrir ${fmt(d, "EEEE, d 'de' MMMM")}`}
               >
                 <span className={cn("text-muted-foreground uppercase", hoje && "font-semibold text-primary")}>
                   {capitalizar(fmt(d, "EEE")).replace(".", "")}

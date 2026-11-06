@@ -58,7 +58,6 @@ export function BlocoSessao({
       {...(arrastavel ? { ...attributes, ...listeners } : {})}
       onClick={() => aoAbrir(s)}
       aria-roledescription={arrastavel ? "sessão arrastável" : "sessão"}
-      aria-label={`${hora(s.inicio, fusoPrincipal)}, ${nomeExibicao(p)}, ${ROTULO_ESTADO[s.estado]}${s.pago ? ", pago" : ""}`}
       className={cn(
         "absolute overflow-hidden rounded-md border border-l-[3px] px-1.5 py-1 text-left text-[11px] leading-tight shadow-xs transition-shadow",
         "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
@@ -86,6 +85,11 @@ export function BlocoSessao({
           {fusoSecundario ? `${hora(s.inicio, fusoSecundario)} no outro fuso` : ROTULO_ESTADO[s.estado]}
         </span>
       )}
+      {/* Para leitor de tela: o texto visível + o que só a cor/ícone indicam. */}
+      <span className="sr-only">
+        {compacto || fusoSecundario ? `, ${ROTULO_ESTADO[s.estado]}` : ""}
+        {s.pago ? ", pago" : ""}
+      </span>
     </button>
   );
 }

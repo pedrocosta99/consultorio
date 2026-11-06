@@ -38,7 +38,6 @@ function Chip({ s, fuso, aoAbrir }: { s: Sessao; fuso: string; aoAbrir: (s: Sess
       type="button"
       {...(arrastavel ? { ...attributes, ...listeners } : {})}
       onClick={() => aoAbrir(s)}
-      aria-label={`${hora(s.inicio, fuso)}, ${nomeExibicao(p)}, ${ROTULO_ESTADO[s.estado]}`}
       className={cn(
         "flex w-full items-center gap-1 truncate rounded border-l-2 px-1 py-px text-left text-[11px] leading-snug",
         ESTILO_ESTADO[grupo],
@@ -52,7 +51,8 @@ function Chip({ s, fuso, aoAbrir }: { s: Sessao; fuso: string; aoAbrir: (s: Sess
       }}
     >
       <span className="tabular opacity-80">{hora(s.inicio, fuso)}</span>
-      <span className="truncate font-medium">{p?.apelido}</span>
+      <span className="truncate font-medium">{nomeExibicao(p, "curto")}</span>
+      <span className="sr-only">, {ROTULO_ESTADO[s.estado]}</span>
     </button>
   );
 }

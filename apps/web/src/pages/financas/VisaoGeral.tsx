@@ -10,6 +10,9 @@ import { EstadoVazio, Valor } from "@/components/comuns";
 import { capitalizar, fmt, noFuso } from "@/lib/datas";
 import { cn } from "@/lib/utils";
 
+/** Respeita "reduzir movimento" do sistema (e deixa as screenshots estáveis). */
+const MOVIMENTO_REDUZIDO = typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
 const ICONE_CONTA: Record<Conta["tipo"], typeof Landmark> = {
   corrente: Landmark,
   poupanca: PiggyBank,
@@ -149,13 +152,13 @@ export function VisaoGeral() {
                       );
                     }}
                   />
-                  <Bar dataKey="entradas" name="Entradas" fill="var(--chart-entrada)" radius={[4, 4, 0, 0]} maxBarSize={36} />
-                  <Bar dataKey="saidas" name="Saídas" fill="var(--chart-saida)" radius={[4, 4, 0, 0]} maxBarSize={36} />
+                  <Bar dataKey="entradas" name="Entradas" fill="var(--chart-entrada)" radius={[4, 4, 0, 0]} maxBarSize={36} isAnimationActive={!MOVIMENTO_REDUZIDO} />
+                  <Bar dataKey="saidas" name="Saídas" fill="var(--chart-saida)" radius={[4, 4, 0, 0]} maxBarSize={36} isAnimationActive={!MOVIMENTO_REDUZIDO} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </CardContent>
-          <div className="overflow-x-auto border-t">
+          <div className="overflow-x-auto border-t" tabIndex={0} role="region" aria-label="Tabela do fluxo de caixa">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs text-muted-foreground">
