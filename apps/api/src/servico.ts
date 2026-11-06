@@ -17,6 +17,8 @@ import {
   type Contrato,
   type FeriadoEntrada,
   type Moeda,
+  type NotaEntrada,
+  type ResultadoBusca,
   type PacienteEntrada,
   type Paciente,
   type PacoteConsultorio,
@@ -125,6 +127,12 @@ export function carregarConsultorio(db: Db, agora: Date): PacoteConsultorio {
     contas: db.select().from(t.contas).all() as Conta[],
     feriados: db.select().from(t.feriados).orderBy(asc(t.feriados.data)).all(),
     moedas: moedasAtivas(db),
+    notas: db
+      .select()
+      .from(t.notas)
+      .orderBy(asc(t.notas.criadoEm))
+      .all()
+      .map((n) => ({ ...n, sessaoId: n.sessaoId ?? null })),
   };
 }
 
@@ -449,3 +457,76 @@ export function criarConta(db: Db, c: Omit<Conta, "id" | "ativa">): string {
   return id;
 }
 
+
+// ── Notas e busca ────────────────────────────────────────────
+
+export function criarNota(db: Db, e: NotaEntrada): string {
+  existe(db.select().from(t.pacientes).where(eq(t.pacientes.id, e.pacienteId)).get(), "Paciente não encontrado");
+  if (e.sessaoId) {
+    const s = existe(db.select().from(t.sessoes).where(eq(t.sessoes.id, e.sessaoId)).get(), "Sessão não encontrada");
+    if (s.pacienteId !== e.pacienteId) throw new ErroDominio(400, "A sessão é de outro paciente.");
+  }
+  const id = novoId("n");
+  db.insert(t.notas)
+    .values({
+      id,
+      pacienteId: e.pacienteId,
+      sessaoId: e.sessaoId ?? null,
+      tipo: e.sessaoId ? "sessao" : "fixa",
+      texto: e.texto,
+      tags: e.tags ?? [],
+      levarSupervisao: e.levarSupervisao ?? false,
+      natureza: e.natureza ?? "documental",
+    })
+    .run();
+  return id;
+}
+
+export function atualizarNota(db: Db, id: string, e: Partial<Omit<NotaEntrada, "pacienteId">>) {
+  const n = existe(db.select().from(t.notas).where(eq(t.notas.id, id)).get(), "Nota não encontrada");
+  const mudancas: Partial<typeof t.notas.$inferInsert> = { atualizadoEm: new Date().toISOString() };
+  if (e.texto !== undefined) mudancas.texto = e.texto;
+  if (e.tags !== undefined) mudancas.tags = e.tags;
+  if (e.levarSupervisao !== undefined) mudancas.levarSupervisao = e.levarSupervisao;
+  if (e.natureza !== undefined) mudancas.natureza = e.natureza;
+  if (e.sessaoId !== undefined) {
+    if (e.sessaoId) {
+      const s = existe(db.select().from(t.sessoes).where(eq(t.sessoes.id, e.sessaoId)).get(), "Sessão não encontrada");
+      if (s.pacienteId !== n.pacienteId) throw new ErroDominio(400, "A sessão é de outro paciente.");
+    }
+    mudancas.sessaoId = e.sessaoId ?? null;
+    mudancas.tipo = e.sessaoId ? "sessao" : "fixa";
+  }
+  db.update(t.notas).set(mudancas).where(eq(t.notas.id, id)).run();
+}
+
+export function excluirNota(db: Db, id: string) {
+  const r = db.delete(t.notas).where(eq(t.notas.id, id)).run();
+  if (!r.changes) throw new ErroDominio(404, "Nota não encontrada");
+}
+
+/** Monta a consulta FTS5: cada palavra vira prefixo ("sonh" acha "sonho"), todas obrigatórias. */
+export function consultaFts(q: string): string | null {
+  const termos = q
+    .normalize("NFC")
+    .split(/\s+/)
+    .map((p) => p.replace(/[^\p{L}\p{N}]/gu, ""))
+    .filter(Boolean)
+    .slice(0, 8);
+  return termos.length ? termos.map((p) => `"${p}"*`).join(" ") : null;
+}
+
+export function buscar(sqlite: import("better-sqlite3").Database, q: string, limite = 30): ResultadoBusca[] {
+  const consulta = consultaFts(q);
+  if (!consulta) return [];
+  const linhas = sqlite
+    .prepare(
+      `select f.origem, f.ref_id as refId, f.paciente_id as pacienteId,
+              snippet(busca_fts, 3, '[[', ']]', '…', 14) as trecho, n.criado_em as criadoEm
+         from busca_fts f left join notas n on f.origem = 'nota' and n.id = f.ref_id
+        where busca_fts match ?
+        order by bm25(busca_fts) limit ?`,
+    )
+    .all(consulta, limite) as Array<ResultadoBusca & { criadoEm: string | null }>;
+  return linhas.map(({ criadoEm, ...r }) => (criadoEm ? { ...r, criadoEm } : r));
+}

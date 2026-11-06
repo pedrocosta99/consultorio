@@ -86,6 +86,7 @@ export interface PacoteConsultorio {
   pagamentos: import("./types").Pagamento[];
   contas: import("./types").Conta[];
   feriados: Feriado[];
+  notas: import("./types").Nota[];
   /** Moedas em uso. BRL sempre; USD/EUR só se ligadas em Configurações. */
   moedas: import("./money").Moeda[];
 }
@@ -96,4 +97,24 @@ export interface EstadoAuth {
   desbloqueado: boolean;
   /** O cookie desta aba tem sessão válida? */
   sessaoValida: boolean;
+}
+
+export const notaEntradaSchema = z.object({
+  pacienteId: z.string().min(1),
+  sessaoId: z.string().nullable().optional(),
+  texto: z.string().trim().min(1, "A nota está vazia"),
+  tags: z.array(z.string().trim().min(1).max(40)).max(20).default([]),
+  levarSupervisao: z.boolean().default(false),
+  natureza: z.enum(["documental", "pessoal"]).default("documental"),
+});
+export type NotaEntrada = z.input<typeof notaEntradaSchema>;
+export const notaPatchSchema = notaEntradaSchema.omit({ pacienteId: true }).partial();
+
+/** Resultado da busca de texto completo. O trecho marca o termo entre [[ e ]]. */
+export interface ResultadoBusca {
+  origem: "nota" | "fixos";
+  refId: string;
+  pacienteId: string;
+  trecho: string;
+  criadoEm?: string;
 }

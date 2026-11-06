@@ -6,6 +6,8 @@ import {
   feriadoEntradaSchema,
   MOEDA_PRINCIPAL,
   MOEDAS,
+  notaEntradaSchema,
+  notaPatchSchema,
   pacienteEntradaSchema,
   pinSchema,
   pagamentoEntradaSchema,
@@ -152,6 +154,17 @@ app.delete("/feriados/:data", (c) => {
   srv.removerFeriado(db(c), c.req.param("data"), agora());
   return ok(c);
 });
+
+app.post("/notas", async (c) => ok(c, { id: srv.criarNota(db(c), notaEntradaSchema.parse(await c.req.json())) }));
+app.patch("/notas/:id", async (c) => {
+  srv.atualizarNota(db(c), c.req.param("id"), notaPatchSchema.parse(await c.req.json()));
+  return ok(c);
+});
+app.delete("/notas/:id", (c) => {
+  srv.excluirNota(db(c), c.req.param("id"));
+  return ok(c);
+});
+app.get("/busca", (c) => c.json(srv.buscar(c.get("banco").sqlite, c.req.query("q") ?? "")));
 
 app.put("/configuracoes/moedas", async (c) => {
   const { moedas } = z.object({ moedas: z.array(z.enum(MOEDAS)) }).parse(await c.req.json());

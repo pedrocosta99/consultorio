@@ -103,6 +103,7 @@ export const notaSchema = z.object({
   /** documental = poderia ser exigido; pessoal = anotação do analista. */
   natureza: z.enum(["documental", "pessoal"]),
   criadoEm: instante,
+  atualizadoEm: instante.optional(),
 });
 export type Nota = z.infer<typeof notaSchema>;
 

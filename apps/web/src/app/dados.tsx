@@ -2,8 +2,8 @@
  * Fonte de dados do app.
  *
  * Consultório (pacientes, contratos, sessões, pagamentos, contas, feriados): vem da
- * API local (banco SQLite). Finanças, Divulgação e notas ainda são FICTÍCIAS até as
- * suas fases (notas: Fase 2; finanças: Fase 3).
+ * API local (banco SQLite), assim como as notas clínicas. Finanças e Divulgação ainda
+ * são FICTÍCIAS até a Fase 3.
  *
  * Parâmetro de simulação na URL (útil para revisar estados e para os testes):
  *   ?mock=vazio       → sem dados
@@ -33,7 +33,7 @@ function lerModoMock(): ModoMock {
   return m === "vazio" || m === "carregando" ? m : "normal";
 }
 
-const PACOTE_VAZIO: Omit<PacoteConsultorio, "agora"> = { pacientes: [], contratos: [], sessoes: [], pagamentos: [], contas: [], feriados: [], moedas: ["BRL"] };
+const PACOTE_VAZIO: Omit<PacoteConsultorio, "agora"> = { pacientes: [], contratos: [], sessoes: [], pagamentos: [], contas: [], feriados: [], moedas: ["BRL"], notas: [] };
 
 type Metodo = "POST" | "PATCH" | "PUT" | "DELETE";
 
@@ -116,13 +116,11 @@ export function DadosProvider({ children }: { children: ReactNode }) {
 
   // Finanças/Divulgação/notas: fictícias até as próximas fases. Geradas a partir do relógio da API.
   const ficticio = useMemo(() => {
-    if (!pacote || modo === "vazio") return { notas: [], transacoes: [], campanhas: [] };
+    if (!pacote || modo === "vazio") return { transacoes: [], campanhas: [] };
     const m = gerarMocks(new Date(pacote.agora));
-    const ids = new Set(pacote.pacientes.map((p) => p.id));
     // Só lançamentos de contas que existem no banco e em moedas ligadas (banco novo → Finanças vazia).
     const contas = new Set(pacote.contas.filter((c) => pacote.moedas.includes(c.moeda)).map((c) => c.id));
     return {
-      notas: m.notas.filter((n) => ids.has(n.pacienteId)),
       transacoes: m.transacoes.filter((t) => contas.has(t.contaId)),
       campanhas: contas.size && pacote.contas.some((c) => c.id === "c-cartao") ? m.campanhas : [],
     };
@@ -141,6 +139,7 @@ export function DadosProvider({ children }: { children: ReactNode }) {
       contas: base.contas.filter((c) => base.moedas.includes(c.moeda)),
       feriados: base.feriados,
       moedas: base.moedas,
+      notas: base.notas,
       ...ficticio,
       carregando: modo === "carregando" || pacote === null,
       recarregar,

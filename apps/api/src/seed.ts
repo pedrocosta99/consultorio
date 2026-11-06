@@ -53,6 +53,11 @@ export function semearFicticio(db: Db, agora: Date) {
         })
         .run();
     }
+    for (const n of m.notas) {
+      tx.insert(t.notas)
+        .values({ ...n, sessaoId: n.sessaoId ?? null })
+        .run();
+    }
     for (const pg of m.pagamentos) {
       tx.insert(t.pagamentos)
         .values({

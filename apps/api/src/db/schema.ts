@@ -13,6 +13,7 @@ import {
   ORIGENS,
   STATUS_PACIENTE,
   TIPOS_CONTA,
+  TIPOS_NOTA,
 } from "@consultorio/shared";
 
 const criadoEm = () => text("criado_em").notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ','now'))`);
@@ -133,3 +134,25 @@ export const feriados = sqliteTable("feriados", {
   data: text("data").primaryKey(),
   descricao: text("descricao").notNull(),
 });
+
+/**
+ * Notas clínicas (dado sensível). A busca de texto completo fica em `busca_fts`
+ * (FTS5), mantida por triggers — ver a migração 0001.
+ */
+export const notas = sqliteTable(
+  "notas",
+  {
+    id: text("id").primaryKey(),
+    pacienteId: text("paciente_id").notNull().references(() => pacientes.id, { onDelete: "cascade" }),
+    sessaoId: text("sessao_id").references(() => sessoes.id, { onDelete: "set null" }),
+    tipo: text("tipo", { enum: TIPOS_NOTA }).notNull(),
+    texto: text("texto").notNull(),
+    tags: text("tags", { mode: "json" }).$type<string[]>().notNull().default(sql`'[]'`),
+    levarSupervisao: integer("levar_supervisao", { mode: "boolean" }).notNull().default(false),
+    /** documental = poderia ser exigido; pessoal = anotação do analista. */
+    natureza: text("natureza", { enum: ["documental", "pessoal"] }).notNull(),
+    criadoEm: criadoEm(),
+    atualizadoEm: text("atualizado_em").notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ','now'))`),
+  },
+  (t) => [index("notas_paciente").on(t.pacienteId), index("notas_sessao").on(t.sessaoId)],
+);

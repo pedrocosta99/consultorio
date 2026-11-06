@@ -8,6 +8,20 @@
       "when": 1793969402134,
       "tag": "0000_inicial",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1793970787764,
+      "tag": "0001_notas",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1793970788414,
+      "tag": "0002_busca_fts",
+      "breakpoints": true
     }
   ]
 }

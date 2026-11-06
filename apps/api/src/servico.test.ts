@@ -157,3 +157,39 @@ describe("moedas", () => {
     expect(() => definirMoedas(db, [])).toThrow(/EUR/);
   });
 });
+
+describe("notas e busca (FTS5)", () => {
+  it("cria, edita, apaga e busca sem acento e por prefixo", async () => {
+    const { criarNota, atualizarNota, excluirNota, buscar } = await import("./servico");
+    const sqlite = (db as unknown as { $client: import("better-sqlite3").Database }).$client;
+    const id = criarNota(db, { pacienteId: pid, texto: "Sonhou com o **Lírio** na praça de Itu." });
+    expect(buscar(sqlite, "lirio")).toHaveLength(1); // sem acento acha com acento
+    expect(buscar(sqlite, "son")).toHaveLength(1); // prefixo
+    expect(buscar(sqlite, "praca itu")[0]!.trecho).toContain("[[praça]]");
+    expect(buscar(sqlite, "inexistente")).toHaveLength(0);
+    atualizarNota(db, id, { texto: "Outra coisa" });
+    expect(buscar(sqlite, "lirio")).toHaveLength(0);
+    expect(buscar(sqlite, "outra")).toHaveLength(1);
+    excluirNota(db, id);
+    expect(buscar(sqlite, "outra")).toHaveLength(0);
+  });
+
+  it("pontos fixos entram na busca; caracteres especiais não quebram a consulta", async () => {
+    const { buscar } = await import("./servico");
+    const sqlite = (db as unknown as { $client: import("better-sqlite3").Database }).$client;
+    atualizarPaciente(db, pid, { pontosFixos: "Relação com a mãe; sonho recorrente." }, AGORA);
+    expect(buscar(sqlite, "MAE")[0]).toMatchObject({ origem: "fixos", pacienteId: pid });
+    expect(buscar(sqlite, '"mãe" * ( ^:')).toHaveLength(1);
+    expect(buscar(sqlite, "mãe OR pai")).toHaveLength(0); // OR é palavra comum, não operador
+  });
+
+  it("excluir o paciente apaga as notas e o índice", async () => {
+    const { criarNota, buscar } = await import("./servico");
+    const sqlite = (db as unknown as { $client: import("better-sqlite3").Database }).$client;
+    criarNota(db, { pacienteId: pid, texto: "nota que some" });
+    atualizarPaciente(db, pid, { status: "interrompido" }, AGORA);
+    excluirPaciente(db, pid);
+    expect(buscar(sqlite, "some")).toHaveLength(0);
+    expect(carregarConsultorio(db, AGORA).notas).toHaveLength(0);
+  });
+});
