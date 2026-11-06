@@ -136,8 +136,10 @@ export function PainelSessao({
                     <UserRound aria-hidden /> Abrir ficha
                   </Link>
                 </Button>
-                <Button variant="ghost" size="sm" disabled title="Chega na Etapa 2">
-                  <NotebookPen aria-hidden /> Nota da sessão
+                <Button asChild variant="secondary" size="sm">
+                  <Link to={`/pacientes/${p.id}?aba=notas&sessao=${s.id}`}>
+                    <NotebookPen aria-hidden /> Nota da sessão
+                  </Link>
                 </Button>
               </div>
             </div>

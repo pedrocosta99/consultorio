@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
-import { ArrowLeft, Bookmark, CalendarX2, Globe2, NotebookPen, Pin, Receipt, Trash2, UserX } from "lucide-react";
+import { ArrowLeft, CalendarX2, Globe2, Receipt, Trash2, UserX } from "lucide-react";
 import {
   ROTULO_MEIO,
   ROTULO_MODALIDADE,
@@ -20,6 +20,7 @@ import { AcoesSessao } from "@/components/AcoesSessao";
 import { EstadoBadge, EstadoVazio, PacienteAvatar, Valor, Valores } from "@/components/comuns";
 import { capitalizar, fmt, hora, nomeFuso, noFuso, offsetFuso } from "@/lib/datas";
 import { AcoesPaciente } from "@/components/formularios/AcoesPaciente";
+import { AbaNotas, PontosFixos } from "@/components/notas/Notas";
 import { DialogoConfirmacao } from "@/components/formularios/campos";
 import { DialogoPagamento } from "@/components/formularios/DialogoPagamento";
 import { useAvisos } from "@/app/avisos";
@@ -78,6 +79,10 @@ export function PaginaPacienteFicha() {
         </div>
         <AcoesPaciente paciente={p} contrato={contrato} />
       </header>
+
+      <div className="mb-5">
+        <PontosFixos paciente={p} />
+      </div>
 
       <Tabs
         value={aba}
@@ -140,22 +145,6 @@ function AbaResumo({ paciente: p, contrato }: { paciente: Paciente; contrato: Co
   return (
     <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
       <div className="flex flex-col gap-4">
-        <Card className="gap-3 border-[var(--st-falta-bd)]/50 bg-[var(--st-falta-bg)]/40 py-4">
-          <CardHeader className="px-5">
-            <CardTitle className="flex items-center gap-2 font-serif text-lg font-medium">
-              <Pin className="size-4" aria-hidden /> Pontos fixos
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-5">
-            {p.pontosFixos ? (
-              <p className="text-sm leading-relaxed whitespace-pre-line">{p.pontosFixos}</p>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Nada registrado ainda. Aqui ficam história, significantes recorrentes, sonhos e hipóteses para ter sempre à vista.
-              </p>
-            )}
-          </CardContent>
-        </Card>
 
         <Card className="gap-0 py-0">
           <CardHeader className="flex items-center border-b px-5 py-4">
@@ -403,38 +392,5 @@ function AbaPagamentos({ paciente: p }: { paciente: Paciente }) {
         </Table>
       </div>
     </Card>
-  );
-}
-
-function AbaNotas({ paciente: p }: { paciente: Paciente }) {
-  const { notas } = useDados();
-  const { fusoPrincipal } = usePreferencias();
-  const lista = notas.filter((n) => n.pacienteId === p.id).sort((a, b) => b.criadoEm.localeCompare(a.criadoEm));
-
-  if (lista.length === 0) {
-    return <Card className="py-0"><EstadoVazio icone={NotebookPen} titulo="Nenhuma nota" descricao="Notas de sessão chegam na Etapa 2, com editor markdown e busca." /></Card>;
-  }
-
-  return (
-    <ol className="relative ml-2 border-l pl-6">
-      {lista.map((n) => (
-        <li key={n.id} className="relative pb-6 last:pb-0">
-          <span className="absolute top-1.5 -left-[29px] size-2.5 rounded-full border-2 border-background bg-primary" aria-hidden />
-          <div className="mb-1.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-            <span className="font-medium text-foreground">{capitalizar(fmt(noFuso(n.criadoEm, fusoPrincipal), "EEEE, d 'de' MMMM"))}</span>
-            <Badge variant="outline" className="font-normal">{n.natureza === "documental" ? "Registro documental" : "Anotação pessoal"}</Badge>
-            {n.levarSupervisao && (
-              <Badge variant="secondary" className="font-normal">
-                <Bookmark aria-hidden /> Supervisão
-              </Badge>
-            )}
-            {n.tags.map((t) => (
-              <span key={t}>#{t}</span>
-            ))}
-          </div>
-          <Card className="px-4 py-3 text-sm leading-relaxed shadow-none">{n.texto}</Card>
-        </li>
-      ))}
-    </ol>
   );
 }
