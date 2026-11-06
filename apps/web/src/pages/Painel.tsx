@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { Link } from "react-router";
 import { CalendarCheck2, CalendarDays, CircleDollarSign, Coffee, TrendingUp, UserX } from "lucide-react";
-import { format } from "date-fns";
+import { endOfWeek, format, startOfWeek } from "date-fns";
 import type { Dinheiro } from "@consultorio/shared";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +10,7 @@ import { somarPorMoeda, useDados } from "@/app/dados";
 import { usePreferencias } from "@/app/preferencias";
 import { AcoesSessao } from "@/components/AcoesSessao";
 import { CabecalhoPagina, EstadoBadge, EstadoVazio, PacienteAvatar, Valor, Valores } from "@/components/comuns";
-import { capitalizar, chaveDia, fmt, hora, noFuso } from "@/lib/datas";
+import { capitalizar, chaveDia, fmt, hora, noFuso, SEMANA } from "@/lib/datas";
 
 function saudacao(h: number): string {
   if (h < 12) return "Bom dia";
@@ -55,6 +55,12 @@ export function PaginaPainel() {
 
   const dados = useMemo(() => {
     const deHoje = sessoes.filter((s) => chaveDia(s.inicio, fusoPrincipal) === hoje);
+    const inicioSemana = format(startOfWeek(hojeLocal, SEMANA), "yyyy-MM-dd");
+    const fimSemana = format(endOfWeek(hojeLocal, SEMANA), "yyyy-MM-dd");
+    const daSemana = sessoes.filter((s) => {
+      const d = chaveDia(s.inicio, fusoPrincipal);
+      return d >= inicioSemana && d <= fimSemana && s.estado !== "cancelada";
+    });
     const doMes = sessoes.filter((s) => chaveDia(s.inicio, fusoPrincipal).startsWith(mes));
     const passadasMes = doMes.filter((s) => s.estado !== "agendada");
     const faltasMes = doMes.filter((s) => s.estado === "falta_cobrada" || s.estado === "falta_nao_cobrada");
@@ -77,6 +83,8 @@ export function PaginaPainel() {
       deHoje,
       proxima: deHoje.find((s) => new Date(s.inicio) > agora && s.estado === "agendada"),
       realizadasHoje: deHoje.filter((s) => s.estado === "realizada").length,
+      semana: daSemana.length,
+      ativos: pacientes.filter((p) => p.status === "ativo").length,
       aReceber: somarPorMoeda(devedores.flatMap((d) => d.saldo)),
       qtdDevedores: devedores.length,
       receitaMes,
@@ -121,6 +129,9 @@ export function PaginaPainel() {
               }
             >
               {dados.deHoje.length}
+              <span className="ml-2 font-sans text-xs font-normal text-muted-foreground">
+                {dados.semana} na semana · {dados.ativos} ativos
+              </span>
             </Indicador>
             <Indicador
               titulo="A receber"
