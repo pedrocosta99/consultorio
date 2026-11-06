@@ -192,17 +192,17 @@ Cinco fases, cada uma termina num app que você já usa de verdade; a fase 1 soz
 
 **Fase 1 — Consultório básico**
 
-- [ ] Estrutura do projeto, banco, migrações e tela de login com senha
-- [ ] CRUD de pacientes e contratos (com arquivar/excluir só para *interrompido*)
-- [ ] Geração de sessões pela grade fixa e marcação de estado
-- [ ] Registro de pagamentos e saldo por paciente
-- [ ] Exportar/importar snapshot cifrado para uma pasta do Drive
+- [x] Estrutura do projeto, banco, migrações e tela de login com senha
+- [x] CRUD de pacientes e contratos (com arquivar/excluir só para *interrompido*)
+- [x] Geração de sessões pela grade fixa e marcação de estado
+- [x] Registro de pagamentos e saldo por paciente
+- [x] Exportar/importar snapshot cifrado para uma pasta do Drive
 
 **Fase 2 — Notas clínicas**
 
-- [ ] Notas por sessão e pontos fixos do paciente (editor markdown)
-- [ ] Tags, busca de texto completo e lista "supervisão"
-- [ ] Painel do consultório
+- [x] Notas por sessão e pontos fixos do paciente (editor markdown)
+- [x] Tags, busca de texto completo e lista "supervisão"
+- [x] Painel do consultório
 
 **Fase 3 — Finanças essenciais**
 

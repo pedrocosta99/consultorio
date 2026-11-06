@@ -43,19 +43,51 @@ Autorizado a seguir sem pausas até o fim da Fase 2 (6 nov 2026). Decisões toma
 | 1.6 | CRUD de pacientes e contratos (reajuste sem apagar o passado; arquivar/excluir só *interrompido*) | ✅ |
 | 1.7 | Registrar pagamento e saldo por paciente | ✅ |
 | 1.8 | Exportar/importar snapshot cifrado (VACUUM INTO + AES-256-GCM + scrypt) | ✅ |
-| 1.9 | Testes visuais rodando contra a API com seed | ⬜ |
+| 1.9 | Testes visuais rodando contra a API com seed | ✅ |
 
 ## Etapa 2: notas clínicas (Fase 2)
 
 | Passo | O quê | Status |
 | --- | --- | --- |
-| 2.1 | Tabela de notas + FTS5 + API | ⬜ |
-| 2.2 | Editor markdown com salvamento automático; pontos fixos e linha do tempo na ficha; nota direto do calendário | ⬜ |
-| 2.3 | Busca de texto completo no Cmd+K, com destaque | ⬜ |
-| 2.4 | "Levar para supervisão" (página própria) e filtro documental/pessoal | ⬜ |
-| 2.5 | Exportar prontuário do paciente em PDF | ⬜ |
-| 2.6 | Painel do consultório com dados reais | ⬜ |
-| 2.7 | Banco cifrado com SQLCipher e migração do banco existente | ⬜ |
+| 2.1 | Tabela de notas + FTS5 + API | ✅ |
+| 2.2 | Editor markdown com salvamento automático; pontos fixos e linha do tempo na ficha; nota direto do calendário | ✅ |
+| 2.3 | Busca de texto completo no Cmd+K, com destaque | ✅ |
+| 2.4 | "Levar para supervisão" (página própria) e filtro documental/pessoal | ✅ |
+| 2.5 | Exportar prontuário do paciente em PDF | ✅ |
+| 2.6 | Painel do consultório com dados reais | ✅ |
+| 2.7 | Banco cifrado com SQLCipher e migração do banco existente | ✅ |
+
+Decisões da Etapa 2:
+
+- **Busca:** uma tabela FTS5 (`busca_fts`) cobre notas e pontos fixos, mantida por triggers. Sem acento e por prefixo; o que o usuário digita nunca vira operador FTS.
+- **Markdown** das notas é renderizado como elementos React (sem HTML cru).
+- **Salvamento automático:** a nota nasce no banco na primeira pausa de digitação (900 ms) e cada mudança grava sozinha.
+- **PDF** gerado localmente com `pdf-lib`; anotações pessoais só se pedidas.
+- **SQLCipher v4** com o PIN. `VACUUM INTO` gera cópia cifrada, então o `.cofre` tem cifra dupla; restaurar pede a senha do backup **e** o PIN do backup.
+
+### Commits da Etapa 2
+
+- `feat(api): notas clínicas no banco com busca de texto completo (FTS5)`
+- `feat(web): notas na ficha — escrever, editar e apagar, com salvamento automático`
+- `feat(web): Cmd+K busca no texto das notas e dos pontos fixos, com o termo destacado`
+- `feat(web): página Supervisão reúne as notas marcadas, por paciente`
+- `feat: exportar prontuário do paciente em PDF (pdf-lib, gerado localmente)`
+- `feat(web): Painel mostra sessões da semana e pacientes ativos`
+- `feat: banco cifrado em disco (SQLCipher) com o PIN; migra bancos em claro`
+- `feat(web): pontos fixos longos começam recolhidos ("Mostrar tudo")`
+- `test(web): testes visuais rodam contra a API real (banco temporário + seed + relógio fixo)`
+
+### Como testar (fim da Fase 2)
+
+1. `pnpm dev` e abra http://127.0.0.1:5173. Crie um **PIN de 6 dígitos**; ligue "Começar com dados fictícios" para testar (ou deixe desligado para começar vazio). O banco fica em `data/consultorio.db`, já cifrado.
+2. **Bloqueio:** cadeado no topo (ou Cmd+K › Bloquear). Sem mexer por 15 min, bloqueia sozinho.
+3. **Pacientes › Novo paciente** com horário fixo → a agenda ganha 8 semanas. Na ficha, **⋯** › alterar contrato (reajuste a partir de uma data), encerrar, exportar PDF. Mude o status para *interrompido* e veja **Arquivar/Excluir** (Lila e Dora já estão assim).
+4. **Pagamentos:** ficha › Pagamentos › Registrar (já vem com o saldo e as sessões em aberto). Ou o "Pago" rápido no Painel/Agenda.
+5. **Notas:** ficha › Notas › Nova nota. Escreva e veja "Salvo"; edite e apague. Pontos fixos editáveis no topo. Na Agenda, painel da sessão › "Nota da sessão".
+6. **Busca:** Cmd+K e digite um termo de nota (ex.: "sonho", "lobos", "orelhao" sem acento).
+7. **Supervisão:** marque "Levar para supervisão" numa nota e abra a página Supervisão.
+8. **Configurações:** moedas (ligue euro/dólar), feriados (a grade pula o dia), contas, backup cifrado (pasta + senha de backup ≥10) e restaurar.
+9. `pnpm test` (72 testes) e `pnpm test:visual` (80 casos com axe).
 
 ### Commits da Etapa 1
 
@@ -76,7 +108,9 @@ Autorizado a seguir sem pausas até o fim da Fase 2 (6 nov 2026). Decisões toma
 
 ### Lembretes para etapas futuras
 
-- **Excluir paciente** (Etapa 1): só para status *interrompido*, com confirmação. Padrão = arquivar (guarda de 5 anos do CFP); exclusão definitiva com aviso.
+- ~~Excluir paciente~~ feito na Etapa 1 (arquivar por padrão; excluir definitivo com confirmação digitada).
+- **Trocar o PIN** (não existe ainda): exigiria `rekey` do banco.
+- **Finanças e Divulgação** ainda usam dados fictícios (Fase 3).
 - **Divulgação avançada** (Etapas 3 e 5): gasto vindo do extrato/cartão, retorno por campanha, funil, orçamento de anúncios.
 
 ### Commits
