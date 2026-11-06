@@ -17,10 +17,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { DialogoPagamento } from "@/components/formularios/DialogoPagamento";
+import { DialogoPaciente } from "@/components/formularios/DialogoPaciente";
 
 export function MenuNovo() {
   const navegar = useNavigate();
   const [emBreve, setEmBreve] = useState<string | null>(null);
+  const [dialogo, setDialogo] = useState<null | "paciente" | "pagamento">(null);
 
   return (
     <>
@@ -35,10 +38,10 @@ export function MenuNovo() {
           <DropdownMenuItem onSelect={() => navegar("/agenda")}>
             <CalendarPlus aria-hidden /> Sessão
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => setEmBreve("Novo paciente")}>
+          <DropdownMenuItem onSelect={() => setDialogo("paciente")}>
             <UserPlus aria-hidden /> Paciente
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => setEmBreve("Registrar pagamento")}>
+          <DropdownMenuItem onSelect={() => setDialogo("pagamento")}>
             <CircleDollarSign aria-hidden /> Pagamento
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => setEmBreve("Nova nota")}>
@@ -51,12 +54,17 @@ export function MenuNovo() {
         </DropdownMenuContent>
       </DropdownMenu>
 
+      <DialogoPaciente aberto={dialogo === "paciente"} aoFechar={() => setDialogo(null)} />
+      <DialogoPagamento aberto={dialogo === "pagamento"} aoFechar={() => setDialogo(null)} />
+
       <Dialog open={emBreve !== null} onOpenChange={(v) => !v && setEmBreve(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="font-serif text-xl font-medium">{emBreve}</DialogTitle>
             <DialogDescription>
-              Os formulários chegam na Etapa 1, quando as telas forem ligadas ao banco. Por enquanto, tudo aqui usa dados fictícios.
+              {emBreve === "Nova nota"
+                ? "O editor de notas chega na Etapa 2 (notas clínicas)."
+                : "Transações de verdade chegam na Fase 3 (Finanças). Por enquanto, Finanças mostra dados fictícios."}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
