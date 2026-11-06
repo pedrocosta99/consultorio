@@ -27,19 +27,22 @@ Autorizado a seguir sem pausas até o fim da Fase 2 (6 nov 2026). Decisões toma
 
 - **Banco:** `better-sqlite3-multiple-ciphers` (API idêntica ao better-sqlite3, mas já suporta SQLCipher, o que deixa a Etapa 2 sem troca de driver) + Drizzle ORM com migrações versionadas em `apps/api/drizzle/`.
 - **Arquivo do banco:** `data/consultorio.db` (fora do git). Caminho configurável por `CONSULTORIO_DB`.
-- **Senha:** definida no primeiro acesso; guardada só como hash scrypt em `meta_sistema`. A API começa bloqueada; o banco só é aberto/usado depois do desbloqueio. Sessão expira após 15 min sem uso (front e API).
+- **PIN de 6 dígitos** (pedido do usuário, uso local): definido no primeiro acesso; guardado só como hash scrypt em `meta_sistema`. A API começa bloqueada; o banco só é aberto depois do desbloqueio. Sessão expira após 15 min sem uso (front e API). Atraso crescente a cada PIN errado.
+- **Backup** usa uma **senha própria (≥10 caracteres)**, digitada na hora: o arquivo sai da máquina, e um PIN de 6 dígitos seria quebrável offline.
+- **Moedas:** começa só em reais; dólar e euro ligam em Configurações (pedido do usuário).
+- **Segurança HTTP:** Host só loopback e cabeçalho `x-consultorio` obrigatório (barra CSRF e DNS rebinding).
 - **Finanças e Divulgação** continuam com dados fictícios até a Fase 3; o Consultório passa a usar o banco.
 
 | Passo | O quê | Status |
 | --- | --- | --- |
-| 1.1 | Esquema Drizzle (pacientes, contratos, sessões, pagamentos, contas, feriados, meta_sistema), migrações e seed fictício | ⬜ |
-| 1.2 | Regras com testes: geração de sessões pela grade (feriados, reajuste/mudança de contrato) e saldo | ⬜ |
-| 1.3 | API: pacientes, contratos, sessões, pagamentos, feriados | ⬜ |
-| 1.4 | Senha ao abrir e bloqueio por inatividade | ⬜ |
-| 1.5 | Front ligado à API (agenda, painel, ficha gravam no banco) | ⬜ |
-| 1.6 | CRUD de pacientes e contratos (reajuste sem apagar o passado; arquivar/excluir só *interrompido*) | ⬜ |
-| 1.7 | Registrar pagamento e saldo por paciente | ⬜ |
-| 1.8 | Exportar/importar snapshot cifrado (VACUUM INTO + AES-256-GCM + scrypt) | ⬜ |
+| 1.1 | Esquema Drizzle (pacientes, contratos, sessões, pagamentos, contas, feriados, meta_sistema), migrações e seed fictício | ✅ |
+| 1.2 | Regras com testes: geração de sessões pela grade (feriados, reajuste/mudança de contrato) e saldo | ✅ |
+| 1.3 | API: pacientes, contratos, sessões, pagamentos, feriados | ✅ |
+| 1.4 | PIN ao abrir e bloqueio por inatividade | ✅ |
+| 1.5 | Front ligado à API (agenda, painel, ficha gravam no banco) | ✅ |
+| 1.6 | CRUD de pacientes e contratos (reajuste sem apagar o passado; arquivar/excluir só *interrompido*) | ✅ |
+| 1.7 | Registrar pagamento e saldo por paciente | ✅ |
+| 1.8 | Exportar/importar snapshot cifrado (VACUUM INTO + AES-256-GCM + scrypt) | ✅ |
 | 1.9 | Testes visuais rodando contra a API com seed | ⬜ |
 
 ## Etapa 2: notas clínicas (Fase 2)
@@ -53,6 +56,23 @@ Autorizado a seguir sem pausas até o fim da Fase 2 (6 nov 2026). Decisões toma
 | 2.5 | Exportar prontuário do paciente em PDF | ⬜ |
 | 2.6 | Painel do consultório com dados reais | ⬜ |
 | 2.7 | Banco cifrado com SQLCipher e migração do banco existente | ⬜ |
+
+### Commits da Etapa 1
+
+- `docs: fecha a Etapa 0 e planeja as Etapas 1 e 2`
+- `feat(api): esquema SQLite (Drizzle) e migração inicial`
+- `feat(api): geração de sessões pela grade e saldo por moeda, com testes`
+- `feat(shared): schemas de entrada (paciente, contrato, sessão, pagamento, feriado)`
+- `feat(api): conexão, seed fictício e serviço do consultório com testes`
+- `feat(api): rotas REST, senha (scrypt) e bloqueio por inatividade`
+- `refactor: saldo no pacote compartilhado; estado de acesso informa se a sessão da aba vale`
+- `feat(web): senha ao abrir, bloqueio por inatividade e dados do consultório vindos da API`
+- `feat(shared): lerCentavos e centavosParaTexto para campos de valor (pt-BR)`
+- `feat(web): cadastro e edição de pacientes, contrato/reajuste, arquivar e excluir`
+- `feat(web): registrar pagamento (quitando sessões), feriados e contas`
+- `feat(api): backup cifrado (VACUUM INTO + gzip + AES-256-GCM/scrypt) e PIN de 6 dígitos`
+- `feat(web): tela de PIN e seção de backup em Configurações`
+- `feat: moedas configuráveis — começa só em reais; dólar e euro ligam em Configurações`
 
 ### Lembretes para etapas futuras
 
