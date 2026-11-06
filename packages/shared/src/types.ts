@@ -26,6 +26,8 @@ export const pacienteSchema = z.object({
   /** Fuso IANA onde o paciente está (ex.: "America/Sao_Paulo"). */
   fuso: z.string(),
   pontosFixos: z.string().default(""),
+  /** Arquivado (some das listas, prontuário guardado). Instante ISO ou ausente. */
+  arquivadoEm: instante.nullable().optional(),
 });
 export type Paciente = z.infer<typeof pacienteSchema>;
 
@@ -43,6 +45,7 @@ export const contratoSchema = z.object({
   duracaoMin: z.number().int().positive(),
   valor: dinheiroSchema,
   cobranca: z.enum(COBRANCAS),
+  politicaFaltas: z.string().optional(),
   vigenteDe: dataCivil,
   vigenteAte: dataCivil.nullable(),
 });
