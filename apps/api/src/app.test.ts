@@ -8,59 +8,43 @@ process.env.CONSULTORIO_DB = path.join(pasta, "teste.db");
 process.env.CONSULTORIO_AGORA = "2026-11-04T17:30:00.000Z";
 
 const { app } = await import("./app");
-const { bloquear } = await import("./estado");
+const { fecharBanco } = await import("./estado");
 
-let cookie = "";
 async function req(metodo: string, rota: string, corpo?: unknown, extra: Record<string, string> = {}) {
   const r = await app.request(`/api${rota}`, {
     method: metodo,
-    headers: { host: "127.0.0.1:8787", "x-consultorio": "1", "content-type": "application/json", cookie, ...extra },
+    headers: { host: "127.0.0.1:8787", "x-consultorio": "1", "content-type": "application/json", ...extra },
     body: corpo === undefined ? undefined : JSON.stringify(corpo),
   });
-  const sc = r.headers.get("set-cookie");
-  if (sc) cookie = sc.split(";")[0]!;
   return { status: r.status, json: (await r.json()) as any };
 }
 
-beforeAll(() => bloquear());
+beforeAll(() => fecharBanco());
 afterAll(() => {
-  bloquear();
+  fecharBanco();
   fs.rmSync(pasta, { recursive: true, force: true });
 });
 
 describe("API", () => {
   it("recusa Host externo e chamadas sem o cabeçalho próprio", async () => {
-    expect((await req("GET", "/auth/estado", undefined, { host: "evil.example" })).status).toBe(403);
-    expect((await req("GET", "/auth/estado", undefined, { "x-consultorio": "" })).status).toBe(403);
+    expect((await req("GET", "/consultorio", undefined, { host: "evil.example" })).status).toBe(403);
+    expect((await req("GET", "/consultorio", undefined, { "x-consultorio": "" })).status).toBe(403);
   });
 
-  it("começa sem configuração e bloqueada", async () => {
-    const r = await req("GET", "/auth/estado");
-    expect(r.json).toMatchObject({ configurado: false, desbloqueado: false });
-    expect((await req("GET", "/consultorio")).status).toBe(401);
-  });
-
-  it("PIN precisa de 6 dígitos; configurar com dados fictícios desbloqueia", async () => {
-    expect((await req("POST", "/auth/configurar", { senha: "123" })).status).toBe(400);
-    expect((await req("POST", "/auth/configurar", { senha: "abcdef" })).status).toBe(400);
-    const r = await req("POST", "/auth/configurar", { senha: "482915", ficticio: true });
-    expect(r.status).toBe(200);
-    // O arquivo do banco é cifrado: sem cabeçalho SQLite nem nomes legíveis.
-    const bruto = fs.readFileSync(process.env.CONSULTORIO_DB!);
-    expect(bruto.subarray(0, 15).toString()).not.toBe("SQLite format 3");
-    expect(bruto.includes(Buffer.from("Wolfsmann"))).toBe(false);
+  it("abre direto, sem PIN: banco novo vazio com uma conta em reais", async () => {
     const c = await req("GET", "/consultorio");
     expect(c.status).toBe(200);
-    expect(c.json.pacientes.length).toBeGreaterThan(3);
+    expect(c.json.pacientes).toEqual([]);
+    expect(c.json.contas.map((x: any) => x.moeda)).toEqual(["BRL"]);
+    expect(c.json.moedas).toEqual(["BRL"]);
     expect(c.json.agora).toBe("2026-11-04T17:30:00.000Z");
   });
 
-  it("bloquear fecha; PIN errado dá 401; certa reabre", async () => {
-    await req("POST", "/auth/bloquear");
-    expect((await req("GET", "/consultorio")).status).toBe(401);
-    expect((await req("POST", "/auth/desbloquear", { senha: "000000" })).status).toBe(401);
-    expect((await req("POST", "/auth/desbloquear", { senha: "482915" })).status).toBe(200);
-    expect((await req("GET", "/consultorio")).status).toBe(200);
+  it("carrega os dados fictícios só com o banco vazio", async () => {
+    expect((await req("POST", "/dados-ficticios")).status).toBe(200);
+    const c = await req("GET", "/consultorio");
+    expect(c.json.pacientes.length).toBeGreaterThan(3);
+    expect((await req("POST", "/dados-ficticios")).status).toBe(409);
   });
 
   it("cria paciente e contrato e as sessões aparecem", async () => {
@@ -89,7 +73,7 @@ describe("API", () => {
     expect(minhas[0].inicio).toBe("2026-11-06T16:00:00.000Z");
   });
 
-  it("backup: exporta cifrado, importa de volta e exige o PIN de novo", async () => {
+  it("backup: exporta cifrado e importa de volta", async () => {
     const pastaBackup = fs.mkdtempSync(path.join(os.tmpdir(), "consultorio-backup-"));
     expect((await req("POST", "/backup/exportar", { pasta: pastaBackup, senha: "curta" })).status).toBe(400);
     const ex = await req("POST", "/backup/exportar", { pasta: pastaBackup, senha: "frase longa de backup" });
@@ -104,14 +88,10 @@ describe("API", () => {
 
     const lista = await req("GET", `/backup?pasta=${encodeURIComponent(pastaBackup)}`);
     expect(lista.json.snapshots).toHaveLength(1);
-    expect((await req("POST", "/backup/importar", { pasta: pastaBackup, arquivo: ex.json.arquivo, senha: "errada", pin: "482915" })).status).toBe(400);
-    const pinErrado = await req("POST", "/backup/importar", { pasta: pastaBackup, arquivo: ex.json.arquivo, senha: "frase longa de backup", pin: "111111" });
-    expect(pinErrado.json.erro).toMatch(/PIN do backup/);
-    expect((await req("POST", "/backup/importar", { pasta: pastaBackup, arquivo: ex.json.arquivo, senha: "frase longa de backup", pin: "482915" })).status).toBe(200);
+    expect((await req("POST", "/backup/importar", { pasta: pastaBackup, arquivo: ex.json.arquivo, senha: "errada" })).status).toBe(400);
+    expect((await req("POST", "/backup/importar", { pasta: pastaBackup, arquivo: ex.json.arquivo, senha: "frase longa de backup" })).status).toBe(200);
 
-    // …a importação encerra a sessão e volta ao estado do backup.
-    expect((await req("GET", "/consultorio")).status).toBe(401);
-    expect((await req("POST", "/auth/desbloquear", { senha: "482915" })).status).toBe(200);
+    // …e a importação volta ao estado do backup.
     expect((await req("GET", "/consultorio")).json.pacientes.length).toBe(antes);
     expect(fs.readdirSync(path.join(pasta, "backups")).length).toBe(1);
     fs.rmSync(pastaBackup, { recursive: true, force: true });

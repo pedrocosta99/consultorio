@@ -9,7 +9,7 @@
     "typecheck": "pnpm -r typecheck",
     "test": "vitest run",
     "test:visual": "pnpm --filter @consultorio/web test:visual",
-    "test:visual:update": "pnpm --filter @consultorio/web test:visual --update-snapshots"
+    "test:visual:update": "pnpm --filter @consultorio/web test:visual --update-snapshots=all"
   },
   "devDependencies": {
     "concurrently": "^10.0.6",

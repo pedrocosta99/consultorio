@@ -1,142 +1,60 @@
 /**
- * Estado do processo: banco aberto (ou não) e sessões de login.
- *
- * A API começa BLOQUEADA: o banco só é aberto depois que a senha confere, e é
- * fechado de novo quando a última sessão expira (15 min sem uso) ou no "Bloquear".
+ * Banco aberto pelo processo da API. Uso local, sem tela de acesso: o banco é
+ * aberto na primeira chamada e fica aberto.
  */
-import fs from "node:fs";
 import { randomBytes } from "node:crypto";
-import { eq } from "drizzle-orm";
-import type { EstadoAuth } from "@consultorio/shared";
-import { abrirBanco, arquivoEmClaro, caminhoBanco, ChaveInvalida, cifrarArquivo, type Banco } from "./db/conexao";
+import { eq, sql } from "drizzle-orm";
+import { abrirBanco, arquivoEmClaro, caminhoBanco, type Banco } from "./db/conexao";
 import * as t from "./db/schema";
-import { conferirSenha, hashSenha } from "./infra/senha";
 import { agora } from "./infra/relogio";
 import { criarConta, ErroDominio, garantirSessoes } from "./servico";
 import { semearFicticio } from "./seed";
-
-export const INATIVIDADE_MS = 15 * 60 * 1000;
+import fs from "node:fs";
 
 let banco: Banco | null = null;
-/** token → último uso (relógio real, não o fixo dos testes). */
-const sessoes = new Map<string, number>();
-let falhasSeguidas = 0;
-
-export class NaoAutorizado extends Error {}
-
-export function estadoAuth(): Omit<EstadoAuth, "sessaoValida"> {
-  return { configurado: fs.existsSync(caminhoBanco()), desbloqueado: banco !== null };
-}
-
-function novaSessao(): string {
-  const token = randomBytes(32).toString("base64url");
-  sessoes.set(token, Date.now());
-  return token;
-}
-
-function lerMeta(b: Banco, chave: string): string | undefined {
-  return b.db.select().from(t.metaSistema).where(eq(t.metaSistema.chave, chave)).get()?.valor;
-}
 
 function gravarMeta(b: Banco, chave: string, valor: string) {
   b.db.insert(t.metaSistema).values({ chave, valor }).onConflictDoUpdate({ target: t.metaSistema.chave, set: { valor } }).run();
 }
 
-/** Primeiro acesso: cria o banco, guarda o hash da senha e (opcional) os dados fictícios. */
-export function configurar(senha: string, ficticio: boolean): string {
-  if (estadoAuth().configurado) throw new ErroDominio(409, "O app já tem PIN. Use a tela de desbloqueio.");
-  const b = abrirBanco(caminhoBanco(), senha); // já nasce cifrado
-  gravarMeta(b, "senha_hash", hashSenha(senha));
-  gravarMeta(b, "dispositivo_id", randomBytes(8).toString("hex"));
-  gravarMeta(b, "criado_em", new Date().toISOString());
-  if (ficticio) semearFicticio(b.db, agora());
-  else criarConta(b.db, { nome: "Conta corrente", instituicao: "Banco", pais: "BR", moeda: "BRL", tipo: "corrente" });
-  garantirSessoes(b.db, agora());
-  banco = b;
-  return novaSessao();
-}
-
-export async function desbloquear(senha: string): Promise<string> {
-  if (!estadoAuth().configurado) throw new ErroDominio(409, "Defina um PIN primeiro.");
-  // Atraso crescente contra tentativa e erro.
-  if (falhasSeguidas > 0) await new Promise((r) => setTimeout(r, Math.min(falhasSeguidas, 10) * 500));
+export function bancoAtual(): Banco {
+  if (banco) return banco;
   const caminho = caminhoBanco();
-  let b: Banco;
-  try {
-    if (banco) b = banco;
-    else if (arquivoEmClaro(caminho)) {
-      // Banco antigo, ainda sem cifra: confere o PIN e cifra no lugar (migração única).
-      const claro = abrirBanco(caminho);
-      const ok = conferirSenha(senha, lerMeta(claro, "senha_hash") ?? "");
-      claro.sqlite.close();
-      if (!ok) throw new ChaveInvalida();
-      cifrarArquivo(caminho, senha);
-      b = abrirBanco(caminho, senha);
-    } else b = abrirBanco(caminho, senha);
-  } catch (e) {
-    if (!(e instanceof ChaveInvalida)) throw e;
-    falhasSeguidas++;
-    throw new NaoAutorizado("PIN incorreto.");
+  const novo = !fs.existsSync(caminho);
+  if (!novo && !arquivoEmClaro(caminho)) {
+    throw new ErroDominio(409, "O arquivo do banco está cifrado (versão antiga com PIN) e não pode ser aberto sem ele.");
   }
-  const hash = lerMeta(b, "senha_hash");
-  if (!hash || !conferirSenha(senha, hash)) {
-    falhasSeguidas++;
-    if (!banco) b.sqlite.close();
-    throw new NaoAutorizado("PIN incorreto.");
+  const b = abrirBanco(caminho);
+  const temDispositivo = b.db.select().from(t.metaSistema).where(eq(t.metaSistema.chave, "dispositivo_id")).get();
+  if (!temDispositivo) {
+    gravarMeta(b, "dispositivo_id", randomBytes(8).toString("hex"));
+    gravarMeta(b, "criado_em", new Date().toISOString());
   }
-  falhasSeguidas = 0;
-  banco = b;
+  if (!b.db.select().from(t.contas).get()) criarConta(b.db, { nome: "Conta corrente", instituicao: "Banco", pais: "BR", moeda: "BRL", tipo: "corrente" });
   garantirSessoes(b.db, agora());
-  return novaSessao();
+  banco = b;
+  return b;
 }
 
-export function bloquear(token?: string) {
-  if (token) sessoes.delete(token);
-  else sessoes.clear();
-  if (sessoes.size === 0) fecharBanco();
+/** Carrega os dados fictícios — só com o banco sem pacientes. */
+export function carregarFicticio(): void {
+  const b = bancoAtual();
+  const n = b.db.select({ n: sql<number>`count(*)` }).from(t.pacientes).get()!.n;
+  if (n > 0) throw new ErroDominio(409, "Já há pacientes cadastrados. Os dados fictícios só entram num banco vazio.");
+  b.db.delete(t.contas).run(); // a conta padrão dá lugar às contas fictícias
+  semearFicticio(b.db, agora());
+  garantirSessoes(b.db, agora());
 }
 
-function fecharBanco() {
-  if (banco) {
-    banco.sqlite.close();
-    banco = null;
-  }
-}
-
-/** A sessão deste token ainda vale? (não lança, não renova) */
-export function sessaoValida(token: string | undefined): boolean {
-  const ultimo = token ? sessoes.get(token) : undefined;
-  return !!banco && ultimo !== undefined && Date.now() - ultimo <= INATIVIDADE_MS;
-}
-
-/** Valida e renova a sessão. Lança NaoAutorizado se expirou. */
-export function exigirSessao(token: string | undefined): Banco {
-  const ultimo = token ? sessoes.get(token) : undefined;
-  if (!token || ultimo === undefined || Date.now() - ultimo > INATIVIDADE_MS || !banco) {
-    if (token) sessoes.delete(token);
-    throw new NaoAutorizado("Sessão expirada. Digite o PIN de novo.");
-  }
-  sessoes.set(token, Date.now());
-  return banco;
-}
-
-/** Varredura periódica: expira sessões e fecha o banco quando ninguém está usando. */
-export function iniciarVarredura() {
-  const timer = setInterval(() => {
-    const limite = Date.now() - INATIVIDADE_MS;
-    for (const [token, ultimo] of sessoes) if (ultimo < limite) sessoes.delete(token);
-    if (sessoes.size === 0) fecharBanco();
-  }, 30_000);
-  timer.unref();
-}
-
-/** Importação: fecha o banco, troca o arquivo e encerra todas as sessões (entra-se com o PIN do backup). */
+/** Importação: fecha o banco, troca o arquivo; a próxima chamada reabre. */
 export function trocarBanco(fn: () => void) {
-  sessoes.clear();
   fecharBanco();
   fn();
 }
 
-export function bancoAtual(): Banco | null {
-  return banco;
+export function fecharBanco() {
+  if (banco) {
+    banco.sqlite.close();
+    banco = null;
+  }
 }

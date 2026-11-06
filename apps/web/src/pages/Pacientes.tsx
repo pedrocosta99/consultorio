@@ -159,9 +159,14 @@ export function PaginaPacientes() {
             titulo="Nenhum paciente ainda"
             descricao="Cadastre o primeiro paciente para começar a montar a agenda."
             acao={
-              <Button onClick={() => setNovo(true)}>
-                <UserPlus aria-hidden /> Novo paciente
-              </Button>
+              <div className="flex flex-wrap justify-center gap-2">
+                <Button onClick={() => setNovo(true)}>
+                  <UserPlus aria-hidden /> Novo paciente
+                </Button>
+                <Button asChild variant="outline">
+                  <Link to="/configuracoes">Testar com dados fictícios</Link>
+                </Button>
+              </div>
             }
           />
         </Card>

@@ -68,8 +68,6 @@ export const feriadoEntradaSchema = z.object({
 });
 export type FeriadoEntrada = z.infer<typeof feriadoEntradaSchema>;
 
-/** PIN de 6 dígitos para abrir o app (uso local). Backups usam uma senha própria, mais longa. */
-export const pinSchema = z.string().regex(/^\d{6}$/, "O PIN tem 6 dígitos (só números)");
 
 export interface Feriado {
   data: string;
@@ -91,13 +89,6 @@ export interface PacoteConsultorio {
   moedas: import("./money").Moeda[];
 }
 
-export interface EstadoAuth {
-  /** Já existe banco (senha definida)? */
-  configurado: boolean;
-  desbloqueado: boolean;
-  /** O cookie desta aba tem sessão válida? */
-  sessaoValida: boolean;
-}
 
 export const notaEntradaSchema = z.object({
   pacienteId: z.string().min(1),

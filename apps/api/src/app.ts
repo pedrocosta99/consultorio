@@ -1,5 +1,4 @@
 import { Hono, type Context } from "hono";
-import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { z, ZodError } from "zod";
 import {
   contratoEntradaSchema,
@@ -9,21 +8,18 @@ import {
   notaEntradaSchema,
   notaPatchSchema,
   pacienteEntradaSchema,
-  pinSchema,
   pagamentoEntradaSchema,
   sessaoAvulsaSchema,
   sessaoPatchSchema,
   TIPOS_CONTA,
 } from "@consultorio/shared";
 import type { Banco } from "./db/conexao";
-import { bloquear, configurar, desbloquear, estadoAuth, exigirSessao, INATIVIDADE_MS, NaoAutorizado, sessaoValida, trocarBanco } from "./estado";
+import { bancoAtual, carregarFicticio, trocarBanco } from "./estado";
 import { agora } from "./infra/relogio";
 import * as srv from "./servico";
 import * as backup from "./backup";
 import { gerarProntuario } from "./prontuario";
 import { SenhaOuArquivoInvalido } from "./infra/cofre";
-
-const COOKIE = "consultorio_sessao";
 
 type Env = { Variables: { banco: Banco } };
 
@@ -44,7 +40,6 @@ app.use("*", async (c, next) => {
 app.onError((err, c) => {
   if (err instanceof ZodError) return c.json({ erro: err.issues[0]?.message ?? "Dados inválidos" }, 400);
   if (err instanceof srv.ErroDominio) return c.json({ erro: err.message }, err.status);
-  if (err instanceof NaoAutorizado) return c.json({ erro: err.message }, 401);
   if (err instanceof SenhaOuArquivoInvalido) return c.json({ erro: err.message }, 400);
   if (err instanceof SyntaxError) return c.json({ erro: "JSON inválido" }, 400);
   // SIGILO: não logar corpo de requisição nem dados de pacientes.
@@ -54,44 +49,18 @@ app.onError((err, c) => {
 
 app.get("/health", (c) => c.json({ ok: true, moedaPrincipal: MOEDA_PRINCIPAL }));
 
-// ── Autenticação ─────────────────────────────────────────────
-
-function gravarCookie(c: Context, token: string) {
-  setCookie(c, COOKIE, token, { httpOnly: true, sameSite: "Strict", path: "/api", maxAge: 60 * 60 * 12 });
-}
-
-app.get("/auth/estado", (c) =>
-  c.json({ ...estadoAuth(), sessaoValida: sessaoValida(getCookie(c, COOKIE)), inatividadeMin: INATIVIDADE_MS / 60_000 }),
-);
-
-app.post("/auth/configurar", async (c) => {
-  const { senha, ficticio } = z.object({ senha: pinSchema, ficticio: z.boolean().default(false) }).parse(await c.req.json());
-  gravarCookie(c, configurar(senha, ficticio));
-  return c.json({ ok: true });
-});
-
-app.post("/auth/desbloquear", async (c) => {
-  const { senha } = z.object({ senha: z.string().min(1, "Digite o PIN") }).parse(await c.req.json());
-  gravarCookie(c, await desbloquear(senha));
-  return c.json({ ok: true });
-});
-
-app.post("/auth/bloquear", (c) => {
-  bloquear(getCookie(c, COOKIE));
-  deleteCookie(c, COOKIE, { path: "/api" });
-  return c.json({ ok: true });
-});
-
-// Daqui para baixo, só com sessão válida.
+// Daqui para baixo, todas as rotas usam o banco (aberto na primeira chamada).
 app.use("*", async (c, next) => {
-  c.set("banco", exigirSessao(getCookie(c, COOKIE)));
+  c.set("banco", bancoAtual());
   await next();
 });
 
 const db = (c: Context<Env>) => c.get("banco").db;
 
-/** Mantém a sessão viva enquanto há uso na interface (o middleware já renovou). */
-app.post("/sessao/manter", (c) => c.json({ ok: true }));
+app.post("/dados-ficticios", (c) => {
+  carregarFicticio();
+  return ok(c);
+});
 const ok = (c: Context, extra: object = {}) => c.json({ ok: true, ...extra });
 
 // ── Consultório ──────────────────────────────────────────────
@@ -211,11 +180,10 @@ app.post("/backup/exportar", async (c) => {
 
 app.post("/backup/importar", async (c) => {
   const e = z
-    .object({ pasta: z.string().min(1), arquivo: z.string().min(1), senha: z.string().min(1, "Digite a senha do backup"), pin: pinSchema })
+    .object({ pasta: z.string().min(1), arquivo: z.string().min(1), senha: z.string().min(1, "Digite a senha do backup") })
     .parse(await c.req.json());
-  const novo = backup.prepararImportacao(e.pasta, e.arquivo, e.senha, e.pin);
+  const novo = backup.prepararImportacao(e.pasta, e.arquivo, e.senha);
   const copia = backup.backupLocalAntes(c.get("banco"));
   trocarBanco(() => backup.substituirArquivo(novo));
-  deleteCookie(c, COOKIE, { path: "/api" });
   return ok(c, { copiaAnterior: copia });
 });

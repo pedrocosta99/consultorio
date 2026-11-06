@@ -9,7 +9,6 @@ import path from "node:path";
 import Database from "better-sqlite3";
 import { eq } from "drizzle-orm";
 import { arquivoEmClaro, caminhoBanco, type Banco } from "./db/conexao";
-import { conferirSenha } from "./infra/senha";
 import * as t from "./db/schema";
 import { cifrar, decifrar, lerCabecalho, type MetaSnapshot } from "./infra/cofre";
 import { ErroDominio } from "./servico";
@@ -93,32 +92,24 @@ export function listar(pastaInformada: string): ItemSnapshot[] {
  * Decifra o snapshot, confere que é um banco do app e devolve o caminho do arquivo
  * pronto para substituir o atual (quem chama troca com o banco fechado).
  */
-export function prepararImportacao(pastaInformada: string, arquivo: string, senhaBackup: string, pinBackup: string): string {
+export function prepararImportacao(pastaInformada: string, arquivo: string, senhaBackup: string): string {
   const pasta = resolverPasta(pastaInformada);
   if (path.basename(arquivo) !== arquivo || !arquivo.endsWith(EXT)) throw new ErroDominio(400, "Arquivo inválido.");
   const { banco } = decifrar(fs.readFileSync(path.join(pasta, arquivo)), senhaBackup);
   const tmp = path.join(path.dirname(caminhoBanco()), `.importando-${Date.now()}.db`);
   fs.writeFileSync(tmp, banco, { mode: 0o600 });
   try {
-    const cifrado = !arquivoEmClaro(tmp);
+    if (!arquivoEmClaro(tmp)) throw new ErroDominio(400, "Este backup foi feito numa versão com PIN (banco cifrado) e não pode ser restaurado.");
     const teste = new Database(tmp, { readonly: true });
     let ok: string;
-    let hash: { valor: string } | undefined;
+    let meta: unknown;
     try {
-      if (cifrado) {
-        teste.pragma("cipher = 'sqlcipher'");
-        teste.pragma("legacy = 4");
-        teste.pragma(`key = '${pinBackup.replace(/'/g, "''")}'`);
-      }
       ok = (teste.prepare("pragma integrity_check").get() as { integrity_check: string }).integrity_check;
-      hash = teste.prepare("select valor from meta_sistema where chave = 'senha_hash'").get() as { valor: string } | undefined;
-    } catch {
-      throw new ErroDominio(400, cifrado ? "O PIN do backup não confere." : "O backup não é um banco válido do app.");
+      meta = teste.prepare("select 1 from meta_sistema where chave = 'dispositivo_id'").get();
     } finally {
       teste.close();
     }
-    if (ok !== "ok" || !hash) throw new ErroDominio(400, "O backup não passou na verificação de integridade.");
-    if (cifrado && !conferirSenha(pinBackup, hash.valor)) throw new ErroDominio(400, "O PIN do backup não confere.");
+    if (ok !== "ok" || !meta) throw new ErroDominio(400, "O backup não passou na verificação de integridade.");
   } catch (e) {
     fs.rmSync(tmp, { force: true });
     throw e instanceof ErroDominio ? e : new ErroDominio(400, "O backup não é um banco válido do app.");

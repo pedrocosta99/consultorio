@@ -48,9 +48,9 @@ docs/PLANO.md      plano do produto
 - Não logar conteúdo de notas nem dados de pacientes no console da API.
 - Banco (`*.db`), snapshots e `data/` ficam fora do git (ver `.gitignore`).
 - Modo discreto (preferência) troca nomes por iniciais/pseudônimo em toda a interface. Use sempre `nomeExibicao()` do `useDados()` para mostrar o nome de um paciente.
-- Nada sai da máquina sem cifra: backups `.cofre` = AES-256-GCM com senha própria (≥10), e o banco dentro dele já é cifrado.
-- O banco em disco é cifrado (SQLCipher v4 via `better-sqlite3-multiple-ciphers`, importado com o alias `better-sqlite3`) com o PIN de 6 dígitos. Banco antigo em claro é cifrado no primeiro desbloqueio.
-- A API começa bloqueada; o banco só abre com o PIN e fecha após 15 min sem uso. Toda chamada exige o cabeçalho `x-consultorio: 1` e Host loopback.
+- Nada sai da máquina sem cifra: backups `.cofre` = AES-256-GCM com senha própria (≥10).
+- **Sem tela de acesso** (decisão do usuário, 6 nov 2026): o app abre direto e o banco em disco fica em claro. A proteção do disco é a do sistema (FileVault). Não reintroduza PIN/login sem pedido.
+- Toda chamada à API exige o cabeçalho `x-consultorio: 1` e Host loopback (barra outros sites e DNS rebinding).
 
 ## Visual: direção "Sálvia"
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
-import { EyeOff, LockKeyhole, Moon, NotebookPen, Palette, Pin } from "lucide-react";
+import { EyeOff, Moon, NotebookPen, Palette, Pin } from "lucide-react";
 import { ROTULO_STATUS, type ResultadoBusca } from "@consultorio/shared";
 import {
   CommandDialog,
@@ -11,7 +11,6 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command";
-import { useAcesso } from "@/app/acesso";
 import { useDados } from "@/app/dados";
 import { usePreferencias } from "@/app/preferencias";
 import { PacienteAvatar } from "@/components/comuns";
@@ -49,7 +48,6 @@ export function BuscaGlobal({ aberta, aoMudar }: { aberta: boolean; aoMudar: (v:
     if (!aberta) setTermo("");
   }, [aberta]);
   const { temaEfetivo, modoDiscreto, atualizar } = usePreferencias();
-  const { bloquear } = useAcesso();
 
   const ir = (rota: string) => {
     aoMudar(false);
@@ -138,16 +136,6 @@ export function BuscaGlobal({ aberta, aoMudar }: { aberta: boolean; aoMudar: (v:
           >
             <EyeOff aria-hidden />
             {modoDiscreto ? "Desligar modo discreto" : "Ligar modo discreto"}
-          </CommandItem>
-          <CommandItem
-            value="bloquear app senha sair"
-            onSelect={() => {
-              aoMudar(false);
-              bloquear();
-            }}
-          >
-            <LockKeyhole aria-hidden />
-            Bloquear agora
           </CommandItem>
         </CommandGroup>
       </CommandList>

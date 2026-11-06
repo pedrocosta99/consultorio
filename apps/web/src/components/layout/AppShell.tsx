@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router";
-import { Leaf, LockKeyhole, Menu, Moon, Search, Sun } from "lucide-react";
+import { Leaf, Menu, Moon, Search, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
-import { useAcesso } from "@/app/acesso";
 import { usePreferencias } from "@/app/preferencias";
 import { cn } from "@/lib/utils";
 import { BuscaGlobal } from "./BuscaGlobal";
@@ -57,15 +56,6 @@ function BotaoTema() {
       onClick={() => atualizar({ tema: escuro ? "claro" : "escuro" })}
     >
       {escuro ? <Sun aria-hidden /> : <Moon aria-hidden />}
-    </Button>
-  );
-}
-
-function BotaoBloquear() {
-  const { bloquear } = useAcesso();
-  return (
-    <Button variant="ghost" size="icon" aria-label="Bloquear agora" title="Bloquear agora" onClick={bloquear}>
-      <LockKeyhole aria-hidden />
     </Button>
   );
 }
@@ -133,7 +123,6 @@ export function AppShell() {
 
           <div className="ml-auto flex items-center gap-1">
             <BotaoTema />
-            <BotaoBloquear />
             <MenuNovo />
           </div>
         </header>

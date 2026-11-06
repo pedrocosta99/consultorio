@@ -21,6 +21,12 @@ Decisões tomadas: direção visual **Sálvia**; fuso principal **Brasília** (`
 | 0.9 | Configurações (tema, fusos, modo discreto) | ✅ |
 | 0.10 | Testes visuais Playwright (1440/390, claro/escuro) + axe, `pnpm test:visual` | ✅ |
 
+## Mudança de 6 nov 2026: sem PIN
+
+A pedido do usuário, **o app abre direto**: saíram o PIN, a tela de acesso, o bloqueio por inatividade e a cifra do banco em disco (sem PIN não haveria onde guardar a chave). Continuam: cabeçalho `x-consultorio` + Host loopback, e o **backup cifrado com senha própria**. Dados fictícios agora se carregam em Configurações (só com o banco vazio). Onde o texto abaixo fala de PIN, vale como histórico.
+
+- `feat!: remove PIN e tela de acesso — o app abre direto`
+
 ## Etapa 1: consultório básico (Fase 1)
 
 Autorizado a seguir sem pausas até o fim da Fase 2 (6 nov 2026). Decisões tomadas sem perguntar, registradas aqui:
@@ -63,7 +69,7 @@ Decisões da Etapa 2:
 - **Markdown** das notas é renderizado como elementos React (sem HTML cru).
 - **Salvamento automático:** a nota nasce no banco na primeira pausa de digitação (900 ms) e cada mudança grava sozinha.
 - **PDF** gerado localmente com `pdf-lib`; anotações pessoais só se pedidas.
-- **SQLCipher v4** com o PIN. `VACUUM INTO` gera cópia cifrada, então o `.cofre` tem cifra dupla; restaurar pede a senha do backup **e** o PIN do backup.
+- **SQLCipher v4** com o PIN. `VACUUM INTO` gera cópia cifrada, então o `.cofre` tem cifra dupla; restaurar pede a senha do backup. *(Depois: sem PIN, o banco ficou em claro.)*
 
 ### Commits da Etapa 2
 
@@ -79,8 +85,8 @@ Decisões da Etapa 2:
 
 ### Como testar (fim da Fase 2)
 
-1. `pnpm dev` e abra http://127.0.0.1:5173. Crie um **PIN de 6 dígitos**; ligue "Começar com dados fictícios" para testar (ou deixe desligado para começar vazio). O banco fica em `data/consultorio.db`, já cifrado.
-2. **Bloqueio:** cadeado no topo (ou Cmd+K › Bloquear). Sem mexer por 15 min, bloqueia sozinho.
+1. `pnpm dev` e abra http://127.0.0.1:5173: entra direto. Com o banco vazio, Configurações › **Carregar dados fictícios**. O banco fica em `data/consultorio.db`.
+2. (Sem bloqueio: o app não tem mais PIN.)
 3. **Pacientes › Novo paciente** com horário fixo → a agenda ganha 8 semanas. Na ficha, **⋯** › alterar contrato (reajuste a partir de uma data), encerrar, exportar PDF. Mude o status para *interrompido* e veja **Arquivar/Excluir** (Lila e Dora já estão assim).
 4. **Pagamentos:** ficha › Pagamentos › Registrar (já vem com o saldo e as sessões em aberto). Ou o "Pago" rápido no Painel/Agenda.
 5. **Notas:** ficha › Notas › Nova nota. Escreva e veja "Salvo"; edite e apague. Pontos fixos editáveis no topo. Na Agenda, painel da sessão › "Nota da sessão".

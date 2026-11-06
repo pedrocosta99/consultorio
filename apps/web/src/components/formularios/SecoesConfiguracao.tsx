@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { CalendarOff, Coins, HardDriveDownload, Landmark, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { CalendarOff, Coins, FlaskConical, HardDriveDownload, Landmark, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { feriadoEntradaSchema, TIPOS_CONTA, type Conta, type Moeda } from "@consultorio/shared";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -204,7 +204,6 @@ export function SecaoBackup() {
   const [enviando, setEnviando] = useState(false);
   const [restaurar, setRestaurar] = useState<string | null>(null);
   const [senhaRestaurar, setSenhaRestaurar] = useState("");
-  const [pinRestaurar, setPinRestaurar] = useState("");
 
   const carregar = async (p?: string) => {
     try {
@@ -258,7 +257,7 @@ export function SecaoBackup() {
               </div>
             )}
           </Campo>
-          <Campo rotulo="Senha do backup" ajuda="Mínimo de 10 caracteres. É separada do PIN porque o arquivo sai da máquina; um PIN de 6 dígitos seria fácil de quebrar. Guarde-a fora do app.">
+          <Campo rotulo="Senha do backup" ajuda="Mínimo de 10 caracteres. O arquivo sai do computador, então vai cifrado. Guarde a senha fora do app: sem ela o backup não abre.">
             {(id, d) => <Input id={id} aria-describedby={d} type="password" autoComplete="off" value={senha} onChange={(e) => setSenha(e.target.value)} />}
           </Campo>
           <div className="flex flex-wrap items-center gap-3">
@@ -296,7 +295,6 @@ export function SecaoBackup() {
         aoFechar={() => {
           setRestaurar(null);
           setSenhaRestaurar("");
-          setPinRestaurar("");
         }}
         titulo="Restaurar backup"
         rotuloConfirmar="Restaurar"
@@ -304,34 +302,51 @@ export function SecaoBackup() {
         descricao={
           <div className="flex flex-col gap-3">
             <p>
-              O banco atual é substituído por este backup. Antes disso, uma cópia (cifrada) do atual fica em <code className="text-xs">data/backups/</code>. Depois,
-              entre com o PIN do backup.
+              O banco atual é substituído por este backup. Antes disso, uma cópia do atual fica em <code className="text-xs">data/backups/</code>.
             </p>
             <Campo rotulo="Senha do backup">
               {(id) => <Input id={id} type="password" autoComplete="off" value={senhaRestaurar} onChange={(e) => setSenhaRestaurar(e.target.value)} />}
             </Campo>
-            <Campo rotulo="PIN de quando o backup foi feito" ajuda="O banco dentro do backup também é cifrado com o PIN.">
-              {(id, d) => (
-                <Input
-                  id={id}
-                  aria-describedby={d}
-                  type="password"
-                  inputMode="numeric"
-                  maxLength={6}
-                  autoComplete="off"
-                  value={pinRestaurar}
-                  onChange={(e) => setPinRestaurar(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  className="w-32 font-mono tracking-widest"
-                />
-              )}
-            </Campo>
           </div>
         }
         aoConfirmar={async () => {
-          await api("POST", "/backup/importar", { pasta, arquivo: restaurar, senha: senhaRestaurar, pin: pinRestaurar });
+          await api("POST", "/backup/importar", { pasta, arquivo: restaurar, senha: senhaRestaurar });
           window.location.reload();
         }}
       />
+    </Card>
+  );
+}
+
+/** Só aparece com o banco vazio: preenche com os pacientes fictícios para testar o app. */
+export function SecaoFicticios() {
+  const { pacientes, arquivados, mutar } = useDados();
+  const { avisar, avisarErro } = useAvisos();
+  const [enviando, setEnviando] = useState(false);
+  if (pacientes.length + arquivados.length > 0) return null;
+  return (
+    <Card>
+      <CardHeader className="border-b">
+        <CardTitle className="flex items-center gap-2 font-serif text-lg font-medium">
+          <FlaskConical className="size-4 text-muted-foreground" aria-hidden /> Dados fictícios
+        </CardTitle>
+        <CardDescription>O banco está vazio. Para experimentar o app, carregue pacientes, sessões, pagamentos e notas inventados.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Button
+          variant="outline"
+          disabled={enviando}
+          onClick={() => {
+            setEnviando(true);
+            mutar("POST", "/dados-ficticios")
+              .then(() => avisar("Dados fictícios carregados."))
+              .catch(avisarErro)
+              .finally(() => setEnviando(false));
+          }}
+        >
+          <FlaskConical aria-hidden /> Carregar dados fictícios
+        </Button>
+      </CardContent>
     </Card>
   );
 }

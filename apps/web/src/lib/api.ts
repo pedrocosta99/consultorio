@@ -1,6 +1,6 @@
 /**
  * Cliente da API local. Toda chamada leva o cabeçalho x-consultorio (a API recusa
- * sem ele) e o cookie de sessão. 401 → o app volta para a tela de senha.
+ * sem ele — é o que impede outros sites de chamarem a API).
  */
 export class ErroApi extends Error {
   constructor(
@@ -11,14 +11,11 @@ export class ErroApi extends Error {
   }
 }
 
-export const EVENTO_BLOQUEIO = "consultorio:bloqueado";
-
 export async function api<T = { ok: true }>(metodo: "GET" | "POST" | "PATCH" | "PUT" | "DELETE", rota: string, corpo?: unknown): Promise<T> {
   let r: Response;
   try {
     r = await fetch(`/api${rota}`, {
       method: metodo,
-      credentials: "same-origin",
       headers: { "x-consultorio": "1", ...(corpo !== undefined ? { "content-type": "application/json" } : {}) },
       body: corpo === undefined ? undefined : JSON.stringify(corpo),
     });
@@ -27,7 +24,6 @@ export async function api<T = { ok: true }>(metodo: "GET" | "POST" | "PATCH" | "
   }
   const dados = (await r.json().catch(() => ({}))) as { erro?: string };
   if (!r.ok) {
-    if (r.status === 401 && !rota.startsWith("/auth/")) window.dispatchEvent(new Event(EVENTO_BLOQUEIO));
     throw new ErroApi(r.status, dados.erro ?? `Erro ${r.status}`);
   }
   return dados as T;
@@ -35,10 +31,9 @@ export async function api<T = { ok: true }>(metodo: "GET" | "POST" | "PATCH" | "
 
 /** Baixa um arquivo da API (ex.: PDF) e oferece para salvar. */
 export async function baixar(rota: string, nomeArquivo: string): Promise<void> {
-  const r = await fetch(`/api${rota}`, { headers: { "x-consultorio": "1" }, credentials: "same-origin" });
+  const r = await fetch(`/api${rota}`, { headers: { "x-consultorio": "1" } });
   if (!r.ok) {
     const dados = (await r.json().catch(() => ({}))) as { erro?: string };
-    if (r.status === 401) window.dispatchEvent(new Event(EVENTO_BLOQUEIO));
     throw new ErroApi(r.status, dados.erro ?? `Erro ${r.status}`);
   }
   const url = URL.createObjectURL(await r.blob());

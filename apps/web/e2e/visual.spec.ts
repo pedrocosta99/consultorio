@@ -1,4 +1,4 @@
-import { abrir, entrar, expect, semViolacoesA11y, test } from "./fixtures";
+import { abrir, expect, semViolacoesA11y, test } from "./fixtures";
 
 const TELAS: Array<[nome: string, rota: string]> = [
   ["painel", "/"],
@@ -43,14 +43,3 @@ test("Cmd+K abre a busca global", async ({ page }) => {
   await expect(page).toHaveScreenshot("busca-global.png");
 });
 
-test.describe("tela de PIN", () => {
-  test.use({ semLogin: true });
-  test("pede o PIN", async ({ page }) => {
-    await entrar(page); // garante que o PIN já existe
-    await page.context().clearCookies(); // …mas esta aba não tem sessão
-    await abrir(page, "/");
-    await expect(page.getByText("Digite seu PIN")).toBeVisible();
-    await expect(page).toHaveScreenshot("acesso.png");
-    await semViolacoesA11y(page);
-  });
-});

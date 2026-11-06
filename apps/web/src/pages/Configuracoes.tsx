@@ -7,7 +7,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { usePreferencias, type Tema } from "@/app/preferencias";
 import { useDados } from "@/app/dados";
 import { CabecalhoPagina } from "@/components/comuns";
-import { SecaoBackup, SecaoContas, SecaoFeriados, SecaoMoedas } from "@/components/formularios/SecoesConfiguracao";
+import { SecaoBackup, SecaoContas, SecaoFeriados, SecaoFicticios, SecaoMoedas } from "@/components/formularios/SecoesConfiguracao";
 import { FUSOS_DISPONIVEIS, hora, nomeFuso, offsetFuso } from "@/lib/datas";
 
 const TEMAS: Array<[Tema, string, typeof Sun]> = [
@@ -41,6 +41,7 @@ export function PaginaConfiguracoes() {
       <CabecalhoPagina titulo="Configurações" descricao="Aparência e fusos ficam neste navegador; feriados e contas ficam no banco." />
 
       <div className="grid max-w-3xl grid-cols-1 gap-4">
+        <SecaoFicticios />
         <Card>
           <CardHeader className="border-b">
             <CardTitle className="font-serif text-lg font-medium">Aparência</CardTitle>
