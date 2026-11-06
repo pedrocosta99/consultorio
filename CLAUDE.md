@@ -19,7 +19,8 @@ docs/PLANO.md      plano do produto
 
 ## Comandos
 
-- `pnpm dev` sobe API + web juntos
+- `pnpm dev` sobe API + web juntos. Banco em `data/consultorio.db` (ou `CONSULTORIO_DB`). `CONSULTORIO_AGORA` fixa o relógio da API (testes).
+- Migrações: edite `apps/api/src/db/schema.ts` e rode `pnpm --filter @consultorio/api exec drizzle-kit generate --name <nome>`. SQL à mão (FTS5, triggers): `--custom`.
 - `pnpm test` roda o Vitest (unitários em `packages/*/src/**/*.test.ts` e `apps/*/src/**`)
 - `pnpm typecheck` roda o `tsc` em todos os pacotes
 - `pnpm test:visual` roda Playwright (screenshots em 1440/390 px, claro/escuro) + axe
@@ -37,7 +38,7 @@ docs/PLANO.md      plano do produto
 
 - Instantes são gravados em ISO UTC. Datas civis (pagamento, transação) como `yyyy-MM-dd`.
 - Fuso padrão do consultório: `America/Sao_Paulo`. A agenda exibe no fuso principal das preferências e, opcionalmente, num fuso secundário. Cada paciente tem o próprio `fuso`.
-- Use `@date-fns/tz` (`TZDate`) e os helpers de `apps/web/src/lib/datas.ts`. Não use `new Date().getHours()` para lógica de agenda.
+- Use os helpers de `packages/shared/src/fuso.ts` (Intl) e `apps/web/src/lib/datas.ts`. Não use `TZDate` (quebra com o relógio falso do Playwright) nem `new Date().getHours()` para lógica de agenda.
 - A semana começa na segunda (`weekStartsOn: 1`).
 
 ## Sigilo (LGPD: notas clínicas são dado sensível)
@@ -47,7 +48,9 @@ docs/PLANO.md      plano do produto
 - Não logar conteúdo de notas nem dados de pacientes no console da API.
 - Banco (`*.db`), snapshots e `data/` ficam fora do git (ver `.gitignore`).
 - Modo discreto (preferência) troca nomes por iniciais/pseudônimo em toda a interface. Use sempre `nomeExibicao()` do `useDados()` para mostrar o nome de um paciente.
-- Nada sai da máquina sem cifra (snapshots cifrados, Etapa 1+).
+- Nada sai da máquina sem cifra: backups `.cofre` = AES-256-GCM com senha própria (≥10), e o banco dentro dele já é cifrado.
+- O banco em disco é cifrado (SQLCipher v4 via `better-sqlite3-multiple-ciphers`, importado com o alias `better-sqlite3`) com o PIN de 6 dígitos. Banco antigo em claro é cifrado no primeiro desbloqueio.
+- A API começa bloqueada; o banco só abre com o PIN e fecha após 15 min sem uso. Toda chamada exige o cabeçalho `x-consultorio: 1` e Host loopback.
 
 ## Visual: direção "Sálvia"
 

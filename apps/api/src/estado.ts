@@ -8,7 +8,7 @@ import fs from "node:fs";
 import { randomBytes } from "node:crypto";
 import { eq } from "drizzle-orm";
 import type { EstadoAuth } from "@consultorio/shared";
-import { abrirBanco, caminhoBanco, type Banco } from "./db/conexao";
+import { abrirBanco, arquivoEmClaro, caminhoBanco, ChaveInvalida, cifrarArquivo, type Banco } from "./db/conexao";
 import * as t from "./db/schema";
 import { conferirSenha, hashSenha } from "./infra/senha";
 import { agora } from "./infra/relogio";
@@ -45,7 +45,7 @@ function gravarMeta(b: Banco, chave: string, valor: string) {
 /** Primeiro acesso: cria o banco, guarda o hash da senha e (opcional) os dados fictícios. */
 export function configurar(senha: string, ficticio: boolean): string {
   if (estadoAuth().configurado) throw new ErroDominio(409, "O app já tem PIN. Use a tela de desbloqueio.");
-  const b = abrirBanco(caminhoBanco());
+  const b = abrirBanco(caminhoBanco(), senha); // já nasce cifrado
   gravarMeta(b, "senha_hash", hashSenha(senha));
   gravarMeta(b, "dispositivo_id", randomBytes(8).toString("hex"));
   gravarMeta(b, "criado_em", new Date().toISOString());
@@ -60,7 +60,24 @@ export async function desbloquear(senha: string): Promise<string> {
   if (!estadoAuth().configurado) throw new ErroDominio(409, "Defina um PIN primeiro.");
   // Atraso crescente contra tentativa e erro.
   if (falhasSeguidas > 0) await new Promise((r) => setTimeout(r, Math.min(falhasSeguidas, 10) * 500));
-  const b = banco ?? abrirBanco(caminhoBanco());
+  const caminho = caminhoBanco();
+  let b: Banco;
+  try {
+    if (banco) b = banco;
+    else if (arquivoEmClaro(caminho)) {
+      // Banco antigo, ainda sem cifra: confere o PIN e cifra no lugar (migração única).
+      const claro = abrirBanco(caminho);
+      const ok = conferirSenha(senha, lerMeta(claro, "senha_hash") ?? "");
+      claro.sqlite.close();
+      if (!ok) throw new ChaveInvalida();
+      cifrarArquivo(caminho, senha);
+      b = abrirBanco(caminho, senha);
+    } else b = abrirBanco(caminho, senha);
+  } catch (e) {
+    if (!(e instanceof ChaveInvalida)) throw e;
+    falhasSeguidas++;
+    throw new NaoAutorizado("PIN incorreto.");
+  }
   const hash = lerMeta(b, "senha_hash");
   if (!hash || !conferirSenha(senha, hash)) {
     falhasSeguidas++;

@@ -8,7 +8,8 @@ import os from "node:os";
 import path from "node:path";
 import Database from "better-sqlite3";
 import { eq } from "drizzle-orm";
-import { caminhoBanco, type Banco } from "./db/conexao";
+import { arquivoEmClaro, caminhoBanco, type Banco } from "./db/conexao";
+import { conferirSenha } from "./infra/senha";
 import * as t from "./db/schema";
 import { cifrar, decifrar, lerCabecalho, type MetaSnapshot } from "./infra/cofre";
 import { ErroDominio } from "./servico";
@@ -92,18 +93,32 @@ export function listar(pastaInformada: string): ItemSnapshot[] {
  * Decifra o snapshot, confere que é um banco do app e devolve o caminho do arquivo
  * pronto para substituir o atual (quem chama troca com o banco fechado).
  */
-export function prepararImportacao(pastaInformada: string, arquivo: string, senhaBackup: string): string {
+export function prepararImportacao(pastaInformada: string, arquivo: string, senhaBackup: string, pinBackup: string): string {
   const pasta = resolverPasta(pastaInformada);
   if (path.basename(arquivo) !== arquivo || !arquivo.endsWith(EXT)) throw new ErroDominio(400, "Arquivo inválido.");
   const { banco } = decifrar(fs.readFileSync(path.join(pasta, arquivo)), senhaBackup);
   const tmp = path.join(path.dirname(caminhoBanco()), `.importando-${Date.now()}.db`);
   fs.writeFileSync(tmp, banco, { mode: 0o600 });
   try {
+    const cifrado = !arquivoEmClaro(tmp);
     const teste = new Database(tmp, { readonly: true });
-    const ok = (teste.prepare("pragma integrity_check").get() as { integrity_check: string }).integrity_check;
-    const temSenha = teste.prepare("select 1 from meta_sistema where chave = 'senha_hash'").get();
-    teste.close();
-    if (ok !== "ok" || !temSenha) throw new ErroDominio(400, "O backup não passou na verificação de integridade.");
+    let ok: string;
+    let hash: { valor: string } | undefined;
+    try {
+      if (cifrado) {
+        teste.pragma("cipher = 'sqlcipher'");
+        teste.pragma("legacy = 4");
+        teste.pragma(`key = '${pinBackup.replace(/'/g, "''")}'`);
+      }
+      ok = (teste.prepare("pragma integrity_check").get() as { integrity_check: string }).integrity_check;
+      hash = teste.prepare("select valor from meta_sistema where chave = 'senha_hash'").get() as { valor: string } | undefined;
+    } catch {
+      throw new ErroDominio(400, cifrado ? "O PIN do backup não confere." : "O backup não é um banco válido do app.");
+    } finally {
+      teste.close();
+    }
+    if (ok !== "ok" || !hash) throw new ErroDominio(400, "O backup não passou na verificação de integridade.");
+    if (cifrado && !conferirSenha(pinBackup, hash.valor)) throw new ErroDominio(400, "O PIN do backup não confere.");
   } catch (e) {
     fs.rmSync(tmp, { force: true });
     throw e instanceof ErroDominio ? e : new ErroDominio(400, "O backup não é um banco válido do app.");

@@ -204,6 +204,7 @@ export function SecaoBackup() {
   const [enviando, setEnviando] = useState(false);
   const [restaurar, setRestaurar] = useState<string | null>(null);
   const [senhaRestaurar, setSenhaRestaurar] = useState("");
+  const [pinRestaurar, setPinRestaurar] = useState("");
 
   const carregar = async (p?: string) => {
     try {
@@ -295,6 +296,7 @@ export function SecaoBackup() {
         aoFechar={() => {
           setRestaurar(null);
           setSenhaRestaurar("");
+          setPinRestaurar("");
         }}
         titulo="Restaurar backup"
         rotuloConfirmar="Restaurar"
@@ -302,16 +304,31 @@ export function SecaoBackup() {
         descricao={
           <div className="flex flex-col gap-3">
             <p>
-              O banco atual é substituído por este backup. Antes disso, uma cópia do atual fica em <code className="text-xs">data/backups/</code>. Depois, entre com o
-              PIN que valia quando o backup foi feito.
+              O banco atual é substituído por este backup. Antes disso, uma cópia (cifrada) do atual fica em <code className="text-xs">data/backups/</code>. Depois,
+              entre com o PIN do backup.
             </p>
             <Campo rotulo="Senha do backup">
               {(id) => <Input id={id} type="password" autoComplete="off" value={senhaRestaurar} onChange={(e) => setSenhaRestaurar(e.target.value)} />}
             </Campo>
+            <Campo rotulo="PIN de quando o backup foi feito" ajuda="O banco dentro do backup também é cifrado com o PIN.">
+              {(id, d) => (
+                <Input
+                  id={id}
+                  aria-describedby={d}
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={6}
+                  autoComplete="off"
+                  value={pinRestaurar}
+                  onChange={(e) => setPinRestaurar(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  className="w-32 font-mono tracking-widest"
+                />
+              )}
+            </Campo>
           </div>
         }
         aoConfirmar={async () => {
-          await api("POST", "/backup/importar", { pasta, arquivo: restaurar, senha: senhaRestaurar });
+          await api("POST", "/backup/importar", { pasta, arquivo: restaurar, senha: senhaRestaurar, pin: pinRestaurar });
           window.location.reload();
         }}
       />

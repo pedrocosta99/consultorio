@@ -210,8 +210,10 @@ app.post("/backup/exportar", async (c) => {
 });
 
 app.post("/backup/importar", async (c) => {
-  const e = z.object({ pasta: z.string().min(1), arquivo: z.string().min(1), senha: z.string().min(1, "Digite a senha do backup") }).parse(await c.req.json());
-  const novo = backup.prepararImportacao(e.pasta, e.arquivo, e.senha);
+  const e = z
+    .object({ pasta: z.string().min(1), arquivo: z.string().min(1), senha: z.string().min(1, "Digite a senha do backup"), pin: pinSchema })
+    .parse(await c.req.json());
+  const novo = backup.prepararImportacao(e.pasta, e.arquivo, e.senha, e.pin);
   const copia = backup.backupLocalAntes(c.get("banco"));
   trocarBanco(() => backup.substituirArquivo(novo));
   deleteCookie(c, COOKIE, { path: "/api" });

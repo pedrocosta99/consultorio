@@ -45,6 +45,10 @@ describe("API", () => {
     expect((await req("POST", "/auth/configurar", { senha: "abcdef" })).status).toBe(400);
     const r = await req("POST", "/auth/configurar", { senha: "482915", ficticio: true });
     expect(r.status).toBe(200);
+    // O arquivo do banco é cifrado: sem cabeçalho SQLite nem nomes legíveis.
+    const bruto = fs.readFileSync(process.env.CONSULTORIO_DB!);
+    expect(bruto.subarray(0, 15).toString()).not.toBe("SQLite format 3");
+    expect(bruto.includes(Buffer.from("Wolfsmann"))).toBe(false);
     const c = await req("GET", "/consultorio");
     expect(c.status).toBe(200);
     expect(c.json.pacientes.length).toBeGreaterThan(3);
@@ -100,8 +104,10 @@ describe("API", () => {
 
     const lista = await req("GET", `/backup?pasta=${encodeURIComponent(pastaBackup)}`);
     expect(lista.json.snapshots).toHaveLength(1);
-    expect((await req("POST", "/backup/importar", { pasta: pastaBackup, arquivo: ex.json.arquivo, senha: "errada" })).status).toBe(400);
-    expect((await req("POST", "/backup/importar", { pasta: pastaBackup, arquivo: ex.json.arquivo, senha: "frase longa de backup" })).status).toBe(200);
+    expect((await req("POST", "/backup/importar", { pasta: pastaBackup, arquivo: ex.json.arquivo, senha: "errada", pin: "482915" })).status).toBe(400);
+    const pinErrado = await req("POST", "/backup/importar", { pasta: pastaBackup, arquivo: ex.json.arquivo, senha: "frase longa de backup", pin: "111111" });
+    expect(pinErrado.json.erro).toMatch(/PIN do backup/);
+    expect((await req("POST", "/backup/importar", { pasta: pastaBackup, arquivo: ex.json.arquivo, senha: "frase longa de backup", pin: "482915" })).status).toBe(200);
 
     // …a importação encerra a sessão e volta ao estado do backup.
     expect((await req("GET", "/consultorio")).status).toBe(401);
