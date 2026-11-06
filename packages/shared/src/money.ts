@@ -49,3 +49,26 @@ export function formatarDinheiro(
   // Divisão só na exibição; o valor armazenado continua inteiro.
   return fmt.format(valor.centavos / 100).replace(/ /g, " ");
 }
+
+/**
+ * Lê um valor digitado ("240", "240,50", "1.234,56", "R$ 90") e devolve centavos.
+ * Aceita vírgula ou ponto como separador decimal. null = não é um número válido.
+ */
+export function lerCentavos(texto: string): number | null {
+  let t = texto.replace(/[^\d.,-]/g, "");
+  if (!t || t === "-") return null;
+  const ultimo = Math.max(t.lastIndexOf(","), t.lastIndexOf("."));
+  // Separador decimal = o último, se tiver 1 ou 2 dígitos depois dele.
+  if (ultimo >= 0 && t.length - ultimo - 1 <= 2) {
+    t = t.slice(0, ultimo).replace(/[.,]/g, "") + "." + t.slice(ultimo + 1);
+  } else {
+    t = t.replace(/[.,]/g, "");
+  }
+  const n = Number(t);
+  return Number.isFinite(n) ? Math.round(n * 100) : null;
+}
+
+/** Centavos → texto editável ("1234,5" → "1.234,50"), sem símbolo. */
+export function centavosParaTexto(centavos: number): string {
+  return new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(centavos / 100);
+}

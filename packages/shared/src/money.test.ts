@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dinheiro, formatarDinheiro, somar } from "./money";
+import { centavosParaTexto, dinheiro, formatarDinheiro, lerCentavos, somar } from "./money";
 
 describe("dinheiro", () => {
   it("formata BRL em pt-BR", () => {
@@ -24,5 +24,25 @@ describe("dinheiro", () => {
   it("não soma moedas diferentes", () => {
     expect(somar(dinheiro(100), dinheiro(250))).toEqual(dinheiro(350));
     expect(() => somar(dinheiro(100), dinheiro(100, "USD"))).toThrow();
+  });
+});
+
+describe("lerCentavos", () => {
+  it.each([
+    ["240", 24000],
+    ["240,5", 24050],
+    ["240,50", 24050],
+    ["1.234,56", 123456],
+    ["1,234.56", 123456],
+    ["R$ 90", 9000],
+    ["1.000", 100000],
+    ["0,99", 99],
+  ])("%s → %i", (t, c) => expect(lerCentavos(t)).toBe(c));
+  it("inválidos viram null", () => {
+    expect(lerCentavos("")).toBeNull();
+    expect(lerCentavos("abc")).toBeNull();
+  });
+  it("ida e volta com centavosParaTexto", () => {
+    expect(lerCentavos(centavosParaTexto(123456))).toBe(123456);
   });
 });
