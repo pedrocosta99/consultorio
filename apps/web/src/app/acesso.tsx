@@ -4,7 +4,7 @@
  */
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Eye, EyeOff, Leaf, LockKeyhole } from "lucide-react";
-import { senhaSchema, type EstadoAuth } from "@consultorio/shared";
+import { pinSchema, type EstadoAuth } from "@consultorio/shared";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -93,7 +93,7 @@ export function useAcesso(): Ctx {
   return ctx;
 }
 
-function CampoSenha({ id, rotulo, valor, aoMudar, autoFocus, autoComplete }: { id: string; rotulo: string; valor: string; aoMudar: (v: string) => void; autoFocus?: boolean; autoComplete: string }) {
+function CampoPin({ id, rotulo, valor, aoMudar, autoFocus, aoCompletar }: { id: string; rotulo: string; valor: string; aoMudar: (v: string) => void; autoFocus?: boolean; aoCompletar?: (pin: string) => void }) {
   const [ver, setVer] = useState(false);
   return (
     <div className="flex flex-col gap-1.5">
@@ -102,17 +102,24 @@ function CampoSenha({ id, rotulo, valor, aoMudar, autoFocus, autoComplete }: { i
         <Input
           id={id}
           type={ver ? "text" : "password"}
+          inputMode="numeric"
+          pattern="[0-9]*"
+          maxLength={6}
+          autoComplete="off"
           value={valor}
-          onChange={(e) => aoMudar(e.target.value)}
           autoFocus={autoFocus}
-          autoComplete={autoComplete}
-          className="pr-10"
+          onChange={(e) => {
+            const v = e.target.value.replace(/\D/g, "").slice(0, 6);
+            aoMudar(v);
+            if (v.length === 6) aoCompletar?.(v);
+          }}
+          className="h-12 pr-10 text-center font-mono text-2xl tracking-[0.6em]"
         />
         <button
           type="button"
           onClick={() => setVer((v) => !v)}
           className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-muted-foreground hover:text-foreground"
-          aria-label={ver ? "Esconder senha" : "Mostrar senha"}
+          aria-label={ver ? "Esconder PIN" : "Mostrar PIN"}
         >
           {ver ? <EyeOff className="size-4" aria-hidden /> : <Eye className="size-4" aria-hidden />}
         </button>
@@ -129,20 +136,21 @@ function TelaAcesso({ situacao, aoEntrar, aoTentarDeNovo }: { situacao: Exclude<
   const [enviando, setEnviando] = useState(false);
   const novo = situacao.tipo === "bloqueado" && !situacao.configurado;
 
-  const enviar = async (e: FormEvent) => {
-    e.preventDefault();
+  const enviar = async (e?: FormEvent, pin = senha) => {
+    e?.preventDefault();
     setErro(null);
     if (novo) {
-      const r = senhaSchema.safeParse(senha);
+      const r = pinSchema.safeParse(pin);
       if (!r.success) return setErro(r.error.issues[0]!.message);
-      if (senha !== confirmar) return setErro("As senhas não conferem.");
+      if (pin !== confirmar) return setErro("Os PINs não conferem.");
     }
     setEnviando(true);
     try {
-      await api("POST", novo ? "/auth/configurar" : "/auth/desbloquear", novo ? { senha, ficticio } : { senha });
+      await api("POST", novo ? "/auth/configurar" : "/auth/desbloquear", novo ? { senha: pin, ficticio } : { senha: pin });
       aoEntrar();
     } catch (err) {
       setErro(err instanceof Error ? err.message : "Não foi possível entrar.");
+      setConfirmar("");
       setSenha("");
     } finally {
       setEnviando(false);
@@ -175,17 +183,17 @@ function TelaAcesso({ situacao, aoEntrar, aoTentarDeNovo }: { situacao: Exclude<
             <div>
               <h2 className="flex items-center gap-2 font-sans text-base font-semibold tracking-normal">
                 <LockKeyhole className="size-4 text-muted-foreground" aria-hidden />
-                {novo ? "Crie a senha do app" : "Digite sua senha"}
+                {novo ? "Crie um PIN de 6 dígitos" : "Digite seu PIN"}
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 {novo
-                  ? "Ela protege os dados deste computador e, mais adiante, cifra os backups. Guarde-a fora do app: sem ela não há como recuperar os dados."
+                  ? "Ele abre o app neste computador. Guarde-o fora do app: sem ele não há como abrir os dados."
                   : "O app foi bloqueado por segurança."}
               </p>
             </div>
 
-            <CampoSenha id="senha" rotulo="Senha" valor={senha} aoMudar={setSenha} autoFocus autoComplete={novo ? "new-password" : "current-password"} />
-            {novo && <CampoSenha id="confirmar" rotulo="Confirme a senha" valor={confirmar} aoMudar={setConfirmar} autoComplete="new-password" />}
+            <CampoPin id="senha" rotulo="PIN" valor={senha} aoMudar={setSenha} autoFocus aoCompletar={novo ? undefined : (pin) => void enviar(undefined, pin)} />
+            {novo && <CampoPin id="confirmar" rotulo="Confirme o PIN" valor={confirmar} aoMudar={setConfirmar} />}
 
             {novo && (
               <div className="flex items-start justify-between gap-3 rounded-lg bg-muted/60 p-3">
@@ -205,7 +213,7 @@ function TelaAcesso({ situacao, aoEntrar, aoTentarDeNovo }: { situacao: Exclude<
               </p>
             )}
 
-            <Button type="submit" disabled={enviando || !senha}>
+            <Button type="submit" disabled={enviando || senha.length !== 6}>
               {enviando ? "Verificando…" : novo ? "Criar e entrar" : "Desbloquear"}
             </Button>
           </form>

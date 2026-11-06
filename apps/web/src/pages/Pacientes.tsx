@@ -89,7 +89,7 @@ export function PaginaPacientes() {
       {/* Filtros */}
       <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center">
         <div role="group" aria-label="Filtrar por status" className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1 lg:pb-0">
-          {(["todos", ...STATUS_PACIENTE] as FiltroStatus[]).map((s) => (
+          {(["todos", ...STATUS_PACIENTE] as Array<Paciente["status"] | "todos">).map((s) => (
             <Button
               key={s}
               size="sm"
