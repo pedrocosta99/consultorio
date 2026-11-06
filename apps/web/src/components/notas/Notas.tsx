@@ -338,6 +338,8 @@ export function PontosFixos({ paciente: p }: { paciente: Paciente }) {
   const [editando, setEditando] = useState(false);
   const [texto, setTexto] = useState(p.pontosFixos);
   const [situacao, setSituacao] = useState<Situacao>("ocioso");
+  const [expandido, setExpandido] = useState(false);
+  const longo = p.pontosFixos.length > 320;
   const area = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -409,7 +411,17 @@ export function PontosFixos({ paciente: p }: { paciente: Paciente }) {
           />
         </>
       ) : p.pontosFixos ? (
-        <Markdown texto={p.pontosFixos} className="flex flex-col gap-1.5 text-sm leading-relaxed" />
+        <div>
+          <div className={cn("relative", longo && !expandido && "max-h-32 overflow-hidden")}>
+            <Markdown texto={p.pontosFixos} className="flex flex-col gap-1.5 text-sm leading-relaxed" />
+            {longo && !expandido && <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-[color-mix(in_oklab,var(--st-falta-bg)_40%,var(--card))]" aria-hidden />}
+          </div>
+          {longo && (
+            <Button variant="link" size="sm" className="mt-1 h-auto px-0 text-xs" aria-expanded={expandido} onClick={() => setExpandido((v) => !v)}>
+              {expandido ? "Mostrar menos" : "Mostrar tudo"}
+            </Button>
+          )}
+        </div>
       ) : (
         <p className="text-sm text-muted-foreground">Nada registrado ainda. Aqui ficam história, significantes recorrentes, sonhos e hipóteses para ter sempre à vista.</p>
       )}
