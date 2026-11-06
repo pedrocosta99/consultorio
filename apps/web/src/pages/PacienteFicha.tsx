@@ -188,8 +188,13 @@ function AbaResumo({ paciente: p, contrato }: { paciente: Paciente; contrato: Co
           <CardContent className="px-5">
             <dl className="divide-y">
               <Linha rotulo="A receber">
-                <Valores valores={saldo} className="justify-end" />
+                <Valores valores={saldo.filter((v) => v.centavos > 0)} className="justify-end" />
               </Linha>
+              {saldo.some((v) => v.centavos < 0) && (
+                <Linha rotulo="Crédito (pago adiantado)">
+                  <Valores valores={saldo.filter((v) => v.centavos < 0).map((v) => ({ ...v, centavos: -v.centavos }))} className="justify-end" />
+                </Linha>
+              )}
               <Linha rotulo="Sessões realizadas">{passadas.filter((s) => s.estado === "realizada").length}</Linha>
               <Linha rotulo="Faltas">
                 {faltas} {passadas.length > 0 && <span className="font-normal text-muted-foreground">({Math.round((faltas / passadas.length) * 100)}%)</span>}

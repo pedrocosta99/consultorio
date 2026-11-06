@@ -2,6 +2,8 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router";
 import "./index.css";
+import { AcessoProvider } from "@/app/acesso";
+import { AvisosProvider } from "@/app/avisos";
 import { DadosProvider } from "@/app/dados";
 import { PreferenciasProvider } from "@/app/preferencias";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -34,11 +36,15 @@ const router = createBrowserRouter([
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <PreferenciasProvider>
-      <DadosProvider>
-        <TooltipProvider delayDuration={300}>
-          <RouterProvider router={router} />
-        </TooltipProvider>
-      </DadosProvider>
+      <AvisosProvider>
+        <AcessoProvider>
+          <DadosProvider>
+            <TooltipProvider delayDuration={300}>
+              <RouterProvider router={router} />
+            </TooltipProvider>
+          </DadosProvider>
+        </AcessoProvider>
+      </AvisosProvider>
     </PreferenciasProvider>
   </StrictMode>,
 );

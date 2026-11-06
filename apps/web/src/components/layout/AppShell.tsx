@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router";
-import { Leaf, Menu, Moon, Search, Sun } from "lucide-react";
+import { Leaf, LockKeyhole, Menu, Moon, Search, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
+import { useAcesso } from "@/app/acesso";
 import { usePreferencias } from "@/app/preferencias";
 import { cn } from "@/lib/utils";
 import { BuscaGlobal } from "./BuscaGlobal";
@@ -60,6 +61,15 @@ function BotaoTema() {
   );
 }
 
+function BotaoBloquear() {
+  const { bloquear } = useAcesso();
+  return (
+    <Button variant="ghost" size="icon" aria-label="Bloquear agora" title="Bloquear agora" onClick={bloquear}>
+      <LockKeyhole aria-hidden />
+    </Button>
+  );
+}
+
 export function AppShell() {
   const [menuAberto, setMenuAberto] = useState(false);
   const [buscaAberta, setBuscaAberta] = useState(false);
@@ -85,7 +95,7 @@ export function AppShell() {
         <div className="sticky top-0 flex h-dvh flex-col gap-6 px-3 py-5">
           <Marca />
           <ListaNav />
-          <p className="mt-auto px-3 text-xs text-muted-foreground">Dados fictícios · Etapa 0</p>
+          <p className="mt-auto px-3 text-xs text-muted-foreground">Dados só neste computador</p>
         </div>
       </aside>
 
@@ -123,6 +133,7 @@ export function AppShell() {
 
           <div className="ml-auto flex items-center gap-1">
             <BotaoTema />
+            <BotaoBloquear />
             <MenuNovo />
           </div>
         </header>

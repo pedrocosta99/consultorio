@@ -1,21 +1,29 @@
 /**
- * Etapa 0: fonte de dados em memória a partir dos mocks fictícios.
- * Na Etapa 1 este provider passa a chamar a API local; as telas não mudam.
+ * Fonte de dados do app.
+ *
+ * Consultório (pacientes, contratos, sessões, pagamentos, contas, feriados): vem da
+ * API local (banco SQLite). Finanças, Divulgação e notas ainda são FICTÍCIAS até as
+ * suas fases (notas: Fase 2; finanças: Fase 3).
  *
  * Parâmetro de simulação na URL (útil para revisar estados e para os testes):
  *   ?mock=vazio       → sem dados
  *   ?mock=carregando  → fica carregando para sempre
  */
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   gerarMocks,
+  saldoPorMoeda,
   sessaoCobravel,
   type Dinheiro,
+  type Feriado,
   type Mocks,
   type Moeda,
+  type PacoteConsultorio,
   type Paciente,
   type Sessao,
 } from "@consultorio/shared";
+import { api } from "@/lib/api";
+import { useAvisos } from "./avisos";
 import { usePreferencias } from "./preferencias";
 
 type ModoMock = "normal" | "vazio" | "carregando";
@@ -25,16 +33,23 @@ function lerModoMock(): ModoMock {
   return m === "vazio" || m === "carregando" ? m : "normal";
 }
 
-function mocksVazios(referencia: Date): Mocks {
-  return { referencia, pacientes: [], contratos: [], sessoes: [], pagamentos: [], notas: [], contas: [], transacoes: [], campanhas: [] };
-}
+const PACOTE_VAZIO: Omit<PacoteConsultorio, "agora"> = { pacientes: [], contratos: [], sessoes: [], pagamentos: [], contas: [], feriados: [] };
+
+type Metodo = "POST" | "PATCH" | "DELETE";
 
 interface Ctx extends Mocks {
   carregando: boolean;
-  atualizarSessao: (id: string, patch: Partial<Sessao>) => void;
+  /** Pacientes arquivados (fora das listas, prontuário guardado). */
+  arquivados: Paciente[];
+  feriados: Feriado[];
+  recarregar: () => Promise<void>;
+  /** Chama a API e recarrega os dados. Erros sobem para quem chamou. */
+  mutar: <T = { ok: true; id?: string }>(metodo: Metodo, rota: string, corpo?: unknown) => Promise<T>;
+  /** Atualização otimista de sessão (estado, horário, pago). Erros viram aviso. */
+  atualizarSessao: (id: string, patch: Partial<Pick<Sessao, "estado" | "inicio" | "pago">>) => void;
   paciente: (id: string) => Paciente | undefined;
   nomeExibicao: (p: Paciente | undefined, forma?: "curto" | "completo") => string;
-  /** Saldo devedor por moeda (sessões cobráveis não pagas). */
+  /** Saldo por moeda: cobráveis − pagamentos. Positivo = deve; negativo = crédito. */
   saldoPaciente: (pacienteId: string) => Dinheiro[];
 }
 
@@ -49,33 +64,78 @@ export function somarPorMoeda(valores: Dinheiro[]): Dinheiro[] {
 
 export function DadosProvider({ children }: { children: ReactNode }) {
   const { modoDiscreto } = usePreferencias();
+  const { avisarErro } = useAvisos();
   const [modo] = useState(lerModoMock);
-  const [base] = useState(() => {
-    const agora = new Date();
-    return modo === "normal" ? gerarMocks(agora) : mocksVazios(agora);
-  });
-  const [sessoes, setSessoes] = useState(base.sessoes);
+  const [pacote, setPacote] = useState<PacoteConsultorio | null>(null);
+  const versao = useRef(0);
 
-  const atualizarSessao = useCallback((id: string, patch: Partial<Sessao>) => {
-    setSessoes((lista) =>
-      lista
-        .map((s) => {
-          if (s.id !== id) return s;
-          const novo = { ...s, ...patch };
-          // Sessão que deixou de ser cobrável não pode ficar "paga".
-          if (!sessaoCobravel(novo.estado)) novo.pago = false;
-          return novo;
-        })
-        .sort((a, b) => a.inicio.localeCompare(b.inicio)),
-    );
-  }, []);
+  const recarregar = useCallback(async () => {
+    if (modo === "carregando") return;
+    const v = ++versao.current;
+    const p = await api<PacoteConsultorio>("GET", "/consultorio");
+    // Ignora respostas antigas que chegaram depois de uma mais nova.
+    if (v === versao.current) setPacote(modo === "vazio" ? { ...PACOTE_VAZIO, agora: p.agora } : p);
+  }, [modo]);
+
+  useEffect(() => {
+    recarregar().catch(avisarErro);
+  }, [recarregar, avisarErro]);
+
+  const mutar = useCallback<Ctx["mutar"]>(
+    async (metodo, rota, corpo) => {
+      const r = await api<any>(metodo, rota, corpo);
+      await recarregar();
+      return r;
+    },
+    [recarregar],
+  );
+
+  const atualizarSessao = useCallback<Ctx["atualizarSessao"]>(
+    (id, patch) => {
+      setPacote((p) => {
+        if (!p) return p;
+        const sessoes = p.sessoes
+          .map((s) => {
+            if (s.id !== id) return s;
+            const novo = { ...s, ...patch };
+            if (!sessaoCobravel(novo.estado)) novo.pago = false;
+            return novo;
+          })
+          .sort((a, b) => a.inicio.localeCompare(b.inicio));
+        return { ...p, sessoes };
+      });
+      mutar("PATCH", `/sessoes/${id}`, patch).catch((e) => {
+        avisarErro(e);
+        recarregar().catch(() => {});
+      });
+    },
+    [mutar, recarregar, avisarErro],
+  );
+
+  // Finanças/Divulgação/notas: fictícias até as próximas fases. Geradas a partir do relógio da API.
+  const ficticio = useMemo(() => {
+    if (!pacote || modo === "vazio") return { notas: [], transacoes: [], campanhas: [] };
+    const m = gerarMocks(new Date(pacote.agora));
+    const ids = new Set(pacote.pacientes.map((p) => p.id));
+    return { notas: m.notas.filter((n) => ids.has(n.pacienteId)), transacoes: m.transacoes, campanhas: m.campanhas };
+  }, [pacote, modo]);
 
   const valor = useMemo<Ctx>(() => {
+    const base = pacote ?? { ...PACOTE_VAZIO, agora: new Date().toISOString() };
     const porId = new Map(base.pacientes.map((p) => [p.id, p]));
     return {
-      ...base,
-      sessoes,
-      carregando: modo === "carregando",
+      referencia: new Date(base.agora),
+      pacientes: base.pacientes.filter((p) => !p.arquivadoEm),
+      arquivados: base.pacientes.filter((p) => !!p.arquivadoEm),
+      contratos: base.contratos,
+      sessoes: base.sessoes,
+      pagamentos: base.pagamentos,
+      contas: base.contas,
+      feriados: base.feriados,
+      ...ficticio,
+      carregando: modo === "carregando" || pacote === null,
+      recarregar,
+      mutar,
       atualizarSessao,
       paciente: (id) => porId.get(id),
       nomeExibicao: (p, forma = "completo") => {
@@ -86,13 +146,13 @@ export function DadosProvider({ children }: { children: ReactNode }) {
         return resto.length ? `${primeiro} ${resto[resto.length - 1]!.charAt(0)}.` : primeiro!;
       },
       saldoPaciente: (pacienteId) =>
-        somarPorMoeda(
-          sessoes
-            .filter((s) => s.pacienteId === pacienteId && sessaoCobravel(s.estado) && !s.pago)
-            .map((s) => s.valor),
+        saldoPorMoeda(
+          base.sessoes.filter((s) => s.pacienteId === pacienteId),
+          base.pagamentos.filter((p) => p.pacienteId === pacienteId),
+          new Date(),
         ),
     };
-  }, [base, sessoes, modo, atualizarSessao, modoDiscreto]);
+  }, [pacote, ficticio, modo, recarregar, mutar, atualizarSessao, modoDiscreto]);
 
   return <DadosCtx.Provider value={valor}>{children}</DadosCtx.Provider>;
 }

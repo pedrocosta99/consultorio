@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router";
-import { EyeOff, Moon, Palette } from "lucide-react";
+import { EyeOff, LockKeyhole, Moon, Palette } from "lucide-react";
 import { ROTULO_STATUS } from "@consultorio/shared";
 import {
   CommandDialog,
@@ -10,6 +10,7 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command";
+import { useAcesso } from "@/app/acesso";
 import { useDados } from "@/app/dados";
 import { usePreferencias } from "@/app/preferencias";
 import { PacienteAvatar } from "@/components/comuns";
@@ -19,6 +20,7 @@ export function BuscaGlobal({ aberta, aoMudar }: { aberta: boolean; aoMudar: (v:
   const navegar = useNavigate();
   const { pacientes, nomeExibicao } = useDados();
   const { temaEfetivo, modoDiscreto, atualizar } = usePreferencias();
+  const { bloquear } = useAcesso();
 
   const ir = (rota: string) => {
     aoMudar(false);
@@ -77,6 +79,16 @@ export function BuscaGlobal({ aberta, aoMudar }: { aberta: boolean; aoMudar: (v:
           >
             <EyeOff aria-hidden />
             {modoDiscreto ? "Desligar modo discreto" : "Ligar modo discreto"}
+          </CommandItem>
+          <CommandItem
+            value="bloquear app senha sair"
+            onSelect={() => {
+              aoMudar(false);
+              bloquear();
+            }}
+          >
+            <LockKeyhole aria-hidden />
+            Bloquear agora
           </CommandItem>
         </CommandGroup>
       </CommandList>

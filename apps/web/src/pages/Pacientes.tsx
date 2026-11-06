@@ -61,7 +61,7 @@ export function PaginaPacientes() {
       .filter((p) => status === "todos" || p.status === status)
       .filter((p) => origem === "todas" || p.origem === origem)
       .filter((p) => !termo || p.nome.toLowerCase().includes(termo) || p.apelido.toLowerCase().includes(termo))
-      .map((p) => ({ p, contrato: contratoVigente(contratos, p.id), saldo: saldoPaciente(p.id) }))
+      .map((p) => ({ p, contrato: contratoVigente(contratos, p.id), saldo: saldoPaciente(p.id).filter((v) => v.centavos > 0) }))
       .sort((a, b) => a.p.nome.localeCompare(b.p.nome, "pt-BR"));
   }, [pacientes, contratos, status, origem, busca, saldoPaciente]);
 

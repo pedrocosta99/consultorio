@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { Link } from "react-router";
 import { CalendarCheck2, CalendarDays, CircleDollarSign, Coffee, TrendingUp, UserX } from "lucide-react";
 import { format } from "date-fns";
-import { sessaoCobravel, type Dinheiro } from "@consultorio/shared";
+import type { Dinheiro } from "@consultorio/shared";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -58,7 +58,6 @@ export function PaginaPainel() {
     const doMes = sessoes.filter((s) => chaveDia(s.inicio, fusoPrincipal).startsWith(mes));
     const passadasMes = doMes.filter((s) => s.estado !== "agendada");
     const faltasMes = doMes.filter((s) => s.estado === "falta_cobrada" || s.estado === "falta_nao_cobrada");
-    const pendentes = sessoes.filter((s) => sessaoCobravel(s.estado) && !s.pago);
     const receitaMes = somarPorMoeda(pagamentos.filter((p) => p.data.startsWith(mes)).map((p) => p.valor));
 
     const porPaciente = new Map<string, Dinheiro[]>();
@@ -70,7 +69,7 @@ export function PaginaPainel() {
       .sort((a, b) => (b.valores[0]?.centavos ?? 0) - (a.valores[0]?.centavos ?? 0));
 
     const devedores = pacientes
-      .map((p) => ({ p, saldo: saldoPaciente(p.id) }))
+      .map((p) => ({ p, saldo: saldoPaciente(p.id).filter((v) => v.centavos > 0) }))
       .filter((x) => x.saldo.length > 0)
       .sort((a, b) => (b.saldo[0]?.centavos ?? 0) - (a.saldo[0]?.centavos ?? 0));
 
@@ -78,8 +77,8 @@ export function PaginaPainel() {
       deHoje,
       proxima: deHoje.find((s) => new Date(s.inicio) > agora && s.estado === "agendada"),
       realizadasHoje: deHoje.filter((s) => s.estado === "realizada").length,
-      aReceber: somarPorMoeda(pendentes.map((s) => s.valor)),
-      qtdDevedores: new Set(pendentes.map((s) => s.pacienteId)).size,
+      aReceber: somarPorMoeda(devedores.flatMap((d) => d.saldo)),
+      qtdDevedores: devedores.length,
       receitaMes,
       faltasMes: faltasMes.length,
       taxaFaltas: passadasMes.length ? Math.round((faltasMes.length / passadasMes.length) * 100) : 0,
