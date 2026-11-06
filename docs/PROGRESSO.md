@@ -61,7 +61,7 @@ Autorizado a seguir sem pausas até o fim da Fase 2 (6 nov 2026). Decisões toma
 | 2.4 | "Levar para supervisão" (página própria) e filtro documental/pessoal | ✅ |
 | 2.5 | Exportar prontuário do paciente em PDF | ✅ |
 | 2.6 | Painel do consultório com dados reais | ✅ |
-| 2.7 | Banco cifrado com SQLCipher e migração do banco existente | ✅ |
+| 2.7 | Banco cifrado com SQLCipher e migração do banco existente | ↩️ feito e removido em 6 nov, junto com o PIN (pedido do usuário) |
 
 Decisões da Etapa 2:
 
