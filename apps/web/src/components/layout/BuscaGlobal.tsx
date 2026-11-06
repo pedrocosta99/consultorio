@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router";
-import { Moon, Palette } from "lucide-react";
+import { EyeOff, Moon, Palette } from "lucide-react";
 import { ROTULO_STATUS } from "@consultorio/shared";
 import {
   CommandDialog,
@@ -18,7 +18,7 @@ import { NAVEGACAO } from "./navegacao";
 export function BuscaGlobal({ aberta, aoMudar }: { aberta: boolean; aoMudar: (v: boolean) => void }) {
   const navegar = useNavigate();
   const { pacientes, nomeExibicao } = useDados();
-  const { temaEfetivo, atualizar } = usePreferencias();
+  const { temaEfetivo, modoDiscreto, atualizar } = usePreferencias();
 
   const ir = (rota: string) => {
     aoMudar(false);
@@ -67,6 +67,16 @@ export function BuscaGlobal({ aberta, aoMudar }: { aberta: boolean; aoMudar: (v:
           >
             <Moon aria-hidden />
             Alternar tema claro/escuro
+          </CommandItem>
+          <CommandItem
+            value="modo discreto iniciais sigilo"
+            onSelect={() => {
+              atualizar({ modoDiscreto: !modoDiscreto });
+              aoMudar(false);
+            }}
+          >
+            <EyeOff aria-hidden />
+            {modoDiscreto ? "Desligar modo discreto" : "Ligar modo discreto"}
           </CommandItem>
         </CommandGroup>
       </CommandList>

@@ -18,7 +18,7 @@ Decisões tomadas: direção visual **Sálvia**; fuso principal **Brasília** (`
 | 0.6 | Finanças: contas por moeda, transações, gráfico | ✅ |
 | 0.7 | Divulgação (básico): campanhas de anúncios, gasto, contatos, custo por paciente | ✅ |
 | 0.8 | Calendário: Dia/Semana/Mês, linha do agora, arrastar, painel lateral, dois fusos | ✅ |
-| 0.9 | Configurações (tema, fusos, modo discreto) | ⬜ |
+| 0.9 | Configurações (tema, fusos, modo discreto) | ✅ |
 | 0.10 | Testes visuais Playwright (1440/390, claro/escuro) + axe, `pnpm test:visual` | ⬜ |
 
 ### Lembretes para etapas futuras
@@ -60,6 +60,9 @@ Decisões tomadas: direção visual **Sálvia**; fuso principal **Brasília** (`
 **0.8**
 - `feat(web): lógica do calendário (sobreposição e encaixe de 15 min) com testes`
 - `feat(web): Agenda com visões Dia/Semana/Mês, arrastar, painel lateral e dois fusos`
+
+**0.9**
+- `feat(web): tela de Configurações (tema, fusos, modo discreto) e atalho do modo discreto no Cmd+K`
 
 **Extra (entre 0.8 e 0.9)**
 - `chore(mocks): pacientes fictícios famosos (Lírio de Itu, Lila e Lenu, Homem dos Lobos)`
