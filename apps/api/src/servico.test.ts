@@ -16,7 +16,7 @@ import {
   removerFeriado,
   salvarContrato,
 } from "./servico";
-import { saldoPorMoeda } from "./dominio/saldo";
+import { saldoPorMoeda } from "@consultorio/shared";
 
 const AGORA = new Date("2026-11-04T17:30:00Z"); // quarta, 14:30 em Brasília
 let db: Db;
