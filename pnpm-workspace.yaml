@@ -7,3 +7,4 @@ minimumReleaseAge: 20160
 
 onlyBuiltDependencies:
   - esbuild
+  - better-sqlite3-multiple-ciphers
