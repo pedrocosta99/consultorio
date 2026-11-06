@@ -1,6 +1,7 @@
 /** Peças pequenas e reutilizáveis dos formulários. */
 import { useId, useState, type ReactNode } from "react";
-import { centavosParaTexto, lerCentavos, MOEDAS, type Dinheiro, type Moeda } from "@consultorio/shared";
+import { centavosParaTexto, lerCentavos, type Dinheiro, type Moeda } from "@consultorio/shared";
+import { useDados } from "@/app/dados";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -87,14 +88,16 @@ export function CampoDinheiro({
   descricaoId?: string;
   travarMoeda?: boolean;
 }) {
+  const { moedas } = useDados();
+  const opcoes = moedas.includes(valor.moeda) ? moedas : [...moedas, valor.moeda];
   return (
     <div className="flex gap-2">
-      <Select value={valor.moeda} onValueChange={(m) => aoMudar({ ...valor, moeda: m as Moeda })} disabled={travarMoeda}>
+      <Select value={valor.moeda} onValueChange={(m) => aoMudar({ ...valor, moeda: m as Moeda })} disabled={travarMoeda || opcoes.length === 1}>
         <SelectTrigger className="w-24 shrink-0" aria-label="Moeda">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          {MOEDAS.map((m) => (
+          {opcoes.map((m) => (
             <SelectItem key={m} value={m}>
               {SIMBOLO[m]} {m}
             </SelectItem>

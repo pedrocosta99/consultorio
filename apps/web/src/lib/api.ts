@@ -13,7 +13,7 @@ export class ErroApi extends Error {
 
 export const EVENTO_BLOQUEIO = "consultorio:bloqueado";
 
-export async function api<T = { ok: true }>(metodo: "GET" | "POST" | "PATCH" | "DELETE", rota: string, corpo?: unknown): Promise<T> {
+export async function api<T = { ok: true }>(metodo: "GET" | "POST" | "PATCH" | "PUT" | "DELETE", rota: string, corpo?: unknown): Promise<T> {
   let r: Response;
   try {
     r = await fetch(`/api${rota}`, {

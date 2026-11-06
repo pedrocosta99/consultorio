@@ -8,6 +8,7 @@ import { randomUUID } from "node:crypto";
 import { and, asc, eq, gt, inArray, isNotNull, isNull, notInArray, sql } from "drizzle-orm";
 import {
   FUSO_CONSULTORIO,
+  MOEDAS,
   chaveDiaNoFuso,
   dinheiro,
   sessaoCobravel,
@@ -123,7 +124,31 @@ export function carregarConsultorio(db: Db, agora: Date): PacoteConsultorio {
     pagamentos,
     contas: db.select().from(t.contas).all() as Conta[],
     feriados: db.select().from(t.feriados).orderBy(asc(t.feriados.data)).all(),
+    moedas: moedasAtivas(db),
   };
+}
+
+// ── Moedas ───────────────────────────────────────────────────
+
+export function moedasAtivas(db: Db): Moeda[] {
+  const v = db.select().from(t.metaSistema).where(eq(t.metaSistema.chave, "moedas_ativas")).get()?.valor;
+  const lista = v ? (JSON.parse(v) as Moeda[]) : [];
+  return MOEDAS.filter((m) => m === "BRL" || lista.includes(m));
+}
+
+export function definirMoedas(db: Db, moedas: Moeda[]) {
+  const novas = MOEDAS.filter((m) => m === "BRL" || moedas.includes(m));
+  const desligadas = MOEDAS.filter((m) => !novas.includes(m));
+  if (desligadas.length) {
+    const emUso = db
+      .select({ moeda: t.contratos.moeda })
+      .from(t.contratos)
+      .where(and(inArray(t.contratos.moeda, desligadas), isNull(t.contratos.vigenteAte)))
+      .get();
+    if (emUso) throw new ErroDominio(409, `Há contrato vigente em ${emUso.moeda}. Altere o contrato antes de desligar a moeda.`);
+  }
+  const valor = JSON.stringify(novas);
+  db.insert(t.metaSistema).values({ chave: "moedas_ativas", valor }).onConflictDoUpdate({ target: t.metaSistema.chave, set: { valor } }).run();
 }
 
 // ── Grade → sessões ─────────────────────────────────────────

@@ -1,6 +1,8 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { CalendarOff, HardDriveDownload, Landmark, Plus, RotateCcw, Trash2 } from "lucide-react";
-import { feriadoEntradaSchema, MOEDAS, TIPOS_CONTA, type Conta, type Moeda } from "@consultorio/shared";
+import { CalendarOff, Coins, HardDriveDownload, Landmark, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { feriadoEntradaSchema, TIPOS_CONTA, type Conta, type Moeda } from "@consultorio/shared";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -88,8 +90,46 @@ export function SecaoFeriados() {
   );
 }
 
+export function SecaoMoedas() {
+  const { moedas, mutar } = useDados();
+  const { avisar, avisarErro } = useAvisos();
+  const alternar = (m: Moeda, ligar: boolean) =>
+    mutar("PUT", "/configuracoes/moedas", { moedas: ligar ? [...moedas, m] : moedas.filter((x) => x !== m) })
+      .then(() => avisar(ligar ? `${m} ligado. Já dá para criar contas e contratos em ${m}.` : `${m} desligado.`))
+      .catch(avisarErro);
+  return (
+    <Card>
+      <CardHeader className="border-b">
+        <CardTitle className="flex items-center gap-2 font-serif text-lg font-medium">
+          <Coins className="size-4 text-muted-foreground" aria-hidden /> Moedas
+        </CardTitle>
+        <CardDescription>O real é a moeda principal. Ligue dólar ou euro se tiver pacientes ou contas nessas moedas.</CardDescription>
+      </CardHeader>
+      <CardContent className="divide-y">
+        {(
+          [
+            ["BRL", "Real (R$)", "Moeda principal, sempre ligada."],
+            ["USD", "Dólar (US$)", "Mostra contas e valores em dólar."],
+            ["EUR", "Euro (€)", "Mostra contas e valores em euro."],
+          ] as const
+        ).map(([m, rotulo, ajuda]) => (
+          <div key={m} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+            <div>
+              <Label htmlFor={`moeda-${m}`} className="text-sm font-medium">
+                {rotulo}
+              </Label>
+              <p className="mt-0.5 text-xs text-muted-foreground">{ajuda}</p>
+            </div>
+            <Switch id={`moeda-${m}`} checked={moedas.includes(m)} disabled={m === "BRL"} onCheckedChange={(v) => alternar(m, v)} />
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
 export function SecaoContas() {
-  const { contas, mutar } = useDados();
+  const { contas, mutar, moedas } = useDados();
   const { avisar } = useAvisos();
   const [nome, setNome] = useState("");
   const [instituicao, setInstituicao] = useState("");
@@ -133,7 +173,7 @@ export function SecaoContas() {
         <form onSubmit={adicionar} className="grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_7rem_10rem_auto]" noValidate>
           <Campo rotulo="Nome">{(id) => <Input id={id} value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Conta corrente" />}</Campo>
           <Campo rotulo="Instituição">{(id) => <Input id={id} value={instituicao} onChange={(e) => setInstituicao(e.target.value)} placeholder="Banco" />}</Campo>
-          <Campo rotulo="Moeda">{(id) => <SeletorSimples id={id} valor={moeda} aoMudar={setMoeda} opcoes={MOEDAS.map((m) => [m, m] as const)} />}</Campo>
+          <Campo rotulo="Moeda">{(id) => <SeletorSimples id={id} valor={moeda} aoMudar={setMoeda} opcoes={moedas.map((m) => [m, m] as const)} />}</Campo>
           <Campo rotulo="Tipo">{(id) => <SeletorSimples id={id} valor={tipo} aoMudar={setTipo} opcoes={TIPOS_CONTA.map((t) => [t, ROTULO_TIPO_CONTA[t]] as const)} />}</Campo>
           <Button type="submit" variant="outline">
             <Plus aria-hidden /> Criar

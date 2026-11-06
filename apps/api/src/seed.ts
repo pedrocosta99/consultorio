@@ -6,10 +6,13 @@ import { gerarMocks } from "@consultorio/shared";
 import type { Db } from "./db/conexao";
 import * as t from "./db/schema";
 import { diaDaSemanaIso } from "./dominio/grade";
+import { definirMoedas } from "./servico";
 import { chaveDiaNoFuso, FUSO_CONSULTORIO } from "@consultorio/shared";
 
 export function semearFicticio(db: Db, agora: Date) {
   const m = gerarMocks(agora);
+  // Os fictícios têm pacientes pagando em euro.
+  definirMoedas(db, [...new Set(m.contratos.map((k) => k.valor.moeda))]);
   const contratoDoPaciente = new Map(m.contratos.map((k) => [k.pacienteId, k.id]));
   db.transaction((tx) => {
     for (const c of m.contas) tx.insert(t.contas).values(c).run();

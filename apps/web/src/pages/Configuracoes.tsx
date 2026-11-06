@@ -7,7 +7,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { usePreferencias, type Tema } from "@/app/preferencias";
 import { useDados } from "@/app/dados";
 import { CabecalhoPagina } from "@/components/comuns";
-import { SecaoBackup, SecaoContas, SecaoFeriados } from "@/components/formularios/SecoesConfiguracao";
+import { SecaoBackup, SecaoContas, SecaoFeriados, SecaoMoedas } from "@/components/formularios/SecoesConfiguracao";
 import { FUSOS_DISPONIVEIS, hora, nomeFuso, offsetFuso } from "@/lib/datas";
 
 const TEMAS: Array<[Tema, string, typeof Sun]> = [
@@ -133,6 +133,7 @@ export function PaginaConfiguracoes() {
           </CardContent>
         </Card>
         <SecaoFeriados />
+        <SecaoMoedas />
         <SecaoContas />
         <SecaoBackup />
       </div>

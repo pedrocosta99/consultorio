@@ -153,6 +153,12 @@ app.delete("/feriados/:data", (c) => {
   return ok(c);
 });
 
+app.put("/configuracoes/moedas", async (c) => {
+  const { moedas } = z.object({ moedas: z.array(z.enum(MOEDAS)) }).parse(await c.req.json());
+  srv.definirMoedas(db(c), moedas);
+  return ok(c);
+});
+
 app.post("/contas", async (c) => {
   const e = z
     .object({

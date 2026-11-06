@@ -33,15 +33,17 @@ function lerModoMock(): ModoMock {
   return m === "vazio" || m === "carregando" ? m : "normal";
 }
 
-const PACOTE_VAZIO: Omit<PacoteConsultorio, "agora"> = { pacientes: [], contratos: [], sessoes: [], pagamentos: [], contas: [], feriados: [] };
+const PACOTE_VAZIO: Omit<PacoteConsultorio, "agora"> = { pacientes: [], contratos: [], sessoes: [], pagamentos: [], contas: [], feriados: [], moedas: ["BRL"] };
 
-type Metodo = "POST" | "PATCH" | "DELETE";
+type Metodo = "POST" | "PATCH" | "PUT" | "DELETE";
 
 interface Ctx extends Mocks {
   carregando: boolean;
   /** Pacientes arquivados (fora das listas, prontuário guardado). */
   arquivados: Paciente[];
   feriados: Feriado[];
+  /** Moedas ligadas (BRL sempre). Contas e lançamentos de outras moedas ficam ocultos. */
+  moedas: Moeda[];
   recarregar: () => Promise<void>;
   /** Chama a API e recarrega os dados. Erros sobem para quem chamou. */
   mutar: <T = { ok: true; id?: string }>(metodo: Metodo, rota: string, corpo?: unknown) => Promise<T>;
@@ -117,7 +119,13 @@ export function DadosProvider({ children }: { children: ReactNode }) {
     if (!pacote || modo === "vazio") return { notas: [], transacoes: [], campanhas: [] };
     const m = gerarMocks(new Date(pacote.agora));
     const ids = new Set(pacote.pacientes.map((p) => p.id));
-    return { notas: m.notas.filter((n) => ids.has(n.pacienteId)), transacoes: m.transacoes, campanhas: m.campanhas };
+    // Só lançamentos de contas que existem no banco e em moedas ligadas (banco novo → Finanças vazia).
+    const contas = new Set(pacote.contas.filter((c) => pacote.moedas.includes(c.moeda)).map((c) => c.id));
+    return {
+      notas: m.notas.filter((n) => ids.has(n.pacienteId)),
+      transacoes: m.transacoes.filter((t) => contas.has(t.contaId)),
+      campanhas: contas.size && pacote.contas.some((c) => c.id === "c-cartao") ? m.campanhas : [],
+    };
   }, [pacote, modo]);
 
   const valor = useMemo<Ctx>(() => {
@@ -130,8 +138,9 @@ export function DadosProvider({ children }: { children: ReactNode }) {
       contratos: base.contratos,
       sessoes: base.sessoes,
       pagamentos: base.pagamentos,
-      contas: base.contas,
+      contas: base.contas.filter((c) => base.moedas.includes(c.moeda)),
       feriados: base.feriados,
+      moedas: base.moedas,
       ...ficticio,
       carregando: modo === "carregando" || pacote === null,
       recarregar,

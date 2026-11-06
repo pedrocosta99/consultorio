@@ -86,6 +86,8 @@ export interface PacoteConsultorio {
   pagamentos: import("./types").Pagamento[];
   contas: import("./types").Conta[];
   feriados: Feriado[];
+  /** Moedas em uso. BRL sempre; USD/EUR só se ligadas em Configurações. */
+  moedas: import("./money").Moeda[];
 }
 
 export interface EstadoAuth {

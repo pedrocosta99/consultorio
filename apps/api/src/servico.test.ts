@@ -146,3 +146,14 @@ describe("arquivar e excluir", () => {
     expect(pac.contratos).toHaveLength(0);
   });
 });
+
+describe("moedas", () => {
+  it("começa só com BRL; liga e desliga extras; não desliga com contrato vigente", async () => {
+    const { definirMoedas, moedasAtivas } = await import("./servico");
+    expect(moedasAtivas(db)).toEqual(["BRL"]);
+    definirMoedas(db, ["EUR"]);
+    expect(moedasAtivas(db)).toEqual(["BRL", "EUR"]);
+    salvarContrato(db, pid, { ...contrato, diasSemana: [4], valor: dinheiro(6000, "EUR") }, AGORA);
+    expect(() => definirMoedas(db, [])).toThrow(/EUR/);
+  });
+});
