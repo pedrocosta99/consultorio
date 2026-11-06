@@ -68,7 +68,8 @@ export const feriadoEntradaSchema = z.object({
 });
 export type FeriadoEntrada = z.infer<typeof feriadoEntradaSchema>;
 
-export const senhaSchema = z.string().min(8, "Use pelo menos 8 caracteres");
+/** PIN de 6 dígitos para abrir o app (uso local). Backups usam uma senha própria, mais longa. */
+export const pinSchema = z.string().regex(/^\d{6}$/, "O PIN tem 6 dígitos (só números)");
 
 export interface Feriado {
   data: string;

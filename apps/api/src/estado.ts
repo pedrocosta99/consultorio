@@ -44,7 +44,7 @@ function gravarMeta(b: Banco, chave: string, valor: string) {
 
 /** Primeiro acesso: cria o banco, guarda o hash da senha e (opcional) os dados fictícios. */
 export function configurar(senha: string, ficticio: boolean): string {
-  if (estadoAuth().configurado) throw new ErroDominio(409, "O app já tem senha. Use a tela de desbloqueio.");
+  if (estadoAuth().configurado) throw new ErroDominio(409, "O app já tem PIN. Use a tela de desbloqueio.");
   const b = abrirBanco(caminhoBanco());
   gravarMeta(b, "senha_hash", hashSenha(senha));
   gravarMeta(b, "dispositivo_id", randomBytes(8).toString("hex"));
@@ -57,7 +57,7 @@ export function configurar(senha: string, ficticio: boolean): string {
 }
 
 export async function desbloquear(senha: string): Promise<string> {
-  if (!estadoAuth().configurado) throw new ErroDominio(409, "Defina uma senha primeiro.");
+  if (!estadoAuth().configurado) throw new ErroDominio(409, "Defina um PIN primeiro.");
   // Atraso crescente contra tentativa e erro.
   if (falhasSeguidas > 0) await new Promise((r) => setTimeout(r, Math.min(falhasSeguidas, 10) * 500));
   const b = banco ?? abrirBanco(caminhoBanco());
@@ -65,7 +65,7 @@ export async function desbloquear(senha: string): Promise<string> {
   if (!hash || !conferirSenha(senha, hash)) {
     falhasSeguidas++;
     if (!banco) b.sqlite.close();
-    throw new NaoAutorizado("Senha incorreta.");
+    throw new NaoAutorizado("PIN incorreto.");
   }
   falhasSeguidas = 0;
   banco = b;
@@ -97,7 +97,7 @@ export function exigirSessao(token: string | undefined): Banco {
   const ultimo = token ? sessoes.get(token) : undefined;
   if (!token || ultimo === undefined || Date.now() - ultimo > INATIVIDADE_MS || !banco) {
     if (token) sessoes.delete(token);
-    throw new NaoAutorizado("Sessão expirada. Digite a senha de novo.");
+    throw new NaoAutorizado("Sessão expirada. Digite o PIN de novo.");
   }
   sessoes.set(token, Date.now());
   return banco;
@@ -113,15 +113,11 @@ export function iniciarVarredura() {
   timer.unref();
 }
 
-/** Para backup/importação: substituir o arquivo exige o banco fechado. */
-export function comBancoFechado<T>(fn: () => T): T {
-  const estava = banco;
+/** Importação: fecha o banco, troca o arquivo e encerra todas as sessões (entra-se com o PIN do backup). */
+export function trocarBanco(fn: () => void) {
+  sessoes.clear();
   fecharBanco();
-  try {
-    return fn();
-  } finally {
-    if (estava) banco = abrirBanco(caminhoBanco());
-  }
+  fn();
 }
 
 export function bancoAtual(): Banco | null {

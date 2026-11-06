@@ -7,16 +7,18 @@ import {
   MOEDA_PRINCIPAL,
   MOEDAS,
   pacienteEntradaSchema,
+  pinSchema,
   pagamentoEntradaSchema,
-  senhaSchema,
   sessaoAvulsaSchema,
   sessaoPatchSchema,
   TIPOS_CONTA,
 } from "@consultorio/shared";
 import type { Banco } from "./db/conexao";
-import { bloquear, configurar, desbloquear, estadoAuth, exigirSessao, INATIVIDADE_MS, NaoAutorizado, sessaoValida } from "./estado";
+import { bloquear, configurar, desbloquear, estadoAuth, exigirSessao, INATIVIDADE_MS, NaoAutorizado, sessaoValida, trocarBanco } from "./estado";
 import { agora } from "./infra/relogio";
 import * as srv from "./servico";
+import * as backup from "./backup";
+import { SenhaOuArquivoInvalido } from "./infra/cofre";
 
 const COOKIE = "consultorio_sessao";
 
@@ -40,6 +42,7 @@ app.onError((err, c) => {
   if (err instanceof ZodError) return c.json({ erro: err.issues[0]?.message ?? "Dados inválidos" }, 400);
   if (err instanceof srv.ErroDominio) return c.json({ erro: err.message }, err.status);
   if (err instanceof NaoAutorizado) return c.json({ erro: err.message }, 401);
+  if (err instanceof SenhaOuArquivoInvalido) return c.json({ erro: err.message }, 400);
   if (err instanceof SyntaxError) return c.json({ erro: "JSON inválido" }, 400);
   // SIGILO: não logar corpo de requisição nem dados de pacientes.
   console.error(`[api] erro em ${c.req.method} ${c.req.routePath}:`, err instanceof Error ? err.name : "desconhecido");
@@ -59,13 +62,13 @@ app.get("/auth/estado", (c) =>
 );
 
 app.post("/auth/configurar", async (c) => {
-  const { senha, ficticio } = z.object({ senha: senhaSchema, ficticio: z.boolean().default(false) }).parse(await c.req.json());
+  const { senha, ficticio } = z.object({ senha: pinSchema, ficticio: z.boolean().default(false) }).parse(await c.req.json());
   gravarCookie(c, configurar(senha, ficticio));
   return c.json({ ok: true });
 });
 
 app.post("/auth/desbloquear", async (c) => {
-  const { senha } = z.object({ senha: z.string().min(1, "Digite a senha") }).parse(await c.req.json());
+  const { senha } = z.object({ senha: z.string().min(1, "Digite o PIN") }).parse(await c.req.json());
   gravarCookie(c, await desbloquear(senha));
   return c.json({ ok: true });
 });
@@ -161,4 +164,29 @@ app.post("/contas", async (c) => {
     })
     .parse(await c.req.json());
   return ok(c, { id: srv.criarConta(db(c), e) });
+});
+
+// ── Backup cifrado ───────────────────────────────────────────
+
+/** Senha do backup: separada do PIN, porque o arquivo sai da máquina (ex.: Drive). */
+const senhaBackupSchema = z.string().min(10, "A senha do backup precisa de pelo menos 10 caracteres");
+
+app.get("/backup", (c) => {
+  const info = backup.infoBackup(c.get("banco"));
+  const pasta = c.req.query("pasta") || info.pasta;
+  return c.json({ ...info, pasta, snapshots: pasta ? backup.listar(pasta) : [] });
+});
+
+app.post("/backup/exportar", async (c) => {
+  const e = z.object({ pasta: z.string().min(1, "Escolha a pasta"), senha: senhaBackupSchema }).parse(await c.req.json());
+  return ok(c, backup.exportar(c.get("banco"), e.pasta, e.senha));
+});
+
+app.post("/backup/importar", async (c) => {
+  const e = z.object({ pasta: z.string().min(1), arquivo: z.string().min(1), senha: z.string().min(1, "Digite a senha do backup") }).parse(await c.req.json());
+  const novo = backup.prepararImportacao(e.pasta, e.arquivo, e.senha);
+  const copia = backup.backupLocalAntes(c.get("banco"));
+  trocarBanco(() => backup.substituirArquivo(novo));
+  deleteCookie(c, COOKIE, { path: "/api" });
+  return ok(c, { copiaAnterior: copia });
 });
