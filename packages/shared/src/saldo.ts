@@ -1,4 +1,5 @@
-import { MOEDAS, sessaoCobravel, type Dinheiro, type EstadoSessao, type Moeda } from "@consultorio/shared";
+import { MOEDAS, type Dinheiro, type Moeda } from "./money";
+import { sessaoCobravel, type EstadoSessao } from "./types";
 
 /**
  * Saldo do paciente por moeda: sessões cobráveis − pagamentos recebidos.

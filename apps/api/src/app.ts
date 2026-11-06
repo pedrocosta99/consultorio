@@ -14,7 +14,7 @@ import {
   TIPOS_CONTA,
 } from "@consultorio/shared";
 import type { Banco } from "./db/conexao";
-import { bloquear, configurar, desbloquear, estadoAuth, exigirSessao, INATIVIDADE_MS, NaoAutorizado } from "./estado";
+import { bloquear, configurar, desbloquear, estadoAuth, exigirSessao, INATIVIDADE_MS, NaoAutorizado, sessaoValida } from "./estado";
 import { agora } from "./infra/relogio";
 import * as srv from "./servico";
 
@@ -54,7 +54,9 @@ function gravarCookie(c: Context, token: string) {
   setCookie(c, COOKIE, token, { httpOnly: true, sameSite: "Strict", path: "/api", maxAge: 60 * 60 * 12 });
 }
 
-app.get("/auth/estado", (c) => c.json({ ...estadoAuth(), inatividadeMin: INATIVIDADE_MS / 60_000 }));
+app.get("/auth/estado", (c) =>
+  c.json({ ...estadoAuth(), sessaoValida: sessaoValida(getCookie(c, COOKIE)), inatividadeMin: INATIVIDADE_MS / 60_000 }),
+);
 
 app.post("/auth/configurar", async (c) => {
   const { senha, ficticio } = z.object({ senha: senhaSchema, ficticio: z.boolean().default(false) }).parse(await c.req.json());
@@ -81,6 +83,9 @@ app.use("*", async (c, next) => {
 });
 
 const db = (c: Context<Env>) => c.get("banco").db;
+
+/** Mantém a sessão viva enquanto há uso na interface (o middleware já renovou). */
+app.post("/sessao/manter", (c) => c.json({ ok: true }));
 const ok = (c: Context, extra: object = {}) => c.json({ ok: true, ...extra });
 
 // ── Consultório ──────────────────────────────────────────────

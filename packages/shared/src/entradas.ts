@@ -91,4 +91,6 @@ export interface EstadoAuth {
   /** Já existe banco (senha definida)? */
   configurado: boolean;
   desbloqueado: boolean;
+  /** O cookie desta aba tem sessão válida? */
+  sessaoValida: boolean;
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dinheiro } from "@consultorio/shared";
+import { dinheiro } from "./money";
 import { saldoPorMoeda } from "./saldo";
 
 const AGORA = new Date("2026-11-04T17:30:00Z");

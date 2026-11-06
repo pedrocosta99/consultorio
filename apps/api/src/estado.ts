@@ -24,7 +24,7 @@ let falhasSeguidas = 0;
 
 export class NaoAutorizado extends Error {}
 
-export function estadoAuth(): EstadoAuth {
+export function estadoAuth(): Omit<EstadoAuth, "sessaoValida"> {
   return { configurado: fs.existsSync(caminhoBanco()), desbloqueado: banco !== null };
 }
 
@@ -84,6 +84,12 @@ function fecharBanco() {
     banco.sqlite.close();
     banco = null;
   }
+}
+
+/** A sessão deste token ainda vale? (não lança, não renova) */
+export function sessaoValida(token: string | undefined): boolean {
+  const ultimo = token ? sessoes.get(token) : undefined;
+  return !!banco && ultimo !== undefined && Date.now() - ultimo <= INATIVIDADE_MS;
 }
 
 /** Valida e renova a sessão. Lança NaoAutorizado se expirou. */
