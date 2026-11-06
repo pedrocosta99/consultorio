@@ -19,7 +19,40 @@ Decisões tomadas: direção visual **Sálvia**; fuso principal **Brasília** (`
 | 0.7 | Divulgação (básico): campanhas de anúncios, gasto, contatos, custo por paciente | ✅ |
 | 0.8 | Calendário: Dia/Semana/Mês, linha do agora, arrastar, painel lateral, dois fusos | ✅ |
 | 0.9 | Configurações (tema, fusos, modo discreto) | ✅ |
-| 0.10 | Testes visuais Playwright (1440/390, claro/escuro) + axe, `pnpm test:visual` | ⬜ |
+| 0.10 | Testes visuais Playwright (1440/390, claro/escuro) + axe, `pnpm test:visual` | ✅ |
+
+## Etapa 1: consultório básico (Fase 1)
+
+Autorizado a seguir sem pausas até o fim da Fase 2 (6 nov 2026). Decisões tomadas sem perguntar, registradas aqui:
+
+- **Banco:** `better-sqlite3-multiple-ciphers` (API idêntica ao better-sqlite3, mas já suporta SQLCipher, o que deixa a Etapa 2 sem troca de driver) + Drizzle ORM com migrações versionadas em `apps/api/drizzle/`.
+- **Arquivo do banco:** `data/consultorio.db` (fora do git). Caminho configurável por `CONSULTORIO_DB`.
+- **Senha:** definida no primeiro acesso; guardada só como hash scrypt em `meta_sistema`. A API começa bloqueada; o banco só é aberto/usado depois do desbloqueio. Sessão expira após 15 min sem uso (front e API).
+- **Finanças e Divulgação** continuam com dados fictícios até a Fase 3; o Consultório passa a usar o banco.
+
+| Passo | O quê | Status |
+| --- | --- | --- |
+| 1.1 | Esquema Drizzle (pacientes, contratos, sessões, pagamentos, contas, feriados, meta_sistema), migrações e seed fictício | ⬜ |
+| 1.2 | Regras com testes: geração de sessões pela grade (feriados, reajuste/mudança de contrato) e saldo | ⬜ |
+| 1.3 | API: pacientes, contratos, sessões, pagamentos, feriados | ⬜ |
+| 1.4 | Senha ao abrir e bloqueio por inatividade | ⬜ |
+| 1.5 | Front ligado à API (agenda, painel, ficha gravam no banco) | ⬜ |
+| 1.6 | CRUD de pacientes e contratos (reajuste sem apagar o passado; arquivar/excluir só *interrompido*) | ⬜ |
+| 1.7 | Registrar pagamento e saldo por paciente | ⬜ |
+| 1.8 | Exportar/importar snapshot cifrado (VACUUM INTO + AES-256-GCM + scrypt) | ⬜ |
+| 1.9 | Testes visuais rodando contra a API com seed | ⬜ |
+
+## Etapa 2: notas clínicas (Fase 2)
+
+| Passo | O quê | Status |
+| --- | --- | --- |
+| 2.1 | Tabela de notas + FTS5 + API | ⬜ |
+| 2.2 | Editor markdown com salvamento automático; pontos fixos e linha do tempo na ficha; nota direto do calendário | ⬜ |
+| 2.3 | Busca de texto completo no Cmd+K, com destaque | ⬜ |
+| 2.4 | "Levar para supervisão" (página própria) e filtro documental/pessoal | ⬜ |
+| 2.5 | Exportar prontuário do paciente em PDF | ⬜ |
+| 2.6 | Painel do consultório com dados reais | ⬜ |
+| 2.7 | Banco cifrado com SQLCipher e migração do banco existente | ⬜ |
 
 ### Lembretes para etapas futuras
 
@@ -63,6 +96,10 @@ Decisões tomadas: direção visual **Sálvia**; fuso principal **Brasília** (`
 
 **0.9**
 - `feat(web): tela de Configurações (tema, fusos, modo discreto) e atalho do modo discreto no Cmd+K`
+
+**0.10**
+- `fix(web): acessibilidade apontada pelo axe`
+- `test(web): testes visuais Playwright (1440/390, claro/escuro) + axe`
 
 **Extra (entre 0.8 e 0.9)**
 - `chore(mocks): pacientes fictícios famosos (Lírio de Itu, Lila e Lenu, Homem dos Lobos)`
