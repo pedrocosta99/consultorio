@@ -72,5 +72,10 @@ export function semearFicticio(db: Db, agora: Date) {
         .run();
       for (const sessaoId of pg.sessaoIds) tx.insert(t.pagamentoSessoes).values({ pagamentoId: pg.id, sessaoId }).run();
     }
+    for (const l of m.lancamentos) {
+      tx.insert(t.lancamentos)
+        .values({ ...l, valorCentavos: l.valor.centavos, moeda: l.valor.moeda })
+        .run();
+    }
   });
 }

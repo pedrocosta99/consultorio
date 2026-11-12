@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router";
 import { Archive, ChevronRight, Search, SearchX, UserPlus, Users } from "lucide-react";
 import {
   ORIGENS,
+  ultimaRealizada,
   ROTULO_MODALIDADE,
   ROTULO_ORIGEM,
   ROTULO_STATUS,
@@ -19,6 +20,8 @@ import { useDados } from "@/app/dados";
 import { CabecalhoPagina, EstadoVazio, PacienteAvatar, Valor, Valores } from "@/components/comuns";
 import { DialogoPaciente } from "@/components/formularios/DialogoPaciente";
 import { contratoVigente, descreverGrade, ESTILO_STATUS } from "@/lib/pacientes";
+import { capitalizar, fmt, noFuso } from "@/lib/datas";
+import { usePreferencias } from "@/app/preferencias";
 import { cn } from "@/lib/utils";
 
 type FiltroStatus = Paciente["status"] | "todos" | "arquivados";
@@ -32,8 +35,41 @@ export function StatusPaciente({ status, className }: { status: Paciente["status
   );
 }
 
+/** Ativo sem sessão realizada há este tanto de dias = "sumiu" (pausa não combinada?). */
+export const DIAS_SUMIDO = 21;
+
+const DIA = 86_400_000;
+
+function haQuanto(instante: string, agora: number): string {
+  const dias = Math.floor((agora - Date.parse(instante)) / DIA);
+  return dias <= 0 ? "hoje" : dias === 1 ? "ontem" : `há ${dias} dias`;
+}
+
+/** Última sessão realizada, próxima agendada e alerta de quem sumiu. */
+function Acompanhamento({ ultima, proxima, sumido, compacto }: { ultima?: string; proxima?: string; sumido: number | null; compacto?: boolean }) {
+  const { fusoPrincipal } = usePreferencias();
+  const agora = Date.now();
+  if (sumido !== null)
+    return (
+      <span className="inline-flex rounded-full border border-[var(--st-falta-bd)] bg-[var(--st-falta-bg)] px-2 py-0.5 text-xs font-medium whitespace-nowrap text-[var(--st-falta-fg)]" title="Ativo, mas sem sessão realizada recentemente">
+        {ultima ? `Sem sessão ${haQuanto(ultima, agora)}` : "Nenhuma sessão ainda"}
+      </span>
+    );
+  return (
+    <span className={cn("text-sm", compacto && "text-xs text-muted-foreground")}>
+      {ultima ? <span className={cn(!compacto && "block")}>Última {haQuanto(ultima, agora)}</span> : null}
+      {proxima && (
+        <span className={cn("text-xs text-muted-foreground", !compacto && "block")}>
+          {compacto && ultima ? " · " : ""}Próxima {capitalizar(fmt(noFuso(proxima, fusoPrincipal), "EEE, d/MM"))}
+        </span>
+      )}
+      {!ultima && !proxima && <span className="text-muted-foreground">—</span>}
+    </span>
+  );
+}
+
 export function PaginaPacientes() {
-  const { pacientes, arquivados, contratos, carregando, nomeExibicao, saldoPaciente } = useDados();
+  const { pacientes, arquivados, contratos, sessoes, carregando, nomeExibicao, saldoPaciente } = useDados();
   const [novo, setNovo] = useState(false);
   const navegar = useNavigate();
   const [params, setParams] = useSearchParams();
@@ -57,15 +93,24 @@ export function PaginaPacientes() {
     return c;
   }, [pacientes, arquivados]);
 
+  const agora = new Date();
   const lista = useMemo(() => {
     const termo = busca.trim().toLowerCase();
     return (status === "arquivados" ? arquivados : pacientes)
       .filter((p) => status === "todos" || status === "arquivados" || p.status === status)
       .filter((p) => origem === "todas" || p.origem === origem)
       .filter((p) => !termo || p.nome.toLowerCase().includes(termo) || p.apelido.toLowerCase().includes(termo))
-      .map((p) => ({ p, contrato: contratoVigente(contratos, p.id), saldo: saldoPaciente(p.id).filter((v) => v.centavos > 0) }))
+      .map((p) => {
+        const ultima = ultimaRealizada(sessoes, p.id, agora);
+        const proxima = sessoes.find((s) => s.pacienteId === p.id && s.estado === "agendada" && Date.parse(s.inicio) > agora.getTime())?.inicio;
+        const desde = ultima ? Date.parse(ultima) : Date.parse(`${p.inicioEm}T12:00:00Z`);
+        const sumido = p.status === "ativo" && agora.getTime() - desde > DIAS_SUMIDO * DIA ? Math.floor((agora.getTime() - desde) / DIA) : null;
+        return { p, contrato: contratoVigente(contratos, p.id), saldo: saldoPaciente(p.id).filter((v) => v.centavos > 0), ultima, proxima, sumido };
+      })
       .sort((a, b) => a.p.nome.localeCompare(b.p.nome, "pt-BR"));
-  }, [pacientes, arquivados, contratos, status, origem, busca, saldoPaciente]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pacientes, arquivados, contratos, sessoes, status, origem, busca, saldoPaciente]);
+
 
   const temFiltro = status !== "ativo" || origem !== "todas" || busca !== "";
   const limpar = () => {
@@ -193,7 +238,7 @@ export function PaginaPacientes() {
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
                   <TableHead className="pl-4">Paciente</TableHead>
-                  <TableHead>Origem</TableHead>
+                  <TableHead>Acompanhamento</TableHead>
                   <TableHead>Horário fixo</TableHead>
                   <TableHead className="text-right">Valor</TableHead>
                   <TableHead className="text-right">A receber</TableHead>
@@ -201,7 +246,7 @@ export function PaginaPacientes() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {lista.map(({ p, contrato, saldo }) => (
+                {lista.map(({ p, contrato, saldo, ultima, proxima, sumido }) => (
                   <TableRow
                     key={p.id}
                     className="cursor-pointer"
@@ -218,11 +263,15 @@ export function PaginaPacientes() {
                           >
                             {nomeExibicao(p)}
                           </Link>
-                          <span className="text-xs text-muted-foreground">{ROTULO_MODALIDADE[p.modalidade]}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {ROTULO_MODALIDADE[p.modalidade]} · {ROTULO_ORIGEM[p.origem]}
+                          </span>
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell className="text-muted-foreground">{ROTULO_ORIGEM[p.origem]}</TableCell>
+                    <TableCell>
+                      <Acompanhamento ultima={ultima} proxima={proxima} sumido={sumido} />
+                    </TableCell>
                     <TableCell className="tabular">{descreverGrade(contrato)}</TableCell>
                     <TableCell className="text-right">{contrato ? <Valor valor={contrato.valor} /> : "—"}</TableCell>
                     <TableCell className="text-right font-medium">
@@ -239,7 +288,7 @@ export function PaginaPacientes() {
 
           {/* Mobile: cartões */}
           <ul className="flex flex-col gap-2 md:hidden">
-            {lista.map(({ p, contrato, saldo }) => (
+            {lista.map(({ p, contrato, saldo, ultima, proxima, sumido }) => (
               <li key={p.id}>
                 <Link
                   to={`/pacientes/${p.id}`}
@@ -253,6 +302,9 @@ export function PaginaPacientes() {
                     </div>
                     <p className="truncate text-xs text-muted-foreground">
                       {descreverGrade(contrato)} · {ROTULO_ORIGEM[p.origem]}
+                    </p>
+                    <p className="mt-0.5">
+                      <Acompanhamento ultima={ultima} proxima={proxima} sumido={sumido} compacto />
                     </p>
                     {saldo.length > 0 && (
                       <p className="mt-0.5 text-xs">

@@ -1,14 +1,17 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router";
-import { CalendarCheck2, CalendarDays, CircleDollarSign, Coffee, TrendingUp, UserX } from "lucide-react";
+import { AlarmClock, CalendarCheck2, CalendarDays, CircleDollarSign, Coffee, NotebookPen, Sunrise, TrendingUp, UserX } from "lucide-react";
 import { endOfWeek, format, startOfWeek } from "date-fns";
-import type { Dinheiro } from "@consultorio/shared";
+import { sessoesSemRegistro, type Dinheiro, type Sessao } from "@consultorio/shared";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { somarPorMoeda, useDados } from "@/app/dados";
 import { usePreferencias } from "@/app/preferencias";
 import { AcoesSessao } from "@/components/AcoesSessao";
+import { BotaoMensagem } from "@/components/BotaoMensagem";
+import { SheetNota } from "@/components/notas/SheetNota";
+import { mensagemLembrete } from "@/lib/mensagens";
 import { CabecalhoPagina, EstadoBadge, EstadoVazio, PacienteAvatar, Valor, Valores } from "@/components/comuns";
 import { capitalizar, chaveDia, fmt, hora, noFuso, SEMANA } from "@/lib/datas";
 
@@ -46,7 +49,9 @@ function Indicador({
 }
 
 export function PaginaPainel() {
-  const { sessoes, pagamentos, carregando, paciente, nomeExibicao, saldoPaciente, pacientes } = useDados();
+  const { sessoes, pagamentos, notas, carregando, paciente, nomeExibicao, saldoPaciente, pacientes, mensagens } = useDados();
+  const [notaDe, setNotaDe] = useState<Sessao | null>(null);
+  const comNota = useMemo(() => new Set(notas.map((n) => n.sessaoId).filter(Boolean)), [notas]);
   const { fusoPrincipal } = usePreferencias();
   const agora = new Date();
   const hojeLocal = noFuso(agora, fusoPrincipal);
@@ -79,7 +84,13 @@ export function PaginaPainel() {
       .filter((x) => x.saldo.length > 0)
       .sort((a, b) => (b.saldo[0]?.centavos ?? 0) - (a.saldo[0]?.centavos ?? 0));
 
+    const semRegistro = sessoesSemRegistro(sessoes, agora).filter((s) => chaveDia(s.inicio, fusoPrincipal) !== hoje);
+    const amanhaChave = format(new Date(hojeLocal.getFullYear(), hojeLocal.getMonth(), hojeLocal.getDate() + 1), "yyyy-MM-dd");
+    const deAmanha = sessoes.filter((s) => chaveDia(s.inicio, fusoPrincipal) === amanhaChave && s.estado === "agendada");
+
     return {
+      semRegistro,
+      deAmanha,
       deHoje,
       proxima: deHoje.find((s) => new Date(s.inicio) > agora && s.estado === "agendada"),
       realizadasHoje: deHoje.filter((s) => s.estado === "realizada").length,
@@ -149,6 +160,42 @@ export function PaginaPainel() {
           </div>
 
           <div className="mt-6 grid items-start gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+            <div className="flex min-w-0 flex-col gap-6">
+            {dados.semRegistro.length > 0 && (
+              <Card className="gap-0 border-[var(--st-falta-bd)]/60 py-0">
+                <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 border-b px-5 py-4">
+                  <CardTitle className="flex items-center gap-2 font-serif text-lg font-medium">
+                    <AlarmClock className="size-4 text-[var(--st-falta-fg)]" aria-hidden /> Sem registro
+                  </CardTitle>
+                  <span className="text-xs text-muted-foreground">
+                    {dados.semRegistro.length === 1 ? "1 sessão passada continua" : `${dados.semRegistro.length} sessões passadas continuam`} “agendada”
+                  </span>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <ul className="max-h-96 divide-y overflow-y-auto">
+                    {dados.semRegistro.map((s) => {
+                      const p = paciente(s.pacienteId);
+                      return (
+                        <li key={s.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3">
+                          <span className="w-24 text-sm tabular">
+                            <span className="block font-medium">{capitalizar(fmt(noFuso(s.inicio, fusoPrincipal), "EEE, d/MM"))}</span>
+                            <span className="text-xs text-muted-foreground">{hora(s.inicio, fusoPrincipal)}</span>
+                          </span>
+                          <span className="flex min-w-0 flex-1 items-center gap-3">
+                            <PacienteAvatar paciente={p} className="size-7 text-[10px]" />
+                            <span className="truncate text-sm">{nomeExibicao(p)}</span>
+                          </span>
+                          <div className="flex w-full flex-wrap items-center gap-1.5 sm:w-auto">
+                            <AcoesSessao sessao={s} compacto />
+                            <BotaoNota sessao={s} temNota={comNota.has(s.id)} aoAbrir={setNotaDe} />
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </CardContent>
+              </Card>
+            )}
             <Card className="gap-0 py-0">
               <CardHeader className="flex flex-row items-center justify-between border-b px-5 py-4">
                 <CardTitle className="font-serif text-lg font-medium">Hoje</CardTitle>
@@ -173,8 +220,12 @@ export function PaginaPainel() {
                               </span>
                             </span>
                           </Link>
-                          <EstadoBadge estado={s.estado} className="max-sm:hidden" />
-                          <AcoesSessao sessao={s} compacto className="w-full sm:w-auto" />
+                          {/* Os botões já mostram realizada/falta; o selo só aparece para o que eles não mostram. */}
+                          {(s.estado === "cancelada" || s.estado === "remarcada") && <EstadoBadge estado={s.estado} className="max-sm:hidden" />}
+                          <div className="flex w-full flex-wrap items-center gap-1.5 sm:w-auto">
+                            <AcoesSessao sessao={s} compacto />
+                            <BotaoNota sessao={s} temNota={comNota.has(s.id)} aoAbrir={setNotaDe} />
+                          </div>
                         </li>
                       );
                     })}
@@ -182,8 +233,42 @@ export function PaginaPainel() {
                 )}
               </CardContent>
             </Card>
+            </div>
 
             <div className="flex flex-col gap-6">
+              {dados.deAmanha.length > 0 && (
+                <Card className="gap-0 py-0">
+                  <CardHeader className="flex flex-row items-center justify-between border-b px-5 py-4">
+                    <CardTitle className="flex items-center gap-2 font-serif text-lg font-medium">
+                      <Sunrise className="size-4 text-muted-foreground" aria-hidden /> Amanhã
+                    </CardTitle>
+                    <span className="text-xs text-muted-foreground">Lembretes</span>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <ul className="divide-y">
+                      {dados.deAmanha.map((s) => {
+                        const p = paciente(s.pacienteId);
+                        return (
+                          <li key={s.id} className="flex items-center gap-3 px-5 py-2 text-sm">
+                            <span className="w-11 tabular text-muted-foreground">{hora(s.inicio, fusoPrincipal)}</span>
+                            <span className="min-w-0 flex-1 truncate">{nomeExibicao(p)}</span>
+                            {p && (
+                              <BotaoMensagem
+                                paciente={p}
+                                titulo={`Lembrete para ${nomeExibicao(p, "curto")}`}
+                                rotulo="Enviar lembrete"
+                                variant="ghost"
+                                somenteIcone
+                                gerar={() => mensagemLembrete(s, p, mensagens, fusoPrincipal)}
+                              />
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </CardContent>
+                </Card>
+              )}
               <Card className="gap-0 py-0">
                 <CardHeader className="border-b px-5 py-4">
                   <CardTitle className="font-serif text-lg font-medium">A receber</CardTitle>
@@ -241,17 +326,30 @@ export function PaginaPainel() {
           </div>
         </>
       )}
+      <SheetNota aberto={!!notaDe} aoFechar={() => setNotaDe(null)} pacienteId={notaDe?.pacienteId} sessaoId={notaDe?.id} />
     </>
+  );
+}
+
+/** Abre a nota da sessão; com nota escrita, mostra "Nota ✓". */
+function BotaoNota({ sessao, temNota, aoAbrir }: { sessao: Sessao; temNota: boolean; aoAbrir: (s: Sessao) => void }) {
+  return (
+    <Button size="sm" variant={temNota ? "secondary" : "outline"} onClick={() => aoAbrir(sessao)} title={temNota ? "Continuar a nota desta sessão" : "Escrever a nota desta sessão"}>
+      <NotebookPen aria-hidden /> Nota{temNota && <span className="sr-only"> (escrita)</span>}
+    </Button>
   );
 }
 
 /** Valor principal (BRL, se houver) em destaque; demais moedas pequenas embaixo. */
 function ValorMultimoeda({ valores }: { valores: Dinheiro[] }) {
   if (valores.length === 0) return <span className="text-muted-foreground">—</span>;
-  const [principal, ...outros] = valores;
+  // O real é a moeda principal: vem primeiro, mesmo zerado, para os cards serem comparáveis.
+  const brl = valores.find((v) => v.moeda === "BRL") ?? { centavos: 0, moeda: "BRL" as const };
+  const principal = brl;
+  const outros = valores.filter((v) => v.moeda !== "BRL");
   return (
     <>
-      <Valor valor={principal!} />
+      <Valor valor={principal} />
       {outros.length > 0 && (
         <span className="mt-0.5 block font-sans text-xs font-normal text-muted-foreground">
           + {outros.map((v) => <Valor key={v.moeda} valor={v} className="mr-2" />)}

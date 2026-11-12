@@ -87,6 +87,10 @@ export const pagamentoSchema = z.object({
   data: dataCivil,
   meio: z.enum(MEIOS_PAGAMENTO),
   contaId: id,
+  /** Recibo (ex.: Receita Saúde) emitido em: data civil, ou null/ausente = não emitido. */
+  reciboEm: dataCivil.nullable().optional(),
+  /** Número/código do recibo, se anotado. */
+  reciboNumero: z.string().optional(),
 });
 export type Pagamento = z.infer<typeof pagamentoSchema>;
 
@@ -102,6 +106,10 @@ export const notaSchema = z.object({
   levarSupervisao: z.boolean(),
   /** documental = poderia ser exigido; pessoal = anotação do analista. */
   natureza: z.enum(["documental", "pessoal"]),
+  /** O que foi discutido na supervisão. */
+  supervisaoTexto: z.string().optional(),
+  /** Data em que foi discutida na supervisão; null/ausente = ainda a levar. */
+  supervisaoEm: dataCivil.nullable().optional(),
   criadoEm: instante,
   atualizadoEm: instante.optional(),
 });
@@ -109,7 +117,7 @@ export type Nota = z.infer<typeof notaSchema>;
 
 // ── Finanças ──────────────────────────────────────────────────
 
-export const TIPOS_CONTA = ["corrente", "poupanca", "cartao", "investimento", "dinheiro"] as const;
+export const TIPOS_CONTA = ["corrente", "poupanca", "cartao", "dinheiro"] as const;
 
 export const contaSchema = z.object({
   id,
@@ -122,21 +130,30 @@ export const contaSchema = z.object({
 });
 export type Conta = z.infer<typeof contaSchema>;
 
-export const TIPOS_TRANSACAO = ["receita", "despesa", "transferencia"] as const;
+/**
+ * Lançamento manual (aluguel da sala, supervisão, um repasse…). Os pagamentos de
+ * pacientes NÃO viram lançamento: entram como entrada direto de `pagamentos`.
+ */
+export const TIPOS_LANCAMENTO = ["entrada", "saida"] as const;
 
-export const transacaoSchema = z.object({
+export const lancamentoSchema = z.object({
   id,
   data: dataCivil,
-  /** Positivo = entrada na conta; negativo = saída. */
+  /** Sempre positivo; o sentido vem de `tipo`. */
   valor: dinheiroSchema,
-  tipo: z.enum(TIPOS_TRANSACAO),
+  tipo: z.enum(TIPOS_LANCAMENTO),
   descricao: z.string(),
-  contaId: id,
   categoria: z.string(),
-  subcategoria: z.string().optional(),
-  pacienteId: id.optional(),
+  /** Fixo mensal: "Lançar fixos do mês" repete o último da série. */
+  fixo: z.boolean(),
+  /** Liga os meses de um mesmo fixo. null = avulso que nunca foi fixo. */
+  serieId: id.nullable(),
 });
-export type Transacao = z.infer<typeof transacaoSchema>;
+export type Lancamento = z.infer<typeof lancamentoSchema>;
+
+/** Sugestões no formulário; a categoria aceita texto livre. */
+export const CATEGORIAS_SAIDA = ["Aluguel da sala", "Supervisão", "Análise pessoal", "Formação", "Divulgação", "Impostos", "Conselho (CRP)", "Outros"] as const;
+export const CATEGORIAS_ENTRADA = ["Repasse", "Aula/Palestra", "Outros"] as const;
 
 // ── Divulgação (anúncios) ─────────────────────────────────────
 

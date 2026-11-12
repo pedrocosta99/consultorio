@@ -102,4 +102,15 @@ describe("API", () => {
     expect(r.status).toBe(400);
     expect(r.json.erro).toMatch(/nome/i);
   });
+
+  it("lançamentos: valida, cria e lança os fixos do mês", async () => {
+    expect((await req("POST", "/lancamentos", { tipo: "saida", descricao: "", valor: { centavos: 0, moeda: "BRL" }, data: "2026-11-05", categoria: "Supervisão" })).status).toBe(400);
+    const r = await req("POST", "/lancamentos", { tipo: "saida", descricao: "Supervisão", valor: { centavos: 40000, moeda: "BRL" }, data: "2026-10-08", categoria: "Supervisão", fixo: true });
+    expect(r.status).toBe(200);
+    expect((await req("POST", "/lancamentos/fixos", { mes: "2026-13" })).status).toBe(400);
+    const f = await req("POST", "/lancamentos/fixos", { mes: "2099-01" });
+    expect(f.json.criados).toBeGreaterThanOrEqual(1);
+    const c = await req("GET", "/consultorio");
+    expect(c.json.lancamentos.some((l: any) => l.data === "2099-01-08" && l.serieId === r.json.id)).toBe(true);
+  });
 });

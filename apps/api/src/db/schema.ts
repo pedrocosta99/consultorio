@@ -13,6 +13,7 @@ import {
   ORIGENS,
   STATUS_PACIENTE,
   TIPOS_CONTA,
+  TIPOS_LANCAMENTO,
   TIPOS_NOTA,
 } from "@consultorio/shared";
 
@@ -114,6 +115,9 @@ export const pagamentos = sqliteTable(
     /** Ponte com Finanças (Fase 3). */
     transacaoId: text("transacao_id"),
     observacao: text("observacao").notNull().default(""),
+    /** Recibo emitido (ex.: Receita Saúde) em "yyyy-MM-dd"; null = ainda não. */
+    reciboEm: text("recibo_em"),
+    reciboNumero: text("recibo_numero").notNull().default(""),
     criadoEm: criadoEm(),
   },
   (t) => [index("pagamentos_paciente").on(t.pacienteId)],
@@ -151,8 +155,35 @@ export const notas = sqliteTable(
     levarSupervisao: integer("levar_supervisao", { mode: "boolean" }).notNull().default(false),
     /** documental = poderia ser exigido; pessoal = anotação do analista. */
     natureza: text("natureza", { enum: ["documental", "pessoal"] }).notNull(),
+    /** O que foi discutido na supervisão (só faz sentido com levar_supervisao). */
+    supervisaoTexto: text("supervisao_texto").notNull().default(""),
+    /** Data civil em que foi discutida; null = ainda a levar. */
+    supervisaoEm: text("supervisao_em"),
     criadoEm: criadoEm(),
     atualizadoEm: text("atualizado_em").notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ','now'))`),
   },
   (t) => [index("notas_paciente").on(t.pacienteId), index("notas_sessao").on(t.sessaoId)],
+);
+
+/**
+ * Finanças v0: lançamentos manuais (aluguel, supervisão…). Pagamentos de pacientes
+ * já são entradas por si e não são copiados para cá.
+ */
+export const lancamentos = sqliteTable(
+  "lancamentos",
+  {
+    id: text("id").primaryKey(),
+    data: text("data").notNull(),
+    tipo: text("tipo", { enum: TIPOS_LANCAMENTO }).notNull(),
+    descricao: text("descricao").notNull(),
+    /** Sempre positivo; o sentido vem de `tipo`. */
+    valorCentavos: integer("valor_centavos").notNull(),
+    moeda: text("moeda", { enum: MOEDAS }).notNull(),
+    categoria: text("categoria").notNull(),
+    fixo: integer("fixo", { mode: "boolean" }).notNull().default(false),
+    /** Série de um fixo mensal (id do primeiro lançamento). */
+    serieId: text("serie_id"),
+    criadoEm: criadoEm(),
+  },
+  (t) => [index("lancamentos_data").on(t.data), index("lancamentos_serie").on(t.serieId)],
 );

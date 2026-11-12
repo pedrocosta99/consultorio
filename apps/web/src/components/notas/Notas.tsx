@@ -4,7 +4,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
-import { Bookmark, Check, NotebookPen, Pencil, Pin, Plus, Trash2 } from "lucide-react";
+import { Bold, Bookmark, BookmarkCheck, Check, FileText, Heading, Italic, List, NotebookPen, Pencil, Pin, Plus, Trash2 } from "lucide-react";
 import { ROTULO_ESTADO, type Nota, type Paciente } from "@consultorio/shared";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,10 +20,30 @@ import { EstadoVazio } from "@/components/comuns";
 import { DialogoConfirmacao, SeletorSimples } from "@/components/formularios/campos";
 import { capitalizar, fmt, hora, noFuso } from "@/lib/datas";
 import { Markdown } from "@/lib/markdown";
+import { DiscussaoSupervisao } from "./DiscussaoSupervisao";
 import { cn } from "@/lib/utils";
 
 type Natureza = Nota["natureza"];
 type Situacao = "ocioso" | "salvando" | "salvo" | "erro";
+
+/** Aplica formatação markdown na seleção do textarea e devolve o novo texto + seleção. */
+function formatar(el: HTMLTextAreaElement, tipo: "negrito" | "italico" | "lista" | "titulo"): { texto: string; ini: number; fim: number } {
+  const { value: v, selectionStart: a, selectionEnd: b } = el;
+  if (tipo === "negrito" || tipo === "italico") {
+    const m = tipo === "negrito" ? "**" : "*";
+    const sel = v.slice(a, b) || (tipo === "negrito" ? "negrito" : "itálico");
+    return { texto: v.slice(0, a) + m + sel + m + v.slice(b), ini: a + m.length, fim: a + m.length + sel.length };
+  }
+  // Por linha: do começo da primeira linha selecionada ao fim da última.
+  const ini = v.lastIndexOf("\n", a - 1) + 1;
+  const fimLinha = v.indexOf("\n", b);
+  const fim = fimLinha === -1 ? v.length : fimLinha;
+  const prefixo = tipo === "lista" ? "- " : "## ";
+  const linhas = v.slice(ini, fim).split("\n");
+  const todas = linhas.every((l) => l.startsWith(prefixo));
+  const novo = linhas.map((l) => (todas ? l.slice(prefixo.length) : prefixo + l)).join("\n");
+  return { texto: v.slice(0, ini) + novo + v.slice(fim), ini, fim: ini + novo.length };
+}
 
 const lerTags = (t: string) =>
   [...new Set(t.split(/[,\s]+/).map((x) => x.replace(/^#/, "").trim().toLowerCase()).filter(Boolean))].slice(0, 20);
@@ -40,12 +60,13 @@ export function EditorNota({
   sessaoInicial?: string | null;
   aoTerminar: () => void;
 }) {
-  const { sessoes, mutar } = useDados();
+  const { sessoes, mutar, mensagens } = useDados();
   const { fusoPrincipal } = usePreferencias();
   const [texto, setTexto] = useState(nota?.texto ?? "");
   const [tags, setTags] = useState(nota?.tags.join(", ") ?? "");
   const [natureza, setNatureza] = useState<Natureza>(nota?.natureza ?? "documental");
   const [supervisao, setSupervisao] = useState(nota?.levarSupervisao ?? false);
+  const [discussao, setDiscussao] = useState(nota?.supervisaoTexto ?? "");
   const [sessaoId, setSessaoId] = useState<string>(() => {
     if (nota) return nota.sessaoId ?? "";
     if (sessaoInicial) return sessaoInicial;
@@ -74,7 +95,7 @@ export function EditorNota({
 
   const salvar = useCallback(async () => {
     if (!texto.trim()) return;
-    const corpo = { texto, tags: lerTags(tags), natureza, levarSupervisao: supervisao, sessaoId: sessaoId || null };
+    const corpo = { texto, tags: lerTags(tags), natureza, levarSupervisao: supervisao, sessaoId: sessaoId || null, ...(supervisao ? { supervisaoTexto: discussao } : {}) };
     setSituacao("salvando");
     try {
       if (id.current) await mutar("PATCH", `/notas/${id.current}`, corpo);
@@ -85,7 +106,7 @@ export function EditorNota({
       setSituacao("erro");
       setErro(e instanceof Error ? e.message : "Não salvou.");
     }
-  }, [texto, tags, natureza, supervisao, sessaoId, mutar, paciente.id]);
+  }, [texto, tags, natureza, supervisao, discussao, sessaoId, mutar, paciente.id]);
 
   // Salvamento automático 900 ms depois da última mudança.
   useEffect(() => {
@@ -112,6 +133,31 @@ export function EditorNota({
     }
   }, [texto]);
 
+  const aplicar = (tipo: Parameters<typeof formatar>[1]) => {
+    const el = area.current;
+    if (!el) return;
+    const r = formatar(el, tipo);
+    setTexto(r.texto);
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(r.ini, r.fim);
+    });
+  };
+
+  const inserirModelo = () => {
+    const modelo = mensagens.modeloNota;
+    const novo = texto.trim() ? `${texto.replace(/\s+$/, "")}\n\n${modelo}` : modelo;
+    setTexto(novo);
+    requestAnimationFrame(() => {
+      const el = area.current;
+      if (!el) return;
+      el.focus();
+      // Cursor no fim do primeiro item do modelo.
+      const pos = novo.length - modelo.length + (modelo.indexOf("\n") === -1 ? modelo.length : modelo.indexOf("\n"));
+      el.setSelectionRange(pos, pos);
+    });
+  };
+
   const concluir = async () => {
     await salvando.current;
     if (texto.trim()) await salvar();
@@ -123,6 +169,25 @@ export function EditorNota({
       <label htmlFor="texto-nota" className="sr-only">
         Texto da nota
       </label>
+      <div className="-mb-1 flex flex-wrap items-center gap-0.5" role="toolbar" aria-label="Formatação" aria-controls="texto-nota">
+        {(
+          [
+            ["negrito", Bold, "Negrito (Cmd+B)"],
+            ["italico", Italic, "Itálico (Cmd+I)"],
+            ["titulo", Heading, "Título"],
+            ["lista", List, "Lista"],
+          ] as const
+        ).map(([tipo, Icone, rotulo]) => (
+          <Button key={tipo} type="button" variant="ghost" size="icon-sm" aria-label={rotulo} title={rotulo} onClick={() => aplicar(tipo)}>
+            <Icone aria-hidden />
+          </Button>
+        ))}
+        {natureza === "documental" && mensagens.modeloNota.trim() && (
+          <Button type="button" variant="ghost" size="sm" className="ml-auto h-8 text-muted-foreground" onClick={inserirModelo} title="Itens do registro documental (CFP 001/2009). Edite o modelo em Configurações.">
+            <FileText aria-hidden /> Usar modelo
+          </Button>
+        )}
+      </div>
       <textarea
         id="texto-nota"
         ref={area}
@@ -132,9 +197,12 @@ export function EditorNota({
           if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
             e.preventDefault();
             void concluir();
+          } else if ((e.metaKey || e.ctrlKey) && (e.key === "b" || e.key === "i")) {
+            e.preventDefault();
+            aplicar(e.key === "b" ? "negrito" : "italico");
           }
         }}
-        placeholder={"Escreva aqui. **negrito**, *itálico*, - listas.\nCmd+Enter conclui."}
+        placeholder={"Escreva aqui como quiser. Os botões acima formatam o texto.\nCmd+Enter conclui."}
         className="w-full resize-none rounded-md border bg-transparent px-3 py-2 text-sm leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
       />
       <div className="grid gap-3 sm:grid-cols-2">
@@ -173,6 +241,21 @@ export function EditorNota({
             Levar para supervisão
           </Label>
         </div>
+        {supervisao && (
+          <div className="flex w-full flex-col gap-1.5">
+            <Label htmlFor="nota-discussao" className="text-xs">
+              Discutido em supervisão <span className="font-normal text-muted-foreground">(preencha depois da supervisão)</span>
+            </Label>
+            <textarea
+              id="nota-discussao"
+              value={discussao}
+              onChange={(e) => setDiscussao(e.target.value)}
+              rows={2}
+              placeholder="O que a supervisão apontou, hipóteses, próximos passos…"
+              className="w-full resize-y rounded-md border bg-transparent px-3 py-2 text-sm leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            />
+          </div>
+        )}
         <div className="ml-auto flex items-center gap-3">
           <span className={cn("text-xs text-muted-foreground", situacao === "erro" && "text-destructive")} role="status">
             {situacao === "salvando" ? "Salvando…" : situacao === "salvo" ? "Salvo" : situacao === "erro" ? erro : ""}
@@ -211,7 +294,15 @@ function CartaoNota({ nota: n, paciente, destacada }: { nota: Nota; paciente: Pa
         </Badge>
         {n.levarSupervisao && (
           <Badge variant="secondary" className="font-normal">
-            <Bookmark aria-hidden /> Supervisão
+            {n.supervisaoEm ? (
+              <>
+                <BookmarkCheck aria-hidden /> Discutida em supervisão
+              </>
+            ) : (
+              <>
+                <Bookmark aria-hidden /> Supervisão
+              </>
+            )}
           </Badge>
         )}
         {n.tags.map((t) => (
@@ -231,9 +322,12 @@ function CartaoNota({ nota: n, paciente, destacada }: { nota: Nota; paciente: Pa
       {editando ? (
         <EditorNota paciente={paciente} nota={n} aoTerminar={() => setEditando(false)} />
       ) : (
-        <Card className={cn("px-4 py-3 text-sm leading-relaxed shadow-none", destacada && "ring-2 ring-primary/40")}>
-          <Markdown texto={n.texto} />
-        </Card>
+        <>
+          <Card className={cn("px-4 py-3 text-sm leading-relaxed shadow-none", destacada && "ring-2 ring-primary/40")}>
+            <Markdown texto={n.texto} />
+          </Card>
+          {n.levarSupervisao && <DiscussaoSupervisao nota={n} className="mt-2" />}
+        </>
       )}
       <DialogoConfirmacao
         aberto={apagar}
@@ -372,6 +466,7 @@ export function PontosFixos({ paciente: p }: { paciente: Paciente }) {
         <h2 className="flex items-center gap-2 font-serif text-lg font-medium">
           <Pin className="size-4" aria-hidden /> Pontos fixos
         </h2>
+        <span className="hidden text-xs text-muted-foreground sm:inline">o que lembrar sempre</span>
         <span className={cn("ml-auto text-xs text-muted-foreground", situacao === "erro" && "text-destructive")} role="status">
           {editando && (situacao === "salvando" ? "Salvando…" : situacao === "salvo" ? "Salvo" : situacao === "erro" ? "Não salvou" : "")}
         </span>
@@ -406,7 +501,7 @@ export function PontosFixos({ paciente: p }: { paciente: Paciente }) {
             ref={area}
             value={texto}
             onChange={(e) => setTexto(e.target.value)}
-            placeholder="História, significantes recorrentes, sonhos, hipóteses…"
+            placeholder="História, temas recorrentes, sonhos, hipóteses, cuidados…"
             className="w-full resize-none rounded-md border bg-card px-3 py-2 text-sm leading-relaxed outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
           />
         </>
@@ -423,7 +518,7 @@ export function PontosFixos({ paciente: p }: { paciente: Paciente }) {
           )}
         </div>
       ) : (
-        <p className="text-sm text-muted-foreground">Nada registrado ainda. Aqui ficam história, significantes recorrentes, sonhos e hipóteses para ter sempre à vista.</p>
+        <p className="text-sm text-muted-foreground">Nada registrado ainda. Aqui fica o que vale ter sempre à vista antes de cada sessão: história, temas recorrentes, sonhos, hipóteses, cuidados.</p>
       )}
     </Card>
   );

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
 import { CalendarClock, Globe2, NotebookPen, UserRound } from "lucide-react";
 import { ROTULO_MODALIDADE, sessaoCobravel, type Sessao } from "@consultorio/shared";
@@ -9,6 +9,10 @@ import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useDados } from "@/app/dados";
 import { AcoesSessao } from "@/components/AcoesSessao";
+import { BotaoMensagem } from "@/components/BotaoMensagem";
+import { EditorNota } from "@/components/notas/Notas";
+import { Relembrar } from "@/components/notas/Relembrar";
+import { mensagemLembrete } from "@/lib/mensagens";
 import { EstadoBadge, PacienteAvatar, Valor } from "@/components/comuns";
 import { capitalizar, chaveDia, fmt, hora, nomeFuso, noFuso, offsetFuso } from "@/lib/datas";
 
@@ -39,11 +43,21 @@ export function PainelSessao({
   aoFechar: () => void;
   aoRemarcar: (id: string, diaChave: string, minutos: number) => void;
 }) {
-  const { sessoes, paciente, nomeExibicao } = useDados();
+  const { sessoes, notas, paciente, nomeExibicao, mensagens } = useDados();
   const s: Sessao | undefined = sessoes.find((x) => x.id === sessaoId);
   const p = s ? paciente(s.pacienteId) : undefined;
   const [data, setData] = useState("");
   const [horario, setHorario] = useState("");
+  const [escrevendo, setEscrevendo] = useState(false);
+  // Congelada ao abrir a sessão (o salvamento automático não remonta o editor).
+  const notaDaSessao = useMemo(
+    () => (sessaoId ? notas.find((n) => n.sessaoId === sessaoId) : undefined),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sessaoId, escrevendo],
+  );
+  const futura = s ? Date.parse(s.inicio) > Date.now() : false;
+
+  useEffect(() => setEscrevendo(false), [sessaoId]);
 
   useEffect(() => {
     if (s) {
@@ -83,6 +97,27 @@ export function PainelSessao({
               <section aria-label="Ações rápidas">
                 <AcoesSessao sessao={s} />
               </section>
+
+              {escrevendo ? (
+                <EditorNota key={s.id} paciente={p} nota={notaDaSessao} sessaoInicial={s.id} aoTerminar={() => setEscrevendo(false)} />
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="secondary" size="sm" onClick={() => setEscrevendo(true)}>
+                    <NotebookPen aria-hidden /> {notaDaSessao ? "Continuar a nota" : "Escrever nota"}
+                  </Button>
+                  {futura && s.estado === "agendada" && (
+                    <BotaoMensagem
+                      paciente={p}
+                      titulo="Lembrete da sessão"
+                      rotulo="Lembrete"
+                      variant="secondary"
+                      gerar={() => mensagemLembrete(s, p, mensagens, fusoPrincipal)}
+                    />
+                  )}
+                </div>
+              )}
+
+              <Relembrar paciente={p} antesDe={s.inicio} sessaoId={s.id} />
 
               <Separator />
 
@@ -134,11 +169,6 @@ export function PainelSessao({
                 <Button asChild variant="secondary" size="sm">
                   <Link to={`/pacientes/${p.id}`}>
                     <UserRound aria-hidden /> Abrir ficha
-                  </Link>
-                </Button>
-                <Button asChild variant="secondary" size="sm">
-                  <Link to={`/pacientes/${p.id}?aba=notas&sessao=${s.id}`}>
-                    <NotebookPen aria-hidden /> Nota da sessão
                   </Link>
                 </Button>
               </div>

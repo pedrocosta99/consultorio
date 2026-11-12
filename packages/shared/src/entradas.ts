@@ -3,7 +3,7 @@
  */
 import { z } from "zod";
 import { dinheiroSchema } from "./money";
-import { COBRANCAS, ESTADOS_SESSAO, MEIOS_PAGAMENTO, MODALIDADES, ORIGENS, STATUS_PACIENTE } from "./types";
+import { COBRANCAS, ESTADOS_SESSAO, MEIOS_PAGAMENTO, MODALIDADES, ORIGENS, STATUS_PACIENTE, TIPOS_LANCAMENTO } from "./types";
 
 const dataCivil = z.iso.date({ error: "Data inválida" });
 const texto = (min = 1, msg = "Obrigatório") => z.string().trim().min(min, msg);
@@ -62,6 +62,17 @@ export const pagamentoEntradaSchema = z.object({
 });
 export type PagamentoEntrada = z.input<typeof pagamentoEntradaSchema>;
 
+export const lancamentoEntradaSchema = z.object({
+  tipo: z.enum(TIPOS_LANCAMENTO),
+  descricao: texto(1, "Descreva o lançamento").max(120, "Máximo de 120 caracteres"),
+  valor: dinheiroSchema.refine((v) => v.centavos > 0, "Valor deve ser maior que zero"),
+  data: dataCivil,
+  categoria: texto(1, "Escolha ou digite a categoria").max(40, "Máximo de 40 caracteres"),
+  fixo: z.boolean().default(false),
+});
+export type LancamentoEntrada = z.input<typeof lancamentoEntradaSchema>;
+export const lancamentoPatchSchema = lancamentoEntradaSchema.partial().refine((v) => Object.keys(v).length > 0, "Nada para atualizar");
+
 export const feriadoEntradaSchema = z.object({
   data: dataCivil,
   descricao: texto(1, "Descreva (ex.: Natal, férias)"),
@@ -85,9 +96,19 @@ export interface PacoteConsultorio {
   contas: import("./types").Conta[];
   feriados: Feriado[];
   notas: import("./types").Nota[];
+  lancamentos: import("./types").Lancamento[];
   /** Moedas em uso. BRL sempre; USD/EUR só se ligadas em Configurações. */
   moedas: import("./money").Moeda[];
+  /** Chave Pix e modelos de mensagem/nota (Configurações). */
+  mensagens: import("./cobranca").Mensagens;
 }
+
+export const reciboEntradaSchema = z.object({
+  /** Data em que o recibo foi emitido; null desfaz. */
+  em: dataCivil.nullable(),
+  numero: z.string().trim().max(60).optional(),
+});
+export type ReciboEntrada = z.infer<typeof reciboEntradaSchema>;
 
 
 export const notaEntradaSchema = z.object({
@@ -97,9 +118,23 @@ export const notaEntradaSchema = z.object({
   tags: z.array(z.string().trim().min(1).max(40)).max(20).default([]),
   levarSupervisao: z.boolean().default(false),
   natureza: z.enum(["documental", "pessoal"]).default("documental"),
+  supervisaoTexto: z.string().max(10000, "Texto longo demais").optional(),
+  supervisaoEm: z.iso.date({ error: "Data inválida" }).nullable().optional(),
 });
 export type NotaEntrada = z.input<typeof notaEntradaSchema>;
-export const notaPatchSchema = notaEntradaSchema.omit({ pacienteId: true }).partial();
+/**
+ * PATCH de nota: só os campos enviados. Sem `.default()` aqui: no Zod 4, `.partial()`
+ * mantém os defaults, e um PATCH parcial zeraria tags, supervisão e natureza.
+ */
+export const notaPatchSchema = z.object({
+  sessaoId: z.string().nullable().optional(),
+  texto: z.string().trim().min(1, "A nota está vazia").optional(),
+  tags: z.array(z.string().trim().min(1).max(40)).max(20).optional(),
+  levarSupervisao: z.boolean().optional(),
+  natureza: z.enum(["documental", "pessoal"]).optional(),
+  supervisaoTexto: z.string().max(10000, "Texto longo demais").optional(),
+  supervisaoEm: z.iso.date({ error: "Data inválida" }).nullable().optional(),
+});
 
 /** Resultado da busca de texto completo. O trecho marca o termo entre [[ e ]]. */
 export interface ResultadoBusca {

@@ -9,14 +9,16 @@ const TELAS: Array<[nome: string, rota: string]> = [
   ["ficha", "/pacientes/p07"],
   ["ficha-sessoes", "/pacientes/p07?aba=sessoes"],
   ["financas", "/financas"],
-  ["transacoes", "/financas?aba=transacoes"],
+  ["lancamentos", "/financas?aba=lancamentos"],
   ["divulgacao", "/financas?aba=divulgacao"],
   ["ficha-notas", "/pacientes/p07?aba=notas"],
   ["supervisao", "/supervisao"],
+  ["cobrancas", "/cobrancas"],
   ["configuracoes", "/configuracoes"],
   ["lab", "/lab"],
   ["painel-vazio", "/?mock=vazio"],
   ["pacientes-vazio", "/pacientes?mock=vazio"],
+  ["financas-vazio", "/financas?mock=vazio"],
   ["agenda-carregando", "/agenda?mock=carregando"],
 ];
 
@@ -43,3 +45,11 @@ test("Cmd+K abre a busca global", async ({ page }) => {
   await expect(page).toHaveScreenshot("busca-global.png");
 });
 
+
+test("finanças: diálogo de novo lançamento", async ({ page }) => {
+  await abrir(page, "/financas?aba=lancamentos");
+  await page.getByRole("button", { name: "Novo lançamento" }).first().click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(page).toHaveScreenshot("lancamento-dialogo.png");
+  await semViolacoesA11y(page);
+});

@@ -4,3 +4,5 @@ export * from "./mocks";
 export * from "./fuso";
 export * from "./entradas";
 export * from "./saldo";
+export * from "./lancamentos";
+export * from "./cobranca";

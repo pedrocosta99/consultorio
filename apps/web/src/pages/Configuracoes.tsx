@@ -4,11 +4,19 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { usePreferencias, type Tema } from "@/app/preferencias";
+import { usePreferencias, type TamanhoTexto, type Tema } from "@/app/preferencias";
 import { useDados } from "@/app/dados";
 import { CabecalhoPagina } from "@/components/comuns";
+import { SeletorPaleta } from "@/components/SeletorPaleta";
+import { SecaoMensagens } from "@/components/formularios/SecaoMensagens";
 import { SecaoBackup, SecaoContas, SecaoFeriados, SecaoFicticios, SecaoMoedas } from "@/components/formularios/SecoesConfiguracao";
 import { FUSOS_DISPONIVEIS, hora, nomeFuso, offsetFuso } from "@/lib/datas";
+
+const TAMANHOS: Array<[TamanhoTexto, string, string]> = [
+  ["normal", "Normal", "text-xs"],
+  ["grande", "Grande", "text-sm"],
+  ["maior", "Maior", "text-base"],
+];
 
 const TEMAS: Array<[Tema, string, typeof Sun]> = [
   ["claro", "Claro", Sun],
@@ -63,6 +71,23 @@ export function PaginaConfiguracoes() {
                 ))}
               </ToggleGroup>
             </Linha>
+            <Linha id="tamanho-texto" titulo="Tamanho do texto" descricao="Aumenta texto e espaçamentos em todo o app.">
+              <ToggleGroup
+                id="tamanho-texto"
+                type="single"
+                variant="outline"
+                value={prefs.tamanhoTexto}
+                onValueChange={(v) => v && prefs.atualizar({ tamanhoTexto: v as TamanhoTexto })}
+                aria-label="Tamanho do texto"
+              >
+                {TAMANHOS.map(([v, rotulo, classe]) => (
+                  <ToggleGroupItem key={v} value={v} aria-label={rotulo} className="gap-1.5 px-3">
+                    <span aria-hidden className={`font-serif ${classe}`}>A</span> {rotulo}
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+            </Linha>
+            <SeletorPaleta />
           </CardContent>
         </Card>
 
@@ -133,6 +158,7 @@ export function PaginaConfiguracoes() {
             </Linha>
           </CardContent>
         </Card>
+        <SecaoMensagens />
         <SecaoFeriados />
         <SecaoMoedas />
         <SecaoContas />

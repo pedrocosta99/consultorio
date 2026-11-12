@@ -1,9 +1,9 @@
 /**
  * Fonte de dados do app.
  *
- * Consultório (pacientes, contratos, sessões, pagamentos, contas, feriados): vem da
- * API local (banco SQLite), assim como as notas clínicas. Finanças e Divulgação ainda
- * são FICTÍCIAS até a Fase 3.
+ * Consultório (pacientes, contratos, sessões, pagamentos, contas, feriados), notas e
+ * lançamentos de Finanças: vêm da API local (banco SQLite). Só a Divulgação
+ * (campanhas) ainda é FICTÍCIA.
  *
  * Parâmetro de simulação na URL (útil para revisar estados e para os testes):
  *   ?mock=vazio       → sem dados
@@ -12,10 +12,12 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   gerarMocks,
+  MENSAGENS_PADRAO,
   saldoPorMoeda,
   sessaoCobravel,
   type Dinheiro,
   type Feriado,
+  type Mensagens,
   type Mocks,
   type Moeda,
   type PacoteConsultorio,
@@ -33,7 +35,7 @@ function lerModoMock(): ModoMock {
   return m === "vazio" || m === "carregando" ? m : "normal";
 }
 
-const PACOTE_VAZIO: Omit<PacoteConsultorio, "agora"> = { pacientes: [], contratos: [], sessoes: [], pagamentos: [], contas: [], feriados: [], moedas: ["BRL"], notas: [] };
+const PACOTE_VAZIO: Omit<PacoteConsultorio, "agora"> = { pacientes: [], contratos: [], sessoes: [], pagamentos: [], contas: [], feriados: [], moedas: ["BRL"], notas: [], lancamentos: [], mensagens: MENSAGENS_PADRAO };
 
 type Metodo = "POST" | "PATCH" | "PUT" | "DELETE";
 
@@ -44,6 +46,8 @@ interface Ctx extends Mocks {
   feriados: Feriado[];
   /** Moedas ligadas (BRL sempre). Contas e lançamentos de outras moedas ficam ocultos. */
   moedas: Moeda[];
+  /** Chave Pix e modelos de mensagem/nota. */
+  mensagens: Mensagens;
   recarregar: () => Promise<void>;
   /** Chama a API e recarrega os dados. Erros sobem para quem chamou. */
   mutar: <T = { ok: true; id?: string }>(metodo: Metodo, rota: string, corpo?: unknown) => Promise<T>;
@@ -114,16 +118,10 @@ export function DadosProvider({ children }: { children: ReactNode }) {
     [mutar, recarregar, avisarErro],
   );
 
-  // Finanças/Divulgação/notas: fictícias até as próximas fases. Geradas a partir do relógio da API.
-  const ficticio = useMemo(() => {
-    if (!pacote || modo === "vazio") return { transacoes: [], campanhas: [] };
-    const m = gerarMocks(new Date(pacote.agora));
-    // Só lançamentos de contas que existem no banco e em moedas ligadas (banco novo → Finanças vazia).
-    const contas = new Set(pacote.contas.filter((c) => pacote.moedas.includes(c.moeda)).map((c) => c.id));
-    return {
-      transacoes: m.transacoes.filter((t) => contas.has(t.contaId)),
-      campanhas: contas.size && pacote.contas.some((c) => c.id === "c-cartao") ? m.campanhas : [],
-    };
+  // Divulgação: fictícia por enquanto, só com os dados fictícios carregados. Gerada a partir do relógio da API.
+  const campanhas = useMemo(() => {
+    if (!pacote || modo === "vazio" || !pacote.contas.some((c) => c.id === "c-cartao")) return [];
+    return gerarMocks(new Date(pacote.agora)).campanhas;
   }, [pacote, modo]);
 
   const valor = useMemo<Ctx>(() => {
@@ -139,8 +137,10 @@ export function DadosProvider({ children }: { children: ReactNode }) {
       contas: base.contas.filter((c) => base.moedas.includes(c.moeda)),
       feriados: base.feriados,
       moedas: base.moedas,
+      mensagens: base.mensagens ?? MENSAGENS_PADRAO,
       notas: base.notas,
-      ...ficticio,
+      lancamentos: base.lancamentos.filter((l) => base.moedas.includes(l.valor.moeda)),
+      campanhas,
       carregando: modo === "carregando" || pacote === null,
       recarregar,
       mutar,
@@ -160,7 +160,7 @@ export function DadosProvider({ children }: { children: ReactNode }) {
           new Date(),
         ),
     };
-  }, [pacote, ficticio, modo, recarregar, mutar, atualizarSessao, modoDiscreto]);
+  }, [pacote, campanhas, modo, recarregar, mutar, atualizarSessao, modoDiscreto]);
 
   return <DadosCtx.Provider value={valor}>{children}</DadosCtx.Provider>;
 }

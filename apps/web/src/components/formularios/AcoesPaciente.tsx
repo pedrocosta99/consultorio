@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router";
-import { Archive, ArchiveRestore, CalendarClock, CalendarOff, FileDown, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, CalendarClock, CalendarOff, CalendarPlus, FileDown, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { FUSO_CONSULTORIO, type Contrato, type Paciente } from "@consultorio/shared";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -13,6 +13,7 @@ import { chaveDia, fmt } from "@/lib/datas";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Campo, DialogoConfirmacao, textoDeDinheiro } from "./campos";
+import { DialogoSessao } from "./DialogoSessao";
 import { CamposGrade, DialogoPaciente, GRADE_PADRAO, validarGrade, type GradeForm } from "./DialogoPaciente";
 
 function dataBonita(d: string) {
@@ -92,7 +93,7 @@ export function DialogoContrato({ aberto, aoFechar, paciente, atual }: { aberto:
   );
 }
 
-type Dialogo = null | "editar" | "contrato" | "encerrar" | "arquivar" | "excluir" | "pdf";
+type Dialogo = null | "editar" | "contrato" | "encerrar" | "arquivar" | "excluir" | "pdf" | "sessao";
 
 export function AcoesPaciente({ paciente: p, contrato }: { paciente: Paciente; contrato?: Contrato }) {
   const { mutar, nomeExibicao } = useDados();
@@ -125,6 +126,9 @@ export function AcoesPaciente({ paciente: p, contrato }: { paciente: Paciente; c
                 <CalendarOff aria-hidden /> Encerrar horário fixo
               </DropdownMenuItem>
             )}
+            <DropdownMenuItem onSelect={() => setAberto("sessao")}>
+              <CalendarPlus aria-hidden /> Sessão avulsa
+            </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => setAberto("pdf")}>
               <FileDown aria-hidden /> Exportar prontuário (PDF)
             </DropdownMenuItem>
@@ -154,6 +158,7 @@ export function AcoesPaciente({ paciente: p, contrato }: { paciente: Paciente; c
 
       <DialogoPaciente aberto={aberto === "editar"} aoFechar={fechar} paciente={p} />
       <DialogoContrato aberto={aberto === "contrato"} aoFechar={fechar} paciente={p} atual={contrato} />
+      <DialogoSessao aberto={aberto === "sessao"} aoFechar={fechar} pacienteId={p.id} />
 
       <DialogoConfirmacao
         aberto={aberto === "pdf"}

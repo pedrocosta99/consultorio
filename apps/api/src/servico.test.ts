@@ -193,3 +193,80 @@ describe("notas e busca (FTS5)", () => {
     expect(carregarConsultorio(db, AGORA).notas).toHaveLength(0);
   });
 });
+
+describe("lançamentos e fixos mensais", () => {
+  const aluguel = { tipo: "saida", descricao: "Aluguel da sala", valor: dinheiro(90000), data: "2026-09-30", categoria: "Aluguel da sala", fixo: true } as const;
+
+  it("cria, edita e exclui; o valor é sempre positivo", async () => {
+    const { criarLancamento, atualizarLancamento, excluirLancamento } = await import("./servico");
+    const id = criarLancamento(db, { ...aluguel, fixo: false });
+    atualizarLancamento(db, id, { valor: dinheiro(95000), descricao: "Sala" });
+    const [l] = carregarConsultorio(db, AGORA).lancamentos;
+    expect(l).toMatchObject({ id, valor: dinheiro(95000), descricao: "Sala", fixo: false, serieId: null });
+    excluirLancamento(db, id);
+    expect(carregarConsultorio(db, AGORA).lancamentos).toEqual([]);
+    expect(() => excluirLancamento(db, id)).toThrow(ErroDominio);
+  });
+
+  it("recusa moeda desligada", async () => {
+    const { criarLancamento } = await import("./servico");
+    expect(() => criarLancamento(db, { ...aluguel, valor: dinheiro(100, "EUR") })).toThrow(/EUR/);
+  });
+
+  it("lançar fixos repete o último da série, ajusta o dia e não duplica", async () => {
+    const { criarLancamento, lancarFixos, atualizarLancamento } = await import("./servico");
+    const id = criarLancamento(db, aluguel);
+    criarLancamento(db, { ...aluguel, descricao: "Livros", fixo: false });
+    expect(lancarFixos(db, "2026-10")).toBe(1);
+    expect(lancarFixos(db, "2026-10")).toBe(0);
+    expect(lancarFixos(db, "2026-11")).toBe(1);
+    const serie = carregarConsultorio(db, AGORA).lancamentos.filter((l) => l.serieId === id).map((l) => l.data);
+    expect(serie).toEqual(["2026-11-30", "2026-10-30", "2026-09-30"]);
+    // Desmarcar o fixo no último encerra a série.
+    const ultimo = carregarConsultorio(db, AGORA).lancamentos.find((l) => l.data === "2026-11-30")!;
+    atualizarLancamento(db, ultimo.id, { fixo: false });
+    expect(lancarFixos(db, "2026-12")).toBe(0);
+  });
+});
+
+describe("recibos e mensagens", () => {
+  it("marca e desmarca o recibo de um pagamento", async () => {
+    const { marcarRecibo } = await import("./servico");
+    const conta = carregarConsultorio(db, AGORA).contas[0]!;
+    const id = registrarPagamento(db, { pacienteId: pid, valor: dinheiro(25000), data: "2026-11-03", meio: "pix", contaId: conta.id, sessaoIds: [] });
+    const pg = () => carregarConsultorio(db, AGORA).pagamentos.find((p) => p.id === id)!;
+    expect(pg().reciboEm).toBeNull();
+    marcarRecibo(db, id, { em: "2026-11-04", numero: "RS-123" });
+    expect(pg()).toMatchObject({ reciboEm: "2026-11-04", reciboNumero: "RS-123" });
+    marcarRecibo(db, id, { em: null, numero: "ignorado" });
+    expect(pg().reciboEm).toBeNull();
+    expect(pg().reciboNumero).toBeUndefined();
+    expect(() => marcarRecibo(db, "nao-existe", { em: null })).toThrow(ErroDominio);
+  });
+
+  it("mensagens começam no padrão e guardam o que foi salvo", async () => {
+    const { definirMensagens } = await import("./servico");
+    const { MENSAGENS_PADRAO } = await import("@consultorio/shared");
+    expect(carregarConsultorio(db, AGORA).mensagens).toEqual(MENSAGENS_PADRAO);
+    definirMensagens(db, { ...MENSAGENS_PADRAO, chavePix: "fulana@exemplo.com" });
+    expect(carregarConsultorio(db, AGORA).mensagens.chavePix).toBe("fulana@exemplo.com");
+  });
+});
+
+describe("supervisão: o que foi discutido", () => {
+  it("guarda texto e data, e a busca acha o texto discutido", async () => {
+    const { criarNota, atualizarNota, buscar } = await import("./servico");
+    const { abrirBanco } = await import("./db/conexao");
+    const banco = abrirBanco(":memory:");
+    const p = criarPaciente(banco.db, { ...paciente });
+    const id = criarNota(banco.db, { pacienteId: p, texto: "Sonho com escadas", levarSupervisao: true });
+    let n = carregarConsultorio(banco.db, AGORA).notas.find((x) => x.id === id)!;
+    expect(n.supervisaoEm).toBeNull();
+    expect(n.supervisaoTexto).toBeUndefined();
+    atualizarNota(banco.db, id, { supervisaoTexto: "Supervisora sugeriu pensar na transferência", supervisaoEm: "2026-11-04" });
+    n = carregarConsultorio(banco.db, AGORA).notas.find((x) => x.id === id)!;
+    expect(n).toMatchObject({ supervisaoEm: "2026-11-04", supervisaoTexto: "Supervisora sugeriu pensar na transferência", levarSupervisao: true });
+    expect(buscar(banco.sqlite, "transferencia").map((r) => r.refId)).toEqual([id]);
+    expect(buscar(banco.sqlite, "escadas").map((r) => r.refId)).toEqual([id]);
+  });
+});

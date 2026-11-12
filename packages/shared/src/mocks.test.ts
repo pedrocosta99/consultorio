@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { gerarMocks } from "./mocks";
-import { contaSchema, pacienteSchema, sessaoSchema, transacaoSchema } from "./types";
+import { contaSchema, pacienteSchema, sessaoSchema, lancamentoSchema } from "./types";
 
 const REF = new Date("2026-11-04T14:30:00-03:00");
 
@@ -14,7 +14,7 @@ describe("mocks", () => {
     m.pacientes.forEach((p) => pacienteSchema.parse(p));
     m.sessoes.forEach((s) => sessaoSchema.parse(s));
     m.contas.forEach((c) => contaSchema.parse(c));
-    m.transacoes.forEach((t) => transacaoSchema.parse(t));
+    m.lancamentos.forEach((l) => lancamentoSchema.parse(l));
   });
 
   it("sessões futuras estão agendadas e valores são inteiros", () => {

@@ -3,12 +3,16 @@ import { z, ZodError } from "zod";
 import {
   contratoEntradaSchema,
   feriadoEntradaSchema,
+  lancamentoEntradaSchema,
+  lancamentoPatchSchema,
+  mensagensSchema,
   MOEDA_PRINCIPAL,
   MOEDAS,
   notaEntradaSchema,
   notaPatchSchema,
   pacienteEntradaSchema,
   pagamentoEntradaSchema,
+  reciboEntradaSchema,
   sessaoAvulsaSchema,
   sessaoPatchSchema,
   TIPOS_CONTA,
@@ -111,6 +115,10 @@ app.post("/pagamentos", async (c) => {
   const id = srv.registrarPagamento(db(c), pagamentoEntradaSchema.parse(await c.req.json()));
   return ok(c, { id });
 });
+app.put("/pagamentos/:id/recibo", async (c) => {
+  srv.marcarRecibo(db(c), c.req.param("id"), reciboEntradaSchema.parse(await c.req.json()));
+  return ok(c);
+});
 app.delete("/pagamentos/:id", (c) => {
   srv.excluirPagamento(db(c), c.req.param("id"));
   return ok(c);
@@ -149,6 +157,11 @@ app.put("/configuracoes/moedas", async (c) => {
   return ok(c);
 });
 
+app.put("/configuracoes/mensagens", async (c) => {
+  srv.definirMensagens(db(c), mensagensSchema.parse(await c.req.json()));
+  return ok(c);
+});
+
 app.post("/contas", async (c) => {
   const e = z
     .object({
@@ -160,6 +173,22 @@ app.post("/contas", async (c) => {
     })
     .parse(await c.req.json());
   return ok(c, { id: srv.criarConta(db(c), e) });
+});
+
+// ── Finanças (lançamentos) ───────────────────────────────────
+
+app.post("/lancamentos", async (c) => ok(c, { id: srv.criarLancamento(db(c), lancamentoEntradaSchema.parse(await c.req.json())) }));
+app.patch("/lancamentos/:id", async (c) => {
+  srv.atualizarLancamento(db(c), c.req.param("id"), lancamentoPatchSchema.parse(await c.req.json()));
+  return ok(c);
+});
+app.delete("/lancamentos/:id", (c) => {
+  srv.excluirLancamento(db(c), c.req.param("id"));
+  return ok(c);
+});
+app.post("/lancamentos/fixos", async (c) => {
+  const { mes } = z.object({ mes: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Mês inválido") }).parse(await c.req.json());
+  return ok(c, { criados: srv.lancarFixos(db(c), mes) });
 });
 
 // ── Backup cifrado ───────────────────────────────────────────

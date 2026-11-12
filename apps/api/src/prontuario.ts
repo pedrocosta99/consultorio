@@ -191,6 +191,11 @@ export async function gerarProntuario(db: Db, pacienteId: string, opcoes: { pess
       apos: 1,
     });
     e.texto(semMarkdown(n.texto), { apos: 8 });
+    // Discussão de supervisão é material do analista: só com as anotações pessoais.
+    if (opcoes.pessoais && n.supervisaoTexto?.trim()) {
+      e.texto(`Discutido em supervisão${n.supervisaoEm ? ` (${dataBr(n.supervisaoEm)})` : ""}:`, { tam: 9, negrito: true, cor: COR_SUAVE, apos: 1 });
+      e.texto(semMarkdown(n.supervisaoTexto), { apos: 8 });
+    }
   }
 
   // Rodapé com numeração.

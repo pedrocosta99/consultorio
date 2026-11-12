@@ -16,7 +16,6 @@ const ROTULO_TIPO_CONTA: Record<Conta["tipo"], string> = {
   corrente: "Conta corrente",
   poupanca: "Poupança",
   cartao: "Cartão",
-  investimento: "Investimentos",
   dinheiro: "Dinheiro vivo",
 };
 
@@ -156,7 +155,7 @@ export function SecaoContas() {
         <CardTitle className="flex items-center gap-2 font-serif text-lg font-medium">
           <Landmark className="size-4 text-muted-foreground" aria-hidden /> Contas que recebem pagamentos
         </CardTitle>
-        <CardDescription>Cada pagamento de paciente entra numa conta da mesma moeda. A gestão completa de contas vem com Finanças (Fase 3).</CardDescription>
+        <CardDescription>Cada pagamento de paciente entra numa conta da mesma moeda.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <ul className="divide-y rounded-lg border">

@@ -5,17 +5,24 @@
  * SIGILO: nada aqui loga dados de pacientes.
  */
 import { randomUUID } from "node:crypto";
-import { and, asc, eq, gt, inArray, isNotNull, isNull, notInArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, notInArray, sql } from "drizzle-orm";
 import {
   FUSO_CONSULTORIO,
+  MENSAGENS_PADRAO,
   MOEDAS,
   chaveDiaNoFuso,
+  dataNoMes,
   dinheiro,
+  fixosPendentes,
   sessaoCobravel,
   type Conta,
   type ContratoEntrada,
   type Contrato,
   type FeriadoEntrada,
+  type Lancamento,
+  type LancamentoEntrada,
+  type Mensagens,
+  type ReciboEntrada,
   type Moeda,
   type NotaEntrada,
   type ResultadoBusca,
@@ -117,6 +124,8 @@ export function carregarConsultorio(db: Db, agora: Date): PacoteConsultorio {
       data: p.data,
       meio: p.meio,
       contaId: p.contaId,
+      reciboEm: p.reciboEm,
+      ...(p.reciboNumero ? { reciboNumero: p.reciboNumero } : {}),
     }));
   return {
     agora: agora.toISOString(),
@@ -132,8 +141,22 @@ export function carregarConsultorio(db: Db, agora: Date): PacoteConsultorio {
       .from(t.notas)
       .orderBy(asc(t.notas.criadoEm))
       .all()
-      .map((n) => ({ ...n, sessaoId: n.sessaoId ?? null })),
+      .map(({ supervisaoTexto, ...n }) => ({ ...n, sessaoId: n.sessaoId ?? null, ...(supervisaoTexto ? { supervisaoTexto } : {}) })),
+    lancamentos: listarLancamentos(db),
+    mensagens: lerMensagens(db),
   };
+}
+
+// ── Mensagens e modelos (Configurações) ──────────────────────
+
+export function lerMensagens(db: Db): Mensagens {
+  const v = db.select().from(t.metaSistema).where(eq(t.metaSistema.chave, "mensagens")).get()?.valor;
+  return { ...MENSAGENS_PADRAO, ...(v ? (JSON.parse(v) as Partial<Mensagens>) : {}) };
+}
+
+export function definirMensagens(db: Db, m: Mensagens) {
+  const valor = JSON.stringify(m);
+  db.insert(t.metaSistema).values({ chave: "mensagens", valor }).onConflictDoUpdate({ target: t.metaSistema.chave, set: { valor } }).run();
 }
 
 // ── Moedas ───────────────────────────────────────────────────
@@ -430,6 +453,15 @@ export function registrarPagamento(db: Db, e: PagamentoEntrada & { sessaoIds: st
   return id;
 }
 
+export function marcarRecibo(db: Db, id: string, e: ReciboEntrada) {
+  const r = db
+    .update(t.pagamentos)
+    .set({ reciboEm: e.em, reciboNumero: e.em ? (e.numero ?? "") : "" })
+    .where(eq(t.pagamentos.id, id))
+    .run();
+  if (!r.changes) throw new ErroDominio(404, "Pagamento não encontrado");
+}
+
 export function excluirPagamento(db: Db, id: string) {
   const r = db.delete(t.pagamentos).where(eq(t.pagamentos.id, id)).run();
   if (!r.changes) throw new ErroDominio(404, "Pagamento não encontrado");
@@ -458,6 +490,97 @@ export function criarConta(db: Db, c: Omit<Conta, "id" | "ativa">): string {
 }
 
 
+// ── Lançamentos (Finanças v0) ────────────────────────────────
+
+function listarLancamentos(db: Db): Lancamento[] {
+  return db
+    .select()
+    .from(t.lancamentos)
+    .orderBy(desc(t.lancamentos.data), asc(t.lancamentos.id))
+    .all()
+    .map((l) => ({
+      id: l.id,
+      data: l.data,
+      valor: dinheiro(l.valorCentavos, l.moeda),
+      tipo: l.tipo,
+      descricao: l.descricao,
+      categoria: l.categoria,
+      fixo: l.fixo,
+      serieId: l.serieId,
+    }));
+}
+
+function exigirMoedaAtiva(db: Db, moeda: Moeda) {
+  if (!moedasAtivas(db).includes(moeda)) throw new ErroDominio(400, `Ligue ${moeda} em Configurações para lançar nessa moeda.`);
+}
+
+export function criarLancamento(db: Db, e: LancamentoEntrada): string {
+  exigirMoedaAtiva(db, e.valor.moeda);
+  const id = novoId("l");
+  db.insert(t.lancamentos)
+    .values({
+      id,
+      data: e.data,
+      tipo: e.tipo,
+      descricao: e.descricao,
+      valorCentavos: e.valor.centavos,
+      moeda: e.valor.moeda,
+      categoria: e.categoria,
+      fixo: e.fixo ?? false,
+      serieId: e.fixo ? id : null,
+    })
+    .run();
+  return id;
+}
+
+export function atualizarLancamento(db: Db, id: string, e: Partial<LancamentoEntrada>) {
+  const l = existe(db.select().from(t.lancamentos).where(eq(t.lancamentos.id, id)).get(), "Lançamento não encontrado");
+  if (e.valor) exigirMoedaAtiva(db, e.valor.moeda);
+  const mudancas: Partial<typeof t.lancamentos.$inferInsert> = {};
+  if (e.data !== undefined) mudancas.data = e.data;
+  if (e.tipo !== undefined) mudancas.tipo = e.tipo;
+  if (e.descricao !== undefined) mudancas.descricao = e.descricao;
+  if (e.categoria !== undefined) mudancas.categoria = e.categoria;
+  if (e.valor) {
+    mudancas.valorCentavos = e.valor.centavos;
+    mudancas.moeda = e.valor.moeda;
+  }
+  if (e.fixo !== undefined) {
+    mudancas.fixo = e.fixo;
+    // Virou fixo agora: começa uma série a partir dele.
+    if (e.fixo && !l.serieId) mudancas.serieId = l.id;
+  }
+  db.update(t.lancamentos).set(mudancas).where(eq(t.lancamentos.id, id)).run();
+}
+
+export function excluirLancamento(db: Db, id: string) {
+  const r = db.delete(t.lancamentos).where(eq(t.lancamentos.id, id)).run();
+  if (!r.changes) throw new ErroDominio(404, "Lançamento não encontrado");
+}
+
+/** Repete no mês ("yyyy-MM") o último lançamento de cada fixo ainda não lançado. */
+export function lancarFixos(db: Db, mes: string): number {
+  return db.transaction((tx) => {
+    const pendentes = fixosPendentes(listarLancamentos(tx as unknown as Db), mes);
+    for (const m of pendentes) {
+      tx.insert(t.lancamentos)
+        .values({
+          id: novoId("l"),
+          data: dataNoMes(m.data, mes),
+          tipo: m.tipo,
+          descricao: m.descricao,
+          valorCentavos: m.valor.centavos,
+          moeda: m.valor.moeda,
+          categoria: m.categoria,
+          fixo: true,
+          serieId: m.serieId,
+        })
+        .run();
+    }
+    return pendentes.length;
+  });
+}
+
 // ── Notas e busca ────────────────────────────────────────────
 
 export function criarNota(db: Db, e: NotaEntrada): string {
@@ -477,6 +600,8 @@ export function criarNota(db: Db, e: NotaEntrada): string {
       tags: e.tags ?? [],
       levarSupervisao: e.levarSupervisao ?? false,
       natureza: e.natureza ?? "documental",
+      supervisaoTexto: e.supervisaoTexto ?? "",
+      supervisaoEm: e.supervisaoEm ?? null,
     })
     .run();
   return id;
@@ -489,6 +614,8 @@ export function atualizarNota(db: Db, id: string, e: Partial<Omit<NotaEntrada, "
   if (e.tags !== undefined) mudancas.tags = e.tags;
   if (e.levarSupervisao !== undefined) mudancas.levarSupervisao = e.levarSupervisao;
   if (e.natureza !== undefined) mudancas.natureza = e.natureza;
+  if (e.supervisaoTexto !== undefined) mudancas.supervisaoTexto = e.supervisaoTexto;
+  if (e.supervisaoEm !== undefined) mudancas.supervisaoEm = e.supervisaoEm;
   if (e.sessaoId !== undefined) {
     if (e.sessaoId) {
       const s = existe(db.select().from(t.sessoes).where(eq(t.sessoes.id, e.sessaoId)).get(), "Sessão não encontrada");

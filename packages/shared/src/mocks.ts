@@ -18,7 +18,7 @@ import {
   type Paciente,
   type Pagamento,
   type Sessao,
-  type Transacao,
+  type Lancamento,
 } from "./types";
 
 export const FUSO_CONSULTORIO = "America/Sao_Paulo";
@@ -31,7 +31,7 @@ export interface Mocks {
   pagamentos: Pagamento[];
   notas: Nota[];
   contas: Conta[];
-  transacoes: Transacao[];
+  lancamentos: Lancamento[];
   campanhas: Campanha[];
 }
 
@@ -193,7 +193,6 @@ const CONTAS: Conta[] = [
   { id: "c-cartao", nome: "Cartão de crédito", instituicao: "Nubank", pais: "BR", moeda: "BRL", tipo: "cartao", ativa: true },
   { id: "c-wise-usd", nome: "Wise USD", instituicao: "Wise", pais: "US", moeda: "USD", tipo: "corrente", ativa: true },
   { id: "c-wise-eur", nome: "Wise EUR", instituicao: "Wise", pais: "BE", moeda: "EUR", tipo: "corrente", ativa: true },
-  { id: "c-corretora", nome: "Investimentos", instituicao: "XP", pais: "BR", moeda: "BRL", tipo: "investimento", ativa: true },
 ];
 
 const CONTA_POR_MOEDA: Record<Moeda, string> = { BRL: "c-nubank", USD: "c-wise-usd", EUR: "c-wise-eur" };
@@ -322,67 +321,36 @@ export function gerarMocks(referencia: Date = new Date()): Mocks {
       };
     });
 
-  const nomePorId = new Map(pacientes.map((p) => [p.id, p]));
-
-  // Transações: receitas da clínica (dos pagamentos) + gastos mensais fictícios.
-  const transacoes: Transacao[] = [];
-  const inicioPeriodo = addWeeks(semanaAtual, -15);
-  transacoes.push(
-    { id: "t-si-1", data: format(inicioPeriodo, "yyyy-MM-dd"), valor: dinheiro(1_284_550), tipo: "receita", descricao: "Saldo inicial", contaId: "c-nubank", categoria: "Ajuste" },
-    { id: "t-si-2", data: format(inicioPeriodo, "yyyy-MM-dd"), valor: dinheiro(3_150_000), tipo: "receita", descricao: "Saldo inicial", contaId: "c-itau", categoria: "Ajuste" },
-    { id: "t-si-3", data: format(inicioPeriodo, "yyyy-MM-dd"), valor: dinheiro(184_000, "USD"), tipo: "receita", descricao: "Saldo inicial", contaId: "c-wise-usd", categoria: "Ajuste" },
-    { id: "t-si-4", data: format(inicioPeriodo, "yyyy-MM-dd"), valor: dinheiro(96_000, "EUR"), tipo: "receita", descricao: "Saldo inicial", contaId: "c-wise-eur", categoria: "Ajuste" },
-    { id: "t-si-5", data: format(inicioPeriodo, "yyyy-MM-dd"), valor: dinheiro(8_640_000), tipo: "receita", descricao: "Saldo inicial", contaId: "c-corretora", categoria: "Ajuste" },
-  );
-  for (const pg of pagamentos) {
-    const p = nomePorId.get(pg.pacienteId)!;
-    transacoes.push({
-      id: `t-${pg.id}`, data: pg.data, valor: pg.valor, tipo: "receita",
-      descricao: `Sessão · ${p.apelido}`, contaId: pg.contaId, categoria: "Clínica",
-      subcategoria: p.origem === "clinica_escola" ? "Clínica-escola" : "Particular", pacienteId: p.id,
-    });
-  }
-
-  const GASTOS: Array<[dia: number, descricao: string, centavos: number, conta: string, cat: string, sub: string]> = [
-    [5, "Aluguel do apartamento", -240000, "c-nubank", "Moradia", "Aluguel"],
-    [5, "Sublocação da sala", -90000, "c-nubank", "Consultório", "Sala"],
-    [8, "Supervisão", -40000, "c-nubank", "Formação", "Supervisão"],
-    [10, "Análise pessoal", -80000, "c-nubank", "Formação", "Análise"],
-    [12, "Parcela do carro", -110000, "c-nubank", "Transporte", "Parcela do carro"],
-    [14, "Supermercado", -75000, "c-cartao", "Alimentação", "Mercado"],
-    [17, "Internet + celular", -21990, "c-cartao", "Moradia", "Contas"],
-    [19, "Livraria", -15900, "c-cartao", "Formação", "Livros"],
-    [21, "Restaurantes", -38000, "c-cartao", "Alimentação", "Restaurantes"],
-    [24, "Combustível e apps", -28000, "c-cartao", "Transporte", "Combustível"],
-    [26, "Aporte mensal", -100000, "c-nubank", "Investimentos", "Aporte"],
-    [26, "Aporte mensal", 100000, "c-corretora", "Investimentos", "Aporte"],
+  // Lançamentos: fixos mensais (sala, supervisão, análise) + avulsos e o gasto com anúncios.
+  const lancamentos: Lancamento[] = [];
+  const FIXOS: Array<[serie: string, dia: number, descricao: string, centavos: number, categoria: string]> = [
+    ["sr-sala", 5, "Aluguel da sala", 90000, "Aluguel da sala"],
+    ["sr-sup", 8, "Supervisão quinzenal", 40000, "Supervisão"],
+    ["sr-analise", 10, "Análise pessoal", 80000, "Análise pessoal"],
+    ["sr-internet", 17, "Internet do consultório", 12990, "Outros"],
   ];
   for (let m = -3; m <= 0; m++) {
     const base = new Date(ref.getFullYear(), ref.getMonth() + m, 1, 12, 0);
-    GASTOS.forEach(([dia, descricao, centavos, conta, cat, sub], i) => {
+    for (const [serie, dia, descricao, centavos, categoria] of FIXOS) {
       const d = new Date(base.getFullYear(), base.getMonth(), dia, 12, 0);
-      if (d.getTime() > ref.getTime()) return;
-      const variacao = cat === "Alimentação" || cat === "Transporte" ? Math.round((rnd() - 0.5) * 20000) : 0;
-      transacoes.push({
-        id: `t-g${m + 4}-${i}`, data: format(d, "yyyy-MM-dd"),
-        valor: dinheiro(centavos + Math.sign(centavos) * variacao),
-        tipo: cat === "Investimentos" ? "transferencia" : "despesa",
-        descricao, contaId: conta, categoria: cat, subcategoria: sub,
-      });
-    });
+      if (d.getTime() > ref.getTime()) continue;
+      lancamentos.push({ id: `l-${serie}-${m + 4}`, data: format(d, "yyyy-MM-dd"), valor: dinheiro(centavos), tipo: "saida", descricao, categoria, fixo: true, serieId: serie });
+    }
   }
-  // Gasto com anúncios vira despesa em "Divulgação" (no cartão).
+  const mesRef = (delta: number, dia: number) => format(new Date(ref.getFullYear(), ref.getMonth() + delta, dia, 12, 0), "yyyy-MM-dd");
+  lancamentos.push(
+    { id: "l-crp", data: mesRef(-2, 20), valor: dinheiro(56800), tipo: "saida", descricao: "Anuidade do conselho", categoria: "Conselho (CRP)", fixo: false, serieId: null },
+    { id: "l-livros", data: mesRef(-1, 19), valor: dinheiro(15900), tipo: "saida", descricao: "Livros", categoria: "Formação", fixo: false, serieId: null },
+    { id: "l-palestra", data: mesRef(-1, 23), valor: dinheiro(60000), tipo: "entrada", descricao: "Palestra na faculdade", categoria: "Aula/Palestra", fixo: false, serieId: null },
+  );
+  // Gasto com anúncios vira saída em "Divulgação".
   const hojeChave = chaveDiaNoFuso(refMs, FUSO_CONSULTORIO);
   for (const c of CAMPANHAS) {
     const data = c.fim && c.fim <= hojeChave ? c.fim : hojeChave;
     if (data < c.inicio) continue;
-    transacoes.push({
-      id: `t-${c.id}`, data, valor: dinheiro(-c.gasto.centavos, c.gasto.moeda), tipo: "despesa",
-      descricao: `Anúncio · ${c.nome}`, contaId: "c-cartao", categoria: "Divulgação",
-      subcategoria: c.plataforma === "instagram" ? "Instagram" : c.plataforma === "google" ? "Google" : "Outros",
-    });
+    lancamentos.push({ id: `l-${c.id}`, data, valor: c.gasto, tipo: "saida", descricao: `Anúncio · ${c.nome}`, categoria: "Divulgação", fixo: false, serieId: null });
   }
-  transacoes.sort((a, b) => b.data.localeCompare(a.data) || a.id.localeCompare(b.id));
+  lancamentos.sort((a, b) => b.data.localeCompare(a.data) || a.id.localeCompare(b.id));
 
   // Notas: algumas notas de sessão recentes + pontos fixos.
   const notas: Nota[] = [];
@@ -407,5 +375,5 @@ export function gerarMocks(referencia: Date = new Date()): Mocks {
       });
     });
 
-  return { referencia, pacientes, contratos, sessoes, pagamentos, notas, contas: CONTAS, transacoes, campanhas: CAMPANHAS };
+  return { referencia, pacientes, contratos, sessoes, pagamentos, notas, contas: CONTAS, lancamentos, campanhas: CAMPANHAS };
 }
