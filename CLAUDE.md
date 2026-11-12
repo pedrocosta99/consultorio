@@ -43,7 +43,7 @@ docs/PLANO.md      plano do produto
 
 ## Sigilo (LGPD: notas clínicas são dado sensível)
 
-> **Nuvem (Fase 6 do `PLANO.md`, decidida em 12 nov 2026):** o app vai para a AWS (Postgres, Cognito, Lambda). Até a Fase 6.2 (login) terminar, as regras abaixo valem como estão. Na 6.2, as regras de loopback, `x-consultorio` e "sem tela de acesso" são substituídas; atualize esta seção nessa hora.
+> **Nuvem (Fase 6 do `PLANO.md`, decidida em 12 nov 2026):** o app vai para o Google Cloud (Cloud Run, Cloud SQL PostgreSQL, Identity Platform). Até a Fase 6.2 (login) terminar, as regras abaixo valem como estão. Na 6.2, as regras de loopback, `x-consultorio` e "sem tela de acesso" são substituídas; atualize esta seção nessa hora.
 
 - Servidores escutam **apenas em 127.0.0.1**. Nunca `0.0.0.0`.
 - Nada de dados reais em mocks, seeds, testes, logs ou screenshots. Os mocks são fictícios.
