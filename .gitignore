@@ -11,3 +11,7 @@ data/
 # artefatos do Playwright (as baselines em __screenshots__ SÃO versionadas)
 apps/web/test-results
 apps/web/playwright-report
+# backups cifrados e segredos
+*.cofre
+.env
+.env.*

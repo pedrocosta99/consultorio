@@ -16,6 +16,8 @@ Princípios que guiam as decisões:
 
 Fora do escopo inicial: agenda online para pacientes, emissão fiscal automática, app mobile nativo e integração direta com bancos.
 
+> **Atualização 12 nov 2026:** "Local primeiro" e "Um arquivo só" descrevem a versão local de hoje. A direção agora é a nuvem (Postgres na AWS, login, Google Agenda e, depois, mobile): ver [Nuvem e venda](#nuvem-e-venda-direção-decidida-em-12-nov-2026).
+
 ## Módulo Consultório
 
 O centro do módulo é a ficha do paciente: dali você vê sessões, pagamentos e notas sem trocar de tela.
@@ -122,6 +124,8 @@ Ajuda a controlar quanto se gasta com anúncios (Instagram, Google, outros) e se
 
 Uma aplicação web que roda só no seu computador: o navegador mostra a interface, uma API local fala com um arquivo SQLite, e o sync manda cópias cifradas para o Drive.
 
+> Esta é a stack da versão local. A stack da nuvem (Lambda, RDS PostgreSQL, Cognito, CDK) está em [Nuvem e venda](#nuvem-e-venda-direção-decidida-em-12-nov-2026).
+
 &#91;embedded content: arquitetura · 5 partes, sync com o Drive\]
 
 Tudo acima da linha de baixo funciona offline; o Drive só entra quando você faz push ou pull.
@@ -198,35 +202,75 @@ Notas clínicas são dado pessoal sensível pela LGPD, então o sistema trata si
 - **Clínica-escola:** pacientes atendidos por ela provavelmente já têm prontuário no sistema da instituição; vale confirmar a política dela antes de duplicar notas aqui.
 - **Senha de recuperação** guardada fora do app: sem ela, os snapshots cifrados não abrem.
 
-## Nuvem e venda (futuro, fora do core)
+## Nuvem e venda (direção decidida em 12 nov 2026)
 
-Não é prioridade: enquanto o app é testado e construído, ele continua local. Esta seção registra a direção (decidida em 9 nov 2026) para que as escolhas de agora não fechem a porta. As regras de sigilo do `CLAUDE.md` (só `127.0.0.1`, sem tela de acesso) valem até a Fase 6 começar de fato.
+> **Substitui a direção de 9 nov 2026** (SQLite por conta + libSQL/Turso + Lightsail). O objetivo mudou: escalar com facilidade, com **um backend que atenda web e mobile**, tudo na **AWS**, com domínio próprio, login (inclusive com Google) e integração com o **Google Agenda**.
 
-**Objetivo:** publicar numa URL com login, para poucos usuários (você + pessoas que refinam o app) por alguns meses, e poder escalar ou vender depois sem reescrever.
+Enquanto a Fase 6.2 (login) não termina, o app continua local e as regras de sigilo do `CLAUDE.md` (só `127.0.0.1`, sem tela de acesso) valem como estão.
 
-**Dois ambientes, mesmo código:**
+**Objetivo:** publicar numa URL com login, primeiro para você e para as pessoas que refinam o app, e depois poder vender para outros consultórios sem reescrever nada.
 
-| Ambiente | Quem usa | Dados |
+**Dois ambientes, mesmo código, contas AWS separadas:**
+
+| Ambiente | Conta AWS | Quem usa | Dados |
+|---|---|---|---|
+| Produção (`app.<domínio>`) | `prod` | Só você (depois, clientes) | Reais |
+| Homologação (`teste.<domínio>`) | `staging` | Você + refinadores | Mocks fictícios, recriados a cada deploy |
+
+Quem refina o app **nunca** acessa a produção: notas clínicas reais não são vistas por quem desenvolve. Uma terceira conta, `management`, só cuida de cobrança e da organização e não roda nada.
+
+**Arquitetura**
+
+| Camada | Escolha | Por quê |
 |---|---|---|
-| Produção (`app.<domínio>`) | Só você | Reais |
-| Homologação (`teste.<domínio>`) | Você + refinadores | Mocks fictícios, recriados a cada deploy |
+| Domínio | `.com.br` no Registro.br (+ `.com` se estiver livre), DNS na Cloudflare (o mesmo da landing page): `app.`, `api.`, `teste.` como CNAMEs para a AWS | `.com.br` passa mais confiança para psicólogas no Brasil. A landing page já fica no Cloudflare Pages, então o DNS fica num lugar só; o Route 53 não é necessário. O Google exige domínio verificado para liberar a agenda |
+| Web | S3 + CloudFront + certificado ACM (validado por CNAME na Cloudflare) | Estático, barato e escala sozinho. O certificado do CloudFront precisa ficar em `us-east-1` |
+| API | Hono no Lambda + API Gateway HTTP API | O Hono roda no Lambda com o mesmo código. Custa quase zero em uso baixo. Fargate continua como opção se um dia fizer sentido |
+| Banco | RDS PostgreSQL em `sa-east-1`, rede privada, cifrado com KMS, TLS obrigatório | Escala, tem backup contínuo (PITR), serve web e mobile e mantém os dados no Brasil |
+| Multi-consultório | `consultorio_id` em toda tabela + Row-Level Security (RLS) no Postgres | Um consultório nunca vê o outro, mesmo se a API tiver bug. Construído desde já, porque custa pouco agora e evita refazer para vender |
+| Busca | `tsvector` + `unaccent` no Postgres | Substitui o FTS5 e as triggers do SQLite |
+| Login | Cognito com Google + e-mail/senha, MFA para o `dono` | Funciona igual no web e no mobile (OAuth + PKCE). Grátis até 10 mil usuários ativos por mês |
+| Papéis | `dono`, `profissional`, `suporte` | Mesmos papéis da direção anterior |
+| Google Agenda | "Conectar agenda" em Configurações, OAuth separado do login. Refresh token cifrado com KMS | O token do login não serve para chamar a agenda |
+| Contrato da API | OpenAPI gerado dos schemas Zod (`@hono/zod-openapi`) | Web e mobile usam um cliente tipado, sem duplicar regras. `packages/shared` continua sendo a fonte das regras |
+| Mobile | React Native + Expo, reaproveitando `packages/shared` | Regras e tipos vão para o mobile. Os componentes shadcn não vão |
+| Infra | AWS CDK em TypeScript | Tudo na AWS, na mesma linguagem do resto. SST e Terraform foram considerados e descartados |
+| CI/CD | GitHub Actions com OIDC (sem chaves AWS guardadas) | Deploy automático na homologação a cada push |
 
-Refinadores **nunca** acessam a produção: notas clínicas reais não são vistas por quem desenvolve.
+**Rede e custo**
 
-**Estrutura base:**
+- O Lambda que fala com o RDS privado fica dentro da VPC. Para chamar a internet (Google Agenda, chaves do Cognito) ele precisa de NAT. **O NAT Gateway custa ~US$ 32/mês cada**, então começamos com **fck-nat** (instância pequena, ~US$ 3/mês).
+- Se o NAT pesar, as chamadas ao Google saem da VPC: um segundo Lambda fora dela, alimentado por uma fila (SQS).
+- Estimativa: produção ~US$ 35–65/mês (quase tudo RDS), homologação ~US$ 10–25/mês.
 
-- **SQLite por conta.** Um `central.db` (contas, usuários, sessões, papéis) e um banco por consultório (`contas/<id>.db`) com o schema atual. Isolamento físico entre clientes; backup, portabilidade e exclusão viram operações de arquivo.
-- **Driver libSQL (async).** Localmente aponta para `file:…`; para escalar, a mesma URL aponta para o Turso (feito para banco por cliente), sem mudar código. Validar primeiro: FTS5 com `remove_diacritics` e triggers no libSQL.
-- **Login e papéis:** `dono`, `profissional`, `suporte`. Senha com argon2, sessão em cookie seguro (`HttpOnly`, `Secure`, `SameSite`), limite de tentativas, 2FA (TOTP) para `dono`. Registro de acesso (quem abriu qual paciente e quando).
-- **Proteção da API:** o filtro de Host loopback + `x-consultorio` vira: domínio permitido, HTTPS, CSRF e CORS restrito.
-- **Deploy portátil:** imagem Docker (API servindo o web compilado) + Caddy para HTTPS. Começa num Lightsail (~US$5/mês) com disco persistente e snapshot diário; depois pode ir para ECS/Fly com bancos no Turso.
-- **Backup:** snapshot automático do servidor; o `.cofre` (AES-256-GCM) continua como exportação/download.
+**Segurança e sigilo**
 
-**Por que não Postgres/RDS agora:** exigiria reescrever a busca (FTS5 → `tsvector` + `unaccent`), as triggers e as migrações, e o free tier da AWS hoje é só crédito temporário. Fica como opção se um dia houver muitos usuários por consultório.
+- **Contas AWS:** AWS Organizations com `management`, `staging` e `prod`. Control Tower é exagero para este tamanho. Nada de usuários IAM nem chaves de longa duração: IAM Identity Center (SSO) para pessoas e OIDC para o GitHub Actions. MFA em todo usuário root.
+- **Desde o primeiro dia:** orçamento com alertas (ex.: US$ 20 e US$ 50), CloudTrail da organização e GuardDuty.
+- **Banco:** cifra em disco (KMS), TLS, RLS e um registro de acesso (quem abriu qual paciente e quando), visível para o `dono`.
+- **Cifra campo a campo das notas fica para depois.** Ela impediria a busca no servidor. Se vier, começa só pelas anotações pessoais.
+- **Google Agenda:** o título do evento usa iniciais ou pseudônimo, como no modo discreto. Nunca o nome do paciente nem nada clínico.
+- **Proteção da API:** o filtro de Host loopback + `x-consultorio` dá lugar a CORS restrito ao domínio, HTTPS e limite de tentativas.
+- **Logs:** a regra continua: nada de conteúdo de notas nem dados de pacientes no CloudWatch.
+- **Backup:** PITR do RDS com teste de restauração. O `.cofre` (AES-256-GCM) continua como exportação/download.
+- **Repositório:** privado no GitHub, com secret scanning e push protection, `master` protegida. O Dependabot fica desligado ou configurado para respeitar o `minimumReleaseAge` de 14 dias.
+
+**Google (começar cedo)**
+
+O login com Google e, principalmente, o escopo da agenda exigem domínio verificado, uma página de política de privacidade nele e uma verificação do app pelo Google. O escopo da agenda é "sensível" e a verificação pode levar semanas. Por isso o projeto no Google Cloud e o pedido de verificação entram na Fase 6.0, em paralelo com o resto.
+
+**Por que Postgres agora (e não SQLite por conta)**
+
+Com web, mobile e vários consultórios, um banco gerenciado com RLS, backup contínuo e conexões de vários clientes é o caminho que escala sem trocar de arquitetura depois. O custo é reescrever a busca (FTS5 → `tsvector`), as triggers e as migrações, e passar o serviço para async: trabalho de uma vez, feito localmente antes de qualquer gasto com AWS.
+
+**Em aberto**
+
+- **Mobile:** app nativo (Expo) logo depois da produção, ou primeiro um PWA (o web instalável no celular)?
+- **Nome do domínio.**
 
 ## Roadmap por fases
 
-Cinco fases de core, cada uma termina num app que você já usa de verdade; a fase 1 sozinha já substitui uma planilha. As fases 6 e 7 (nuvem e venda) são opcionais e vêm depois.
+Cinco fases de core, cada uma termina num app que você já usa de verdade; a fase 1 sozinha já substitui uma planilha. As fases 6 (nuvem: AWS, login, Google Agenda e mobile) e 7 (venda) vêm depois.
 
 **Fase 1 — Consultório básico**
 
@@ -278,26 +322,65 @@ Cinco fases de core, cada uma termina num app que você já usa de verdade; a fa
 - [x] Configurações: cor principal (paletas + personalizada), tamanho do texto, mensagens e modelos
 - [x] Painel: real primeiro nos cards; sem selo duplicado na lista "Hoje"
 
-As fases 6 e 7 ficam fora do core: só começam quando o app local estiver maduro. Detalhes em [Nuvem e venda](#nuvem-e-venda-futuro-fora-do-core).
+A Fase 6 leva o app para a nuvem; a 7 é a venda. Detalhes e decisões em [Nuvem e venda](#nuvem-e-venda-direção-decidida-em-12-nov-2026). A ordem tira o risco primeiro: a parte difícil (Postgres e login) é feita localmente, sem gastar com AWS até a 6.3, e a verificação do Google corre em paralelo desde a 6.0.
 
-**Fase 6 — Desenvolvimento para a nuvem** (~1,5–2 semanas no total)
+**Fase 6.0 — Fundação** (sem AWS)
 
-- [ ] Validar FTS5 e triggers no libSQL; trocar o driver e passar a API para async
-- [ ] `central.db` (contas, usuários, sessões) e banco por conta (`contas/<id>.db`)
-- [ ] Login com argon2, sessão em cookie, papéis (`dono`, `profissional`, `suporte`) e 2FA para `dono`
-- [ ] API pública com segurança: domínio permitido, HTTPS, CSRF, CORS, limite de tentativas
-- [ ] Docker + Caddy; produção e homologação no Lightsail; snapshot diário
+- [x] `.gitignore` com `*.cofre` e `.env*`
+- [ ] Repositório privado no GitHub: secret scanning com push protection, `master` protegida, Dependabot desligado ou respeitando os 14 dias
+- [ ] Domínio `.com.br` no Registro.br (+ `.com` se livre), nameservers na Cloudflare (junto com a landing page)
+- [ ] Página de política de privacidade no domínio
+- [ ] Projeto no Google Cloud: tela de consentimento OAuth e pedido de verificação do escopo da agenda
+
+**Fase 6.1 — API em Postgres** (local)
+
+- [ ] Postgres em Docker no desenvolvimento; PGlite nos testes
+- [ ] Schema Drizzle em PostgreSQL, `consultorio_id` em toda tabela, migrações novas
+- [ ] Serviço async
+- [ ] Row-Level Security por `consultorio_id`
+- [ ] Busca com `tsvector` + `unaccent` (substitui FTS5 e triggers)
+- [ ] Contrato OpenAPI gerado dos schemas Zod (`@hono/zod-openapi`)
+- [ ] Script de exportação do SQLite e importação no Postgres
+
+**Fase 6.2 — Login** (local)
+
+- [ ] Cognito com Google + e-mail/senha, MFA para o `dono` (stub local para desenvolvimento)
+- [ ] API valida o JWT; papéis `dono`, `profissional`, `suporte`
+- [ ] Web com login OAuth + PKCE
+- [ ] Sai a guarda de loopback + `x-consultorio`; entram CORS restrito e limite de tentativas
+- [ ] Registro de acesso a dados de pacientes, visível para o `dono`
+- [ ] Atualizar `CLAUDE.md` (regras de loopback e de acesso)
+
+**Fase 6.3 — AWS e homologação**
+
+- [ ] AWS Organizations com `management`, `staging` e `prod`; IAM Identity Center; MFA nos roots
+- [ ] Orçamento com alertas, CloudTrail da organização e GuardDuty
+- [ ] CDK: VPC, RDS, Lambda (Hono) + API Gateway, S3 + CloudFront, Cognito, fck-nat
+- [ ] GitHub Actions com OIDC, deploy na homologação a cada push
 - [ ] Homologação com mocks fictícios recriados a cada deploy
 - [ ] Convites por e-mail para refinadores (só homologação)
-- [ ] Registro de acesso a dados de pacientes, visível para o `dono`
-- [ ] CI que faz deploy na homologação a cada push
-- [ ] Atualizar `CLAUDE.md` (regras de loopback e de acesso)
+
+**Fase 6.4 — Produção**
+
+- [ ] Deploy na conta `prod`; PITR ligado e um teste de restauração feito
+- [ ] Migrar seus dados do SQLite local
+
+**Fase 6.5 — Google Agenda**
+
+- [ ] "Conectar agenda" em Configurações (OAuth separado), refresh token cifrado com KMS
+- [ ] Sincronização app → Google, com títulos em iniciais/pseudônimo
+- [ ] Se o NAT pesar: chamadas ao Google num Lambda fora da VPC, via SQS
+
+**Fase 6.6 — Mobile**
+
+- [ ] Decidir: Expo nativo ou PWA primeiro
+- [ ] App consumindo a API pelo cliente gerado do OpenAPI e as regras de `packages/shared`
 
 **Fase 7 — Venda** (a planejar quando e se decidir)
 
-- [ ] Cadastro self-service: cria conta + banco próprio
+- [ ] Cadastro self-service: cria o consultório (`consultorio_id`) e o usuário `dono`
 - [ ] Cobrança por assinatura (Stripe ou Asaas)
-- [ ] Bancos das contas no Turso; deploy escalável (ECS/Fly)
+- [ ] Escalar: RDS maior ou Aurora, réplicas de leitura; Lambda já escala sozinho
 - [ ] Termos de uso, política de privacidade e contrato de tratamento de dados (DPA)
 - [ ] Exportação completa e exclusão dos dados do cliente (portabilidade LGPD)
 

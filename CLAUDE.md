@@ -43,10 +43,12 @@ docs/PLANO.md      plano do produto
 
 ## Sigilo (LGPD: notas clínicas são dado sensível)
 
+> **Nuvem (Fase 6 do `PLANO.md`, decidida em 12 nov 2026):** o app vai para a AWS (Postgres, Cognito, Lambda). Até a Fase 6.2 (login) terminar, as regras abaixo valem como estão. Na 6.2, as regras de loopback, `x-consultorio` e "sem tela de acesso" são substituídas; atualize esta seção nessa hora.
+
 - Servidores escutam **apenas em 127.0.0.1**. Nunca `0.0.0.0`.
 - Nada de dados reais em mocks, seeds, testes, logs ou screenshots. Os mocks são fictícios.
 - Não logar conteúdo de notas nem dados de pacientes no console da API.
-- Banco (`*.db`), snapshots e `data/` ficam fora do git (ver `.gitignore`).
+- Banco (`*.db`), snapshots, backups `.cofre`, `.env*` e `data/` ficam fora do git (ver `.gitignore`).
 - Modo discreto (preferência) troca nomes por iniciais/pseudônimo em toda a interface. Use sempre `nomeExibicao()` do `useDados()` para mostrar o nome de um paciente.
 - Nada sai da máquina sem cifra: backups `.cofre` = AES-256-GCM com senha própria (≥10).
 - **Sem tela de acesso** (decisão do usuário, 6 nov 2026): o app abre direto e o banco em disco fica em claro. A proteção do disco é a do sistema (FileVault). Não reintroduza PIN/login sem pedido.
