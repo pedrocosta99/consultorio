@@ -1,6 +1,6 @@
 # Consultório + Finanças
 
-App local (só na máquina do usuário) com dois módulos: **Consultório** (pacientes, sessões, cobranças, notas) e **Finanças** (contas, transações, investimentos). O plano completo e o roadmap por etapas estão em `docs/PLANO.md`. Leia antes de começar uma etapa.
+App local (só na máquina do usuário) com dois módulos: **Consultório** (pacientes, sessões, cobranças, notas) e **Finanças** (entradas dos pacientes e lançamentos manuais: aluguel, supervisão…; sem investimentos). O plano completo e o roadmap por etapas estão em `docs/PLANO.md`. Leia antes de começar uma etapa.
 
 Interface, código de domínio, mensagens e commits em **português**.
 

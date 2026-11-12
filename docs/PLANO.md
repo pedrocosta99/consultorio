@@ -54,7 +54,19 @@ O centro do módulo é a ficha do paciente: dali você vê sessões, pagamentos 
 
 ## Módulo Finanças
 
-O objetivo é responder em uma tela: quanto entrou, quanto saiu, onde está guardado e quanto vale o patrimônio hoje.
+> **Simplificado em 9 nov 2026 (v0).** Finanças cuida só do dinheiro do trabalho: o que entra (pacientes e outras entradas) e o que sai (sala, supervisão, análise, divulgação…). **Investimentos e patrimônio saíram do escopo.** O que está abaixo de "v0" fica como ideia para depois, se fizer falta.
+
+**v0 — o que existe hoje**
+
+- **Entradas:** os pagamentos de pacientes já são entradas por si (não são copiados para outra tabela). Dá para lançar entradas avulsas (palestra, repasse).
+- **Lançamentos:** tabela `lancamentos` com data, descrição, valor (`Dinheiro`, sempre positivo), tipo entrada/saída e categoria (sugestões + texto livre).
+- **Fixo mensal:** um lançamento marcado como fixo forma uma série (`serie_id`). "Lançar fixos" repete no mês o último de cada série; desmarcar o fixo no último encerra a série.
+- **Tela:** Resumo (mês atual, mês a mês com gráfico em R$, saídas por categoria, entradas por origem), Lançamentos (por mês, com filtros e edição) e Divulgação (ainda fictícia).
+- Contas servem só para dizer onde o pagamento de paciente entrou; sem saldo nem transferências.
+
+**Ideias para depois (fora da v0)**
+
+O objetivo original era responder em uma tela: quanto entrou, quanto saiu, onde está guardado e quanto vale o patrimônio hoje.
 
 **Contas — onde está cada coisa**
 
@@ -75,7 +87,7 @@ O objetivo é responder em uma tela: quanto entrou, quanto saiu, onde está guar
 - Relatórios: receita por mês, por paciente, por origem (clínica-escola × particular), ticket médio e taxa de faltas.
 - Visão fiscal mensal: total recebido de pessoas físicas, útil para o carnê-leão (ou para a PJ, se a receita passar por ela).
 
-**Investimentos**
+**Investimentos** (fora do escopo, decisão de 9 nov 2026)
 
 - Ativos por tipo: renda fixa, ações, FIIs, ETFs, cripto, previdência.
 - Aportes, resgates e posição atual por ativo; no início o valor atual é atualizado à mão, depois por cotação automática.
@@ -186,9 +198,35 @@ Notas clínicas são dado pessoal sensível pela LGPD, então o sistema trata si
 - **Clínica-escola:** pacientes atendidos por ela provavelmente já têm prontuário no sistema da instituição; vale confirmar a política dela antes de duplicar notas aqui.
 - **Senha de recuperação** guardada fora do app: sem ela, os snapshots cifrados não abrem.
 
+## Nuvem e venda (futuro, fora do core)
+
+Não é prioridade: enquanto o app é testado e construído, ele continua local. Esta seção registra a direção (decidida em 9 nov 2026) para que as escolhas de agora não fechem a porta. As regras de sigilo do `CLAUDE.md` (só `127.0.0.1`, sem tela de acesso) valem até a Fase 6 começar de fato.
+
+**Objetivo:** publicar numa URL com login, para poucos usuários (você + pessoas que refinam o app) por alguns meses, e poder escalar ou vender depois sem reescrever.
+
+**Dois ambientes, mesmo código:**
+
+| Ambiente | Quem usa | Dados |
+|---|---|---|
+| Produção (`app.<domínio>`) | Só você | Reais |
+| Homologação (`teste.<domínio>`) | Você + refinadores | Mocks fictícios, recriados a cada deploy |
+
+Refinadores **nunca** acessam a produção: notas clínicas reais não são vistas por quem desenvolve.
+
+**Estrutura base:**
+
+- **SQLite por conta.** Um `central.db` (contas, usuários, sessões, papéis) e um banco por consultório (`contas/<id>.db`) com o schema atual. Isolamento físico entre clientes; backup, portabilidade e exclusão viram operações de arquivo.
+- **Driver libSQL (async).** Localmente aponta para `file:…`; para escalar, a mesma URL aponta para o Turso (feito para banco por cliente), sem mudar código. Validar primeiro: FTS5 com `remove_diacritics` e triggers no libSQL.
+- **Login e papéis:** `dono`, `profissional`, `suporte`. Senha com argon2, sessão em cookie seguro (`HttpOnly`, `Secure`, `SameSite`), limite de tentativas, 2FA (TOTP) para `dono`. Registro de acesso (quem abriu qual paciente e quando).
+- **Proteção da API:** o filtro de Host loopback + `x-consultorio` vira: domínio permitido, HTTPS, CSRF e CORS restrito.
+- **Deploy portátil:** imagem Docker (API servindo o web compilado) + Caddy para HTTPS. Começa num Lightsail (~US$5/mês) com disco persistente e snapshot diário; depois pode ir para ECS/Fly com bancos no Turso.
+- **Backup:** snapshot automático do servidor; o `.cofre` (AES-256-GCM) continua como exportação/download.
+
+**Por que não Postgres/RDS agora:** exigiria reescrever a busca (FTS5 → `tsvector` + `unaccent`), as triggers e as migrações, e o free tier da AWS hoje é só crédito temporário. Fica como opção se um dia houver muitos usuários por consultório.
+
 ## Roadmap por fases
 
-Cinco fases, cada uma termina num app que você já usa de verdade; a fase 1 sozinha já substitui uma planilha.
+Cinco fases de core, cada uma termina num app que você já usa de verdade; a fase 1 sozinha já substitui uma planilha. As fases 6 e 7 (nuvem e venda) são opcionais e vêm depois.
 
 **Fase 1 — Consultório básico**
 
@@ -204,19 +242,18 @@ Cinco fases, cada uma termina num app que você já usa de verdade; a fase 1 soz
 - [x] Tags, busca de texto completo e lista "supervisão"
 - [x] Painel do consultório
 
-**Fase 3 — Finanças essenciais**
+**Fase 3 — Finanças essenciais** (simplificada em 9 nov 2026)
 
-- [ ] Contas, categorias, transações e transferências multimoeda
-- [ ] Pagamentos de pacientes criando receita automaticamente
-- [ ] Recorrências e importação de extratos CSV/OFX com regras
-- [ ] Divulgação com dados reais: campanhas, gasto ligado às transações, pacientes captados
+- [x] v0: pagamentos de pacientes como entradas + lançamentos manuais (entrada/saída, categoria)
+- [x] v0: fixos mensais (aluguel, supervisão…) com "Lançar fixos" do mês
+- [ ] Divulgação com dados reais: campanhas, gasto ligado aos lançamentos, pacientes captados
 - [ ] Sincronização com o Drive pela API (push/pull com detecção de conflito)
+- [ ] Talvez: importação de extratos CSV/OFX com regras
 
-**Fase 4 — Investimentos e patrimônio**
+**Fase 4 — Investimentos e patrimônio** (fora do escopo por ora)
 
-- [ ] Ativos, aportes, resgates e posições
-- [ ] Tabela de câmbio e moeda de relatório
-- [ ] Painéis de patrimônio líquido, fluxo de caixa e alocação
+- ~~Ativos, aportes, resgates e posições~~
+- [ ] Talvez: tabela de câmbio e moeda de relatório (totais convertidos)
 
 **Fase 5 — Refinamentos**
 
@@ -225,6 +262,44 @@ Cinco fases, cada uma termina num app que você já usa de verdade; a fase 1 soz
 - [ ] Visão fiscal mensal (carnê-leão / PJ)
 - [ ] Divulgação avançada: retorno por campanha, funil, orçamento de anúncios
 - [ ] Cotações automáticas e, se quiser, empacotar como app de desktop (Tauri)
+
+**Melhorias de uso (9 nov 2026)**: review pensando no dia a dia de uma psicóloga
+
+- [x] Nota da sessão direto do Painel e do painel da agenda (sem abrir a ficha)
+- [x] "Sem registro": sessões passadas que continuam "agendadas", com ações rápidas
+- [x] "Para relembrar" antes da sessão: pontos fixos + nota anterior
+- [x] Cobranças: fechamento do mês por paciente, mensagem pronta (WhatsApp/copiar) com chave Pix
+- [x] Recibos do Receita Saúde: a emitir / emitidos (pagamentos em real), marcar todos
+- [x] Sessão avulsa (menu Novo e ficha)
+- [x] Editor de notas com barra de formatação e modelo de registro documental (CFP 001/2009)
+- [x] Supervisão: parte "Discutido em supervisão" + data; abas "A levar" / "Discutidas"; texto entra na busca
+- [x] Lembrete de sessão (Painel → Amanhã, painel da agenda), no fuso do paciente
+- [x] Lista de pacientes: última/próxima sessão e alerta de quem está sem sessão há 21+ dias
+- [x] Configurações: cor principal (paletas + personalizada), tamanho do texto, mensagens e modelos
+- [x] Painel: real primeiro nos cards; sem selo duplicado na lista "Hoje"
+
+As fases 6 e 7 ficam fora do core: só começam quando o app local estiver maduro. Detalhes em [Nuvem e venda](#nuvem-e-venda-futuro-fora-do-core).
+
+**Fase 6 — Desenvolvimento para a nuvem** (~1,5–2 semanas no total)
+
+- [ ] Validar FTS5 e triggers no libSQL; trocar o driver e passar a API para async
+- [ ] `central.db` (contas, usuários, sessões) e banco por conta (`contas/<id>.db`)
+- [ ] Login com argon2, sessão em cookie, papéis (`dono`, `profissional`, `suporte`) e 2FA para `dono`
+- [ ] API pública com segurança: domínio permitido, HTTPS, CSRF, CORS, limite de tentativas
+- [ ] Docker + Caddy; produção e homologação no Lightsail; snapshot diário
+- [ ] Homologação com mocks fictícios recriados a cada deploy
+- [ ] Convites por e-mail para refinadores (só homologação)
+- [ ] Registro de acesso a dados de pacientes, visível para o `dono`
+- [ ] CI que faz deploy na homologação a cada push
+- [ ] Atualizar `CLAUDE.md` (regras de loopback e de acesso)
+
+**Fase 7 — Venda** (a planejar quando e se decidir)
+
+- [ ] Cadastro self-service: cria conta + banco próprio
+- [ ] Cobrança por assinatura (Stripe ou Asaas)
+- [ ] Bancos das contas no Turso; deploy escalável (ECS/Fly)
+- [ ] Termos de uso, política de privacidade e contrato de tratamento de dados (DPA)
+- [ ] Exportação completa e exclusão dos dados do cliente (portabilidade LGPD)
 
 ## Como começar no Claude Code
 
