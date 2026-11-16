@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { CalendarOff, Coins, FlaskConical, HardDriveDownload, Landmark, Plus, RotateCcw, Trash2 } from "lucide-react";
-import { feriadoEntradaSchema, TIPOS_CONTA, type Conta, type Moeda } from "@consultorio/shared";
+import { CalendarOff, Clock, Coins, FlaskConical, HardDriveDownload, Landmark, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { feriadoEntradaSchema, horarioAtendimentoSchema, HORARIO_ATENDIMENTO_PADRAO, TIPOS_CONTA, type Conta, type HorarioAtendimento, type Moeda } from "@consultorio/shared";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -84,6 +84,84 @@ export function SecaoFeriados() {
             ))}
           </ul>
         )}
+      </CardContent>
+    </Card>
+  );
+}
+
+const NOMES_DIAS = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"];
+
+/** Horário de atendimento por dia: fora dele a agenda fica sombreada. */
+export function SecaoHorarioAtendimento() {
+  const { horarioAtendimento, mutar } = useDados();
+  const { avisar } = useAvisos();
+  const [h, setH] = useState<HorarioAtendimento>(horarioAtendimento);
+  const [erro, setErro] = useState<string | null>(null);
+  useEffect(() => setH(horarioAtendimento), [horarioAtendimento]);
+  const mudou = JSON.stringify(h) !== JSON.stringify(horarioAtendimento);
+  const mudar = (i: number, f: HorarioAtendimento[number]) => setH((x) => x.map((y, j) => (j === i ? f : y)));
+
+  const salvar = async () => {
+    setErro(null);
+    const r = horarioAtendimentoSchema.safeParse(h);
+    if (!r.success) return setErro(r.error.issues[0]!.message);
+    try {
+      await mutar("PUT", "/configuracoes/horario-atendimento", r.data);
+      avisar("Horário de atendimento salvo.");
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : "Não foi possível salvar.");
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader className="border-b">
+        <CardTitle className="flex items-center gap-2 font-serif text-lg font-medium">
+          <Clock className="size-4 text-muted-foreground" aria-hidden /> Horário de atendimento
+        </CardTitle>
+        <CardDescription>Fora destes horários a agenda fica sombreada. Dá para marcar sessões mesmo assim.</CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <ul className="divide-y">
+          {NOMES_DIAS.map((nome, i) => {
+            const f = h[i] ?? null;
+            return (
+              <li key={nome} className="flex flex-wrap items-center gap-3 py-2.5 first:pt-0 last:pb-0">
+                <Switch
+                  id={`atende-${i}`}
+                  checked={f !== null}
+                  onCheckedChange={(v) => mudar(i, v ? { inicio: "08:00", fim: "20:00" } : null)}
+                  aria-label={`Atende ${nome.toLowerCase()}`}
+                />
+                <Label htmlFor={`atende-${i}`} className="w-20 text-sm font-medium">
+                  {nome}
+                </Label>
+                {f ? (
+                  <span className="flex items-center gap-2 text-sm">
+                    <Input type="time" step={900} className="w-28" aria-label={`${nome}: início`} value={f.inicio} onChange={(e) => mudar(i, { ...f, inicio: e.target.value })} />
+                    <span className="text-muted-foreground">até</span>
+                    <Input type="time" step={900} className="w-28" aria-label={`${nome}: fim`} value={f.fim} onChange={(e) => mudar(i, { ...f, fim: e.target.value })} />
+                  </span>
+                ) : (
+                  <span className="text-sm text-muted-foreground">Não atende</span>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+        {erro && (
+          <p className="text-sm text-destructive" role="alert">
+            {erro}
+          </p>
+        )}
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="ghost" onClick={() => setH(HORARIO_ATENDIMENTO_PADRAO)}>
+            <RotateCcw aria-hidden /> Padrão
+          </Button>
+          <Button type="button" disabled={!mudou} onClick={salvar}>
+            Salvar
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );

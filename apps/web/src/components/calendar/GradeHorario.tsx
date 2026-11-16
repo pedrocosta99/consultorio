@@ -11,7 +11,7 @@ import {
   type Modifier,
 } from "@dnd-kit/core";
 import { format } from "date-fns";
-import type { Ocorrencia, Sessao } from "@consultorio/shared";
+import { faixaDoDia, minutosDeHhmm, type HorarioAtendimento, type Ocorrencia, type Sessao } from "@consultorio/shared";
 import { Skeleton } from "@/components/ui/skeleton";
 import { capitalizar, chaveDia, fmt, hora, instanteEm, minutosDoDia, nomeFuso } from "@/lib/datas";
 import { cn } from "@/lib/utils";
@@ -127,8 +127,11 @@ export function GradeHorario({
   aoCriar,
   fantasma,
   aoAbrirCompromisso,
+  horarioAtendimento,
 }: {
   dias: Date[];
+  /** Fora dele, a coluna fica sombreada. */
+  horarioAtendimento?: HorarioAtendimento;
   sessoes: Sessao[];
   /** Compromissos e bloqueios já expandidos no intervalo visível. */
   ocorrencias?: Ocorrencia[];
@@ -301,6 +304,27 @@ export function GradeHorario({
                       : undefined
                   }
                 >
+                  {horarioAtendimento &&
+                    (() => {
+                      const f = faixaDoDia(horarioAtendimento, dias[i]!.getDay() || 7);
+                      const faixas: Array<[number, number]> = f
+                        ? [
+                            [horaIni * 60, minutosDeHhmm(f.inicio)],
+                            [minutosDeHhmm(f.fim), horaFim * 60],
+                          ]
+                        : [[horaIni * 60, horaFim * 60]];
+                      return faixas
+                        .filter(([a, b]) => b > a)
+                        .map(([a, b]) => (
+                          <div
+                            key={a}
+                            aria-hidden
+                            data-fora-do-horario
+                            className="pointer-events-none absolute inset-x-0 bg-muted/60"
+                            style={{ top: (Math.max(a, horaIni * 60) - horaIni * 60) * pxPorMin, height: (Math.min(b, horaFim * 60) - Math.max(a, horaIni * 60)) * pxPorMin }}
+                          />
+                        ));
+                    })()}
                   {marcado?.chave === chave && (
                     <div
                       aria-hidden

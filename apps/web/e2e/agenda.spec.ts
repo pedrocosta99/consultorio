@@ -155,3 +155,32 @@ test("arrastar um compromisso que se repete pergunta este / seguintes / todos", 
   await expect(page.getByRole("status").filter({ hasText: "todos alterados" })).toBeVisible();
   expect(chamadas.find((x) => x.metodo === "PATCH")?.corpo).toMatchObject({ alcance: "todos", data: "2026-11-03" });
 });
+
+test("visões Seg–Sex e Lista; mini calendário pula de data", async ({ page }) => {
+  await abrir(page, "/agenda?visao=util&data=2026-11-04");
+  await expect(page.locator("[data-dia]")).toHaveCount(5);
+  await expect(page.locator("[data-fora-do-horario]").first()).toBeAttached();
+  await page.getByRole("radio", { name: "Lista" }).click();
+  await expect(page.getByRole("heading", { name: /Quarta-feira, 4 de novembro · hoje/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Análise pessoal/ }).first()).toBeVisible();
+  await page.getByRole("button", { name: "Escolher data" }).click();
+  await page.getByRole("button", { name: "quarta-feira, 18 de novembro" }).click();
+  await expect(page).toHaveURL(/data=2026-11-18/);
+});
+
+test("mover para cima de outra sessão avisa do conflito", async ({ page }) => {
+  await interceptarGravacoes(page);
+  await abrir(page, "/agenda?visao=dia&data=2026-11-04");
+  // 16:00 (Lírio, avulsa ou remarcável) → 12:00, onde já há sessão.
+  const bloco = page.locator('[aria-roledescription="sessão arrastável"]').filter({ hasText: "16:00" });
+  const caixa = (await bloco.boundingBox())!;
+  const destino = await ponto(page, "2026-11-04", 12 * 60);
+  await page.mouse.move(caixa.x + caixa.width / 2, caixa.y + 6);
+  await page.mouse.down();
+  await page.mouse.move(caixa.x + caixa.width / 2, destino.y + 2, { steps: 12 });
+  await page.mouse.up();
+  await page.clock.runFor(100);
+  const pergunta = page.getByRole("dialog", { name: "Alterar sessão do horário fixo" });
+  if (await pergunta.isVisible()) await pergunta.getByRole("button", { name: "OK" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "sobrepõe" })).toBeVisible();
+});

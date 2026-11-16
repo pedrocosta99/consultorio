@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Ban, CalendarClock, UserRound } from "lucide-react";
+import { Ban, CalendarClock, TriangleAlert, UserRound } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useAvisos } from "@/app/avisos";
@@ -19,7 +19,7 @@ const DESCRICAO: Record<Tipo, string> = {
  * Criar evento a partir da agenda (clique num horário vazio, arrastar ou atalho C),
  * como o cartão do Google Agenda: sessão, compromisso ou bloqueio.
  */
-export function DialogoNovoEvento({ inicial, aoFechar }: { inicial: SessaoInicial | null; aoFechar: () => void }) {
+export function DialogoNovoEvento({ inicial, conflito, aoFechar }: { inicial: SessaoInicial | null; conflito?: string; aoFechar: () => void }) {
   const { mutar } = useDados();
   const { avisar } = useAvisos();
   const [tipo, setTipo] = useState<Tipo>("sessao");
@@ -35,6 +35,12 @@ export function DialogoNovoEvento({ inicial, aoFechar }: { inicial: SessaoInicia
           <DialogTitle className="font-serif text-xl font-medium">Novo evento</DialogTitle>
           <DialogDescription>{DESCRICAO[tipo]}</DialogDescription>
         </DialogHeader>
+        {conflito && (
+          <p role="status" className="flex items-start gap-2 rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground">
+            <TriangleAlert className="mt-px size-3.5 shrink-0" aria-hidden />
+            {conflito.replace(/^Atenção: s/, "S")}
+          </p>
+        )}
         <ToggleGroup
           type="single"
           variant="outline"

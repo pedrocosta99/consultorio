@@ -9,6 +9,9 @@ import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, notInArray, sql } f
 import {
   FUSO_CONSULTORIO,
   MENSAGENS_PADRAO,
+  HORARIO_ATENDIMENTO_PADRAO,
+  horarioAtendimentoSchema,
+  type HorarioAtendimento,
   MOEDAS,
   chaveDiaNoFuso,
   dataNoMes,
@@ -159,6 +162,7 @@ export function carregarConsultorio(db: Db, agora: Date): PacoteConsultorio {
     lancamentos: listarLancamentos(db),
     compromissos: listarCompromissos(db),
     mensagens: lerMensagens(db),
+    horarioAtendimento: lerHorarioAtendimento(db),
   };
 }
 
@@ -172,6 +176,19 @@ export function lerMensagens(db: Db): Mensagens {
 export function definirMensagens(db: Db, m: Mensagens) {
   const valor = JSON.stringify(m);
   db.insert(t.metaSistema).values({ chave: "mensagens", valor }).onConflictDoUpdate({ target: t.metaSistema.chave, set: { valor } }).run();
+}
+
+// ── Horário de atendimento ───────────────────────────────────
+
+export function lerHorarioAtendimento(db: Db): HorarioAtendimento {
+  const v = db.select().from(t.metaSistema).where(eq(t.metaSistema.chave, "horario_atendimento")).get()?.valor;
+  const r = v ? horarioAtendimentoSchema.safeParse(JSON.parse(v)) : null;
+  return r?.success ? r.data : HORARIO_ATENDIMENTO_PADRAO;
+}
+
+export function definirHorarioAtendimento(db: Db, h: HorarioAtendimento) {
+  const valor = JSON.stringify(h);
+  db.insert(t.metaSistema).values({ chave: "horario_atendimento", valor }).onConflictDoUpdate({ target: t.metaSistema.chave, set: { valor } }).run();
 }
 
 // ── Moedas ───────────────────────────────────────────────────

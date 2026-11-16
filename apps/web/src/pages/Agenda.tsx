@@ -12,8 +12,8 @@ import {
   startOfMonth,
   startOfWeek,
 } from "date-fns";
-import { CalendarOff, ChevronLeft, ChevronRight, CircleDollarSign, Globe2, Undo2, X } from "lucide-react";
-import { ocorrencias as expandir, type Alcance, type Compromisso, type Ocorrencia, type Sessao } from "@consultorio/shared";
+import { CalendarDays, CalendarOff, ChevronLeft, ChevronRight, CircleDollarSign, Globe2, Undo2, X } from "lucide-react";
+import { conflitos, ocorrencias as expandir, type Alcance, type Intervalo, type Compromisso, type Ocorrencia, type Sessao } from "@consultorio/shared";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -34,15 +34,20 @@ import { type SessaoInicial } from "@/components/formularios/DialogoSessao";
 import { FormCompromisso, type ValoresCompromisso } from "@/components/formularios/FormCompromisso";
 import { DialogoNovoEvento } from "@/components/calendar/DialogoNovoEvento";
 import { PainelCompromisso } from "@/components/calendar/PainelCompromisso";
-import { lerIdOcorrencia } from "@/components/calendar/BlocoCompromisso";
+import { idOcorrencia, lerIdOcorrencia } from "@/components/calendar/BlocoCompromisso";
+import { MiniCalendario } from "@/components/calendar/MiniCalendario";
+import { VisaoLista } from "@/components/calendar/VisaoLista";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PainelSessao } from "@/components/calendar/PainelSessao";
 import { VisaoMes } from "@/components/calendar/VisaoMes";
 import { capitalizar, chaveDia, FUSOS_DISPONIVEIS, fmt, hora, instanteEm, minutosDoDia, nomeFuso, noFuso, offsetFuso, SEMANA } from "@/lib/datas";
 import { cn } from "@/lib/utils";
 
-type Visao = "dia" | "semana" | "mes";
-const VISOES: Visao[] = ["dia", "semana", "mes"];
+type Visao = "dia" | "semana" | "util" | "mes" | "lista";
+const VISOES: Visao[] = ["dia", "semana", "util", "mes", "lista"];
+/** Quantos dias a lista mostra. */
+const DIAS_LISTA = 14;
 
 function visaoPadrao(): Visao {
   return typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches ? "dia" : "semana";
@@ -51,8 +56,9 @@ function visaoPadrao(): Visao {
 function titulo(visao: Visao, ref: Date): string {
   if (visao === "dia") return capitalizar(fmt(ref, "EEEE, d 'de' MMMM 'de' yyyy"));
   if (visao === "mes") return capitalizar(fmt(ref, "MMMM 'de' yyyy"));
+  if (visao === "lista") return `${fmt(ref, "d 'de' MMM")} – ${fmt(addDays(ref, DIAS_LISTA - 1), "d 'de' MMM 'de' yyyy")}`;
   const ini = startOfWeek(ref, SEMANA);
-  const fim = endOfWeek(ref, SEMANA);
+  const fim = visao === "util" ? addDays(ini, 4) : endOfWeek(ref, SEMANA);
   if (isSameMonth(ini, fim)) return `${fmt(ini, "d")} – ${fmt(fim, "d 'de' MMMM 'de' yyyy")}`;
   return `${fmt(ini, "d 'de' MMM")} – ${fmt(fim, "d 'de' MMM 'de' yyyy")}`;
 }
@@ -94,7 +100,7 @@ function hhmm(m: number): string {
 }
 
 export function PaginaAgenda() {
-  const { sessoes, compromissos, carregando, atualizarSessao, paciente, mutar } = useDados();
+  const { sessoes, compromissos, carregando, atualizarSessao, paciente, mutar, nomeExibicao, horarioAtendimento } = useDados();
   const { fusoPrincipal, fusoSecundario, atualizar } = usePreferencias();
   const [params, setParams] = useSearchParams();
   const [agora, setAgora] = useState(() => new Date());
@@ -136,7 +142,11 @@ export function PaginaAgenda() {
   );
 
   const passo = useCallback(
-    (n: number) => ir(visao, visao === "dia" ? addDays(ref, n) : visao === "semana" ? addWeeks(ref, n) : addMonths(ref, n)),
+    (n: number) =>
+      ir(
+        visao,
+        visao === "dia" ? addDays(ref, n) : visao === "semana" || visao === "util" ? addWeeks(ref, n) : visao === "lista" ? addDays(ref, n * DIAS_LISTA) : addMonths(ref, n),
+      ),
     [ir, visao, ref],
   );
 
@@ -152,6 +162,8 @@ export function PaginaAgenda() {
       else if (k === "d") ir("dia", ref);
       else if (k === "s") ir("semana", ref);
       else if (k === "m") ir("mes", ref);
+      else if (k === "u") ir("util", ref);
+      else if (k === "l") ir("lista", ref);
       else if (k === "c") {
         e.preventDefault();
         // Próxima hora cheia de hoje, ou 09:00 em outro dia.
@@ -168,6 +180,8 @@ export function PaginaAgenda() {
   const dias = useMemo(() => {
     if (visao === "dia") return [ref];
     if (visao === "semana") return eachDayOfInterval({ start: startOfWeek(ref, SEMANA), end: endOfWeek(ref, SEMANA) });
+    if (visao === "util") return eachDayOfInterval({ start: startOfWeek(ref, SEMANA), end: addDays(startOfWeek(ref, SEMANA), 4) });
+    if (visao === "lista") return eachDayOfInterval({ start: ref, end: addDays(ref, DIAS_LISTA - 1) });
     return eachDayOfInterval({ start: startOfWeek(startOfMonth(ref), SEMANA), end: endOfWeek(endOfMonth(ref), SEMANA) });
   }, [visao, ref]);
 
@@ -193,6 +207,24 @@ export function PaginaAgenda() {
   );
   const abertoC = compromissoAberto ? ocorrenciaPorId(compromissoAberto) : null;
 
+  /** Tudo o que ocupa horário na tela, para avisar de conflito. */
+  const ocupados = useMemo<Intervalo[]>(
+    () => [
+      ...visiveis
+        .filter((s) => s.estado !== "cancelada")
+        .map((s) => ({ id: s.id, inicio: s.inicio, duracaoMin: s.duracaoMin, rotulo: `${nomeExibicao(paciente(s.pacienteId), "curto")} (${hora(s.inicio, fusoPrincipal)})` })),
+      ...ocorrenciasVisiveis.map((o) => ({ id: idOcorrencia(o), inicio: o.inicio, duracaoMin: o.duracaoMin, rotulo: `${o.titulo} (${hora(o.inicio, fusoPrincipal)})` })),
+    ],
+    [visiveis, ocorrenciasVisiveis, nomeExibicao, paciente, fusoPrincipal],
+  );
+  const textoConflito = useCallback(
+    (inicio: string, duracaoMin: number, ignorar?: string) => {
+      const c = conflitos(inicio, duracaoMin, ocupados, ignorar);
+      return c.length ? ` Atenção: sobrepõe ${c.map((x) => x.rotulo).join(", ")}.` : "";
+    },
+    [ocupados],
+  );
+
   /** "Só esta": muda a sessão; se veio da grade, ela passa a ser uma exceção (remarcada). */
   const aplicarSoEsta = useCallback(
     (s: Sessao, inicio: string, duracaoMin: number) => {
@@ -202,11 +234,11 @@ export function PaginaAgenda() {
       const p = paciente(s.pacienteId);
       const quando = `${fmt(noFuso(inicio, fusoPrincipal), "EEE, d MMM")} às ${hora(inicio, fusoPrincipal)}`;
       setAviso({
-        texto: inicio === s.inicio ? `${p?.apelido ?? "Sessão"}: agora com ${duracaoMin} min` : `${p?.apelido ?? "Sessão"} movida para ${quando}`,
+        texto: (inicio === s.inicio ? `${p?.apelido ?? "Sessão"}: agora com ${duracaoMin} min.` : `${p?.apelido ?? "Sessão"} movida para ${quando}.`) + textoConflito(inicio, duracaoMin, s.id),
         desfazer: () => atualizarSessao(s.id, antes),
       });
     },
-    [atualizarSessao, paciente, fusoPrincipal],
+    [atualizarSessao, paciente, fusoPrincipal, textoConflito],
   );
 
   /** Grava uma mudança de compromisso com o alcance escolhido. */
@@ -238,7 +270,9 @@ export function PaginaAgenda() {
       gravarCompromisso(c, o, "todos", mudanca)
         .then(() =>
           setAviso({
-            texto: `${o.titulo}: ${fmt(noFuso(mudanca.inicio ?? o.inicio, fusoPrincipal), "EEE, d MMM")} às ${hora(mudanca.inicio ?? o.inicio, fusoPrincipal)}`,
+            texto:
+              `${o.titulo}: ${fmt(noFuso(mudanca.inicio ?? o.inicio, fusoPrincipal), "EEE, d MMM")} às ${hora(mudanca.inicio ?? o.inicio, fusoPrincipal)}.` +
+              textoConflito(mudanca.inicio ?? o.inicio, mudanca.duracaoMin ?? o.duracaoMin, id),
             desfazer: () => {
               const novaData = chaveDia(mudanca.inicio ?? o.inicio, c.fuso);
               mutar("PATCH", `/compromissos/${c.id}`, { alcance: "todos", data: novaData, ...antes }).catch(() => {});
@@ -247,7 +281,7 @@ export function PaginaAgenda() {
         )
         .catch((e) => setAviso({ texto: e instanceof Error ? e.message : "Não foi possível mover." }));
     },
-    [ocorrenciaPorId, gravarCompromisso, mutar, fusoPrincipal],
+    [ocorrenciaPorId, gravarCompromisso, mutar, fusoPrincipal, textoConflito],
   );
 
   const responderAlcanceCompromisso = async (alcance: Alcance) => {
@@ -327,11 +361,18 @@ export function PaginaAgenda() {
     }
   };
 
-  const inicialCriacao: SessaoInicial | null = criando ? { data: criando.chave, horario: hhmm(criando.inicio), duracaoMin: criando.duracao } : null;
+  const inicialCriacao = useMemo<SessaoInicial | null>(
+    () => (criando ? { data: criando.chave, horario: hhmm(criando.inicio), duracaoMin: criando.duracao } : null),
+    [criando],
+  );
+  const conflitoCriacao = criando
+    ? textoConflito(instanteEm(new Date(criando.chave + "T00:00:00"), criando.inicio, fusoPrincipal).toISOString(), criando.duracao).trim()
+    : "";
+  const marcados = useMemo(() => new Set(sessoes.map((s) => chaveDia(s.inicio, fusoPrincipal))), [sessoes, fusoPrincipal]);
 
   const abrir = useCallback((s: Sessao) => setAberta(s.id), []);
   const abrirDia = useCallback((d: Date) => ir("dia", d), [ir]);
-  const vazioTexto = visao === "dia" ? "neste dia" : visao === "semana" ? "nesta semana" : "neste mês";
+  const vazioTexto = visao === "dia" ? "neste dia" : visao === "semana" || visao === "util" ? "nesta semana" : visao === "lista" ? "nos próximos 14 dias" : "neste mês";
 
   return (
     <>
@@ -348,13 +389,23 @@ export function PaginaAgenda() {
             <Button variant="ghost" size="icon-sm" aria-label="Próximo" onClick={() => passo(1)}>
               <ChevronRight aria-hidden />
             </Button>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" size="icon-sm" aria-label="Escolher data">
+                  <CalendarDays aria-hidden />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-64 p-3">
+                <MiniCalendario selecionado={ref} hoje={format(hojeParede, "yyyy-MM-dd")} marcados={marcados} aoEscolher={(d) => ir(visao, d)} />
+              </PopoverContent>
+            </Popover>
           </div>
           <h1 className="truncate text-xl font-medium sm:text-2xl" aria-live="polite">
             {titulo(visao, ref)}
           </h1>
         </div>
 
-        <div className="flex items-center gap-2 lg:ml-auto">
+        <div className="flex flex-wrap items-center gap-2 lg:ml-auto">
           <ToggleGroup
             type="single"
             variant="outline"
@@ -365,7 +416,9 @@ export function PaginaAgenda() {
           >
             <ToggleGroupItem value="dia" className="px-3">Dia</ToggleGroupItem>
             <ToggleGroupItem value="semana" className="px-3">Semana</ToggleGroupItem>
+            <ToggleGroupItem value="util" className="hidden px-3 sm:inline-flex" title="Segunda a sexta (U)">Seg–Sex</ToggleGroupItem>
             <ToggleGroupItem value="mes" className="px-3">Mês</ToggleGroupItem>
+            <ToggleGroupItem value="lista" className="px-3" title="Próximos 14 dias (L)">Lista</ToggleGroupItem>
           </ToggleGroup>
 
           <DropdownMenu>
@@ -408,7 +461,7 @@ export function PaginaAgenda() {
         <span className="flex items-center gap-1">
           <CircleDollarSign className="size-3.5" aria-hidden /> pago
         </span>
-        <span className="ml-auto hidden lg:inline">Clique num horário para criar · arraste para remarcar · puxe a borda para a duração · C cria · T hoje</span>
+        <span className="ml-auto hidden xl:inline">Clique num horário para criar · arraste para remarcar · puxe a borda para a duração · C cria · T hoje</span>
       </div>
 
       {!carregando && visiveis.length === 0 && ocorrenciasVisiveis.length === 0 && (
@@ -425,7 +478,17 @@ export function PaginaAgenda() {
       )}
 
       <div aria-busy={carregando}>
-        {visao === "mes" ? (
+        {visao === "lista" ? (
+          <VisaoLista
+            sessoes={visiveis}
+            ocorrencias={ocorrenciasVisiveis}
+            hojeChave={format(hojeParede, "yyyy-MM-dd")}
+            fusoPrincipal={fusoPrincipal}
+            carregando={carregando}
+            aoAbrir={abrir}
+            aoAbrirCompromisso={abrirCompromisso}
+          />
+        ) : visao === "mes" ? (
           <VisaoMes
             referencia={ref}
             sessoes={visiveis}
@@ -455,6 +518,7 @@ export function PaginaAgenda() {
             aoRedimensionar={redimensionar}
             aoCriar={setCriando}
             fantasma={criando}
+            horarioAtendimento={horarioAtendimento}
           />
         )}
       </div>
@@ -475,7 +539,7 @@ export function PaginaAgenda() {
         aoFechar={() => setPendente(null)}
       />
 
-      <DialogoNovoEvento inicial={inicialCriacao} aoFechar={() => setCriando(null)} />
+      <DialogoNovoEvento inicial={inicialCriacao} conflito={conflitoCriacao} aoFechar={() => setCriando(null)} />
 
       <PainelCompromisso
         ocorrencia={abertoC?.o ?? null}

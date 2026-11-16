@@ -109,6 +109,8 @@ export interface PacoteConsultorio {
   notas: import("./types").Nota[];
   lancamentos: import("./types").Lancamento[];
   compromissos: import("./recorrencia").Compromisso[];
+  /** Horário de atendimento (seg … dom); fora dele a agenda fica sombreada. */
+  horarioAtendimento: import("./agenda").HorarioAtendimento;
   /** Moedas em uso. BRL sempre; USD/EUR só se ligadas em Configurações. */
   moedas: import("./money").Moeda[];
   /** Chave Pix e modelos de mensagem/nota (Configurações). */

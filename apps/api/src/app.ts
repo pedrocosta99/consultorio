@@ -5,6 +5,7 @@ import {
   compromissoEntradaSchema,
   compromissoExclusaoSchema,
   contratoEntradaSchema,
+  horarioAtendimentoSchema,
   feriadoEntradaSchema,
   lancamentoEntradaSchema,
   lancamentoPatchSchema,
@@ -161,6 +162,11 @@ app.get("/busca", (c) => c.json(srv.buscar(c.get("banco").sqlite, c.req.query("q
 app.put("/configuracoes/moedas", async (c) => {
   const { moedas } = z.object({ moedas: z.array(z.enum(MOEDAS)) }).parse(await c.req.json());
   srv.definirMoedas(db(c), moedas);
+  return ok(c);
+});
+
+app.put("/configuracoes/horario-atendimento", async (c) => {
+  srv.definirHorarioAtendimento(db(c), horarioAtendimentoSchema.parse(await c.req.json()));
   return ok(c);
 });
 
