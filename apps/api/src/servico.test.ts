@@ -324,3 +324,59 @@ describe("agenda: esta e as seguintes", () => {
     expect(sessoes().find((s) => s.id === id)).toMatchObject({ duracaoMin: 80, contratoId: null });
   });
 });
+
+describe("compromissos", () => {
+  const sup = {
+    tipo: "compromisso",
+    titulo: "Supervisão",
+    categoria: "Supervisão",
+    inicio: "2026-11-02T12:00:00.000Z", // segunda 09:00
+    duracaoMin: 60,
+    recorrencia: "FREQ=WEEKLY;BYDAY=MO,WE",
+  } as const;
+  const lista = () => carregarConsultorio(db, AGORA).compromissos;
+  const datas = async (de: string, ate: string) => {
+    const { ocorrencias } = await import("@consultorio/shared");
+    return lista().flatMap((c) => ocorrencias(c, de, ate).map((o) => `${o.data}@${o.inicio.slice(11, 16)}`)).sort();
+  };
+
+  it("este: vira exceção só daquela ocorrência", async () => {
+    const { criarCompromisso, alterarCompromisso } = await import("./servico");
+    const id = criarCompromisso(db, sup);
+    expect(alterarCompromisso(db, id, { alcance: "este", data: "2026-11-04", inicio: "2026-11-04T14:00:00.000Z" })).toBe(id);
+    expect(await datas("2026-11-02", "2026-11-09")).toEqual(["2026-11-02@12:00", "2026-11-04@14:00", "2026-11-09@12:00"]);
+  });
+
+  it("seguintes: a série antiga para na véspera e a nova muda o dia", async () => {
+    const { criarCompromisso, alterarCompromisso } = await import("./servico");
+    const id = criarCompromisso(db, sup);
+    const novo = alterarCompromisso(db, id, { alcance: "seguintes", data: "2026-11-11", inicio: "2026-11-12T13:00:00.000Z" });
+    expect(novo).not.toBe(id);
+    const cs = lista();
+    expect(cs.find((c) => c.id === id)!.recorrencia).toBe("FREQ=WEEKLY;BYDAY=MO,WE;UNTIL=20261110");
+    expect(cs.find((c) => c.id === novo)!.recorrencia).toBe("FREQ=WEEKLY;BYDAY=MO,TH");
+    expect(await datas("2026-11-09", "2026-11-19")).toEqual(["2026-11-09@12:00", "2026-11-12@13:00", "2026-11-16@13:00", "2026-11-19@13:00"]);
+  });
+
+  it("todos: desloca a série inteira e mantém cancelamentos", async () => {
+    const { criarCompromisso, alterarCompromisso, excluirCompromisso } = await import("./servico");
+    const id = criarCompromisso(db, sup);
+    excluirCompromisso(db, id, { alcance: "este", data: "2026-11-09" });
+    alterarCompromisso(db, id, { alcance: "todos", data: "2026-11-04", inicio: "2026-11-04T13:00:00.000Z", duracaoMin: 50, titulo: "Supervisão (Ana)" });
+    const c = lista()[0]!;
+    expect(c).toMatchObject({ inicio: "2026-11-02T13:00:00.000Z", duracaoMin: 50, titulo: "Supervisão (Ana)" });
+    expect(await datas("2026-11-02", "2026-11-11")).toEqual(["2026-11-02@13:00", "2026-11-04@13:00", "2026-11-11@13:00"]);
+  });
+
+  it("excluir: este, seguintes e todos", async () => {
+    const { criarCompromisso, excluirCompromisso } = await import("./servico");
+    const id = criarCompromisso(db, sup);
+    excluirCompromisso(db, id, { alcance: "seguintes", data: "2026-11-09" });
+    expect(await datas("2026-11-01", "2026-11-30")).toEqual(["2026-11-02@12:00", "2026-11-04@12:00"]);
+    excluirCompromisso(db, id, { alcance: "todos", data: "2026-11-02" });
+    expect(lista()).toEqual([]);
+    const unico = criarCompromisso(db, { ...sup, tipo: "bloqueio", titulo: "Dentista", recorrencia: null });
+    excluirCompromisso(db, unico, { alcance: "este", data: "2026-11-02" });
+    expect(lista()).toEqual([]);
+  });
+});

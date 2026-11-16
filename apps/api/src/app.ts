@@ -1,6 +1,9 @@
 import { Hono, type Context } from "hono";
 import { z, ZodError } from "zod";
 import {
+  compromissoAlteracaoSchema,
+  compromissoEntradaSchema,
+  compromissoExclusaoSchema,
   contratoEntradaSchema,
   feriadoEntradaSchema,
   lancamentoEntradaSchema,
@@ -193,6 +196,17 @@ app.delete("/lancamentos/:id", (c) => {
 app.post("/lancamentos/fixos", async (c) => {
   const { mes } = z.object({ mes: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Mês inválido") }).parse(await c.req.json());
   return ok(c, { criados: srv.lancarFixos(db(c), mes) });
+});
+
+// ── Compromissos (agenda) ────────────────────────────────────
+
+app.post("/compromissos", async (c) => ok(c, { id: srv.criarCompromisso(db(c), compromissoEntradaSchema.parse(await c.req.json())) }));
+app.patch("/compromissos/:id", async (c) =>
+  ok(c, { id: srv.alterarCompromisso(db(c), c.req.param("id"), compromissoAlteracaoSchema.parse(await c.req.json())) }),
+);
+app.post("/compromissos/:id/excluir", async (c) => {
+  srv.excluirCompromisso(db(c), c.req.param("id"), compromissoExclusaoSchema.parse(await c.req.json()));
+  return ok(c);
 });
 
 // ── Backup cifrado ───────────────────────────────────────────

@@ -6,3 +6,4 @@ export * from "./entradas";
 export * from "./saldo";
 export * from "./lancamentos";
 export * from "./cobranca";
+export * from "./recorrencia";

@@ -57,6 +57,13 @@
       "when": 1794847510576,
       "tag": "0007_horarios_por_dia",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1794848192090,
+      "tag": "0008_compromissos",
+      "breakpoints": true
     }
   ]
 }

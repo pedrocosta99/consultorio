@@ -3,6 +3,7 @@
  */
 import { z } from "zod";
 import { dinheiroSchema } from "./money";
+import { lerRegra, TIPOS_COMPROMISSO } from "./recorrencia";
 import { COBRANCAS, ESTADOS_SESSAO, MEIOS_PAGAMENTO, MODALIDADES, ORIGENS, STATUS_PACIENTE, TIPOS_LANCAMENTO } from "./types";
 
 const dataCivil = z.iso.date({ error: "Data inválida" });
@@ -107,6 +108,7 @@ export interface PacoteConsultorio {
   feriados: Feriado[];
   notas: import("./types").Nota[];
   lancamentos: import("./types").Lancamento[];
+  compromissos: import("./recorrencia").Compromisso[];
   /** Moedas em uso. BRL sempre; USD/EUR só se ligadas em Configurações. */
   moedas: import("./money").Moeda[];
   /** Chave Pix e modelos de mensagem/nota (Configurações). */
@@ -154,3 +156,47 @@ export interface ResultadoBusca {
   trecho: string;
   criadoEm?: string;
 }
+
+// ── Compromissos (agenda) ────────────────────────────────────
+
+const regraValida = z
+  .string()
+  .refine((r) => {
+    try {
+      lerRegra(r);
+      return true;
+    } catch {
+      return false;
+    }
+  }, "Recorrência inválida");
+
+export const compromissoEntradaSchema = z.object({
+  tipo: z.enum(TIPOS_COMPROMISSO),
+  titulo: texto(1, "Dê um título").max(80, "Máximo de 80 caracteres"),
+  categoria: z.string().trim().max(40, "Máximo de 40 caracteres").default(""),
+  inicio: z.iso.datetime(),
+  duracaoMin: z.number().int().min(5).max(24 * 60),
+  recorrencia: regraValida.nullable().default(null),
+});
+export type CompromissoEntrada = z.input<typeof compromissoEntradaSchema>;
+
+export const ALCANCES = ["este", "seguintes", "todos"] as const;
+export type Alcance = (typeof ALCANCES)[number];
+
+/** Mudança numa ocorrência, com o alcance da pergunta do Google. */
+export const compromissoAlteracaoSchema = z.object({
+  alcance: z.enum(ALCANCES),
+  /** Data civil original da ocorrência em que o clique aconteceu. */
+  data: dataCivil,
+  tipo: z.enum(TIPOS_COMPROMISSO).optional(),
+  titulo: texto(1, "Dê um título").max(80, "Máximo de 80 caracteres").optional(),
+  categoria: z.string().trim().max(40).optional(),
+  inicio: z.iso.datetime().optional(),
+  duracaoMin: z.number().int().min(5).max(24 * 60).optional(),
+  /** Só vale para "seguintes" e "todos". */
+  recorrencia: regraValida.nullable().optional(),
+});
+export type CompromissoAlteracao = z.infer<typeof compromissoAlteracaoSchema>;
+
+export const compromissoExclusaoSchema = z.object({ alcance: z.enum(ALCANCES), data: dataCivil });
+export type CompromissoExclusao = z.infer<typeof compromissoExclusaoSchema>;

@@ -15,6 +15,7 @@ import {
   MENSAGENS_PADRAO,
   saldoPorMoeda,
   sessaoCobravel,
+  type Compromisso,
   type Dinheiro,
   type Feriado,
   type Mensagens,
@@ -35,7 +36,7 @@ function lerModoMock(): ModoMock {
   return m === "vazio" || m === "carregando" ? m : "normal";
 }
 
-const PACOTE_VAZIO: Omit<PacoteConsultorio, "agora"> = { pacientes: [], contratos: [], sessoes: [], pagamentos: [], contas: [], feriados: [], moedas: ["BRL"], notas: [], lancamentos: [], mensagens: MENSAGENS_PADRAO };
+const PACOTE_VAZIO: Omit<PacoteConsultorio, "agora"> = { pacientes: [], contratos: [], sessoes: [], pagamentos: [], contas: [], feriados: [], moedas: ["BRL"], notas: [], lancamentos: [], compromissos: [], mensagens: MENSAGENS_PADRAO };
 
 type Metodo = "POST" | "PATCH" | "PUT" | "DELETE";
 
@@ -48,6 +49,8 @@ interface Ctx extends Mocks {
   moedas: Moeda[];
   /** Chave Pix e modelos de mensagem/nota. */
   mensagens: Mensagens;
+  /** Compromissos e bloqueios da agenda (com recorrência e exceções). */
+  compromissos: Compromisso[];
   recarregar: () => Promise<void>;
   /** Chama a API e recarrega os dados. Erros sobem para quem chamou. */
   mutar: <T = { ok: true; id?: string }>(metodo: Metodo, rota: string, corpo?: unknown) => Promise<T>;
@@ -140,6 +143,7 @@ export function DadosProvider({ children }: { children: ReactNode }) {
       mensagens: base.mensagens ?? MENSAGENS_PADRAO,
       notas: base.notas,
       lancamentos: base.lancamentos.filter((l) => base.moedas.includes(l.valor.moeda)),
+      compromissos: base.compromissos ?? [],
       campanhas,
       carregando: modo === "carregando" || pacote === null,
       recarregar,

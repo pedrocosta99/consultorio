@@ -14,6 +14,7 @@ import {
   STATUS_PACIENTE,
   TIPOS_CONTA,
   TIPOS_LANCAMENTO,
+  TIPOS_COMPROMISSO,
   TIPOS_NOTA,
 } from "@consultorio/shared";
 
@@ -188,4 +189,40 @@ export const lancamentos = sqliteTable(
     criadoEm: criadoEm(),
   },
   (t) => [index("lancamentos_data").on(t.data), index("lancamentos_serie").on(t.serieId)],
+);
+
+/**
+ * Compromissos e bloqueios da agenda (supervisão, análise, folgas…): o que não é
+ * sessão de paciente. `recorrencia` é uma RRULE do Google (sem "RRULE:"); null = única.
+ */
+export const compromissos = sqliteTable(
+  "compromissos",
+  {
+    id: text("id").primaryKey(),
+    tipo: text("tipo", { enum: TIPOS_COMPROMISSO }).notNull(),
+    titulo: text("titulo").notNull(),
+    categoria: text("categoria").notNull(),
+    /** Início da primeira ocorrência (ISO UTC). */
+    inicio: text("inicio").notNull(),
+    duracaoMin: integer("duracao_min").notNull(),
+    fuso: text("fuso").notNull(),
+    recorrencia: text("recorrencia"),
+    criadoEm: criadoEm(),
+  },
+  (t) => [index("compromissos_inicio").on(t.inicio)],
+);
+
+/** "Só este evento": uma ocorrência movida, encurtada, renomeada ou cancelada. */
+export const compromissosExcecoes = sqliteTable(
+  "compromissos_excecoes",
+  {
+    compromissoId: text("compromisso_id").notNull().references(() => compromissos.id, { onDelete: "cascade" }),
+    /** Data civil original da ocorrência. */
+    data: text("data").notNull(),
+    cancelado: integer("cancelado", { mode: "boolean" }).notNull().default(false),
+    inicio: text("inicio"),
+    duracaoMin: integer("duracao_min"),
+    titulo: text("titulo"),
+  },
+  (t) => [primaryKey({ columns: [t.compromissoId, t.data] })],
 );

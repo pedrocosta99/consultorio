@@ -35,6 +35,17 @@ import {
   type SessaoAvulsa,
   type SessaoPatch,
   type SessaoSeguintes,
+  type Compromisso,
+  type CompromissoAlteracao,
+  type CompromissoEntrada,
+  type CompromissoExclusao,
+  diaIso,
+  escreverRegra,
+  lerRegra,
+  partesNoFuso,
+  instanteDeParede,
+  regraAte,
+  regraMovida,
 } from "@consultorio/shared";
 import type { Db } from "./db/conexao";
 import * as t from "./db/schema";
@@ -146,6 +157,7 @@ export function carregarConsultorio(db: Db, agora: Date): PacoteConsultorio {
       .all()
       .map(({ supervisaoTexto, ...n }) => ({ ...n, sessaoId: n.sessaoId ?? null, ...(supervisaoTexto ? { supervisaoTexto } : {}) })),
     lancamentos: listarLancamentos(db),
+    compromissos: listarCompromissos(db),
     mensagens: lerMensagens(db),
   };
 }
@@ -741,4 +753,162 @@ export function buscar(sqlite: import("better-sqlite3").Database, q: string, lim
     )
     .all(consulta, limite) as Array<ResultadoBusca & { criadoEm: string | null }>;
   return linhas.map(({ criadoEm, ...r }) => (criadoEm ? { ...r, criadoEm } : r));
+}
+
+// ── Compromissos (agenda) ────────────────────────────────────
+
+function listarCompromissos(db: Db): Compromisso[] {
+  const excecoes = new Map<string, Compromisso["excecoes"]>();
+  for (const e of db.select().from(t.compromissosExcecoes).all()) {
+    excecoes.set(e.compromissoId, [
+      ...(excecoes.get(e.compromissoId) ?? []),
+      { data: e.data, cancelado: e.cancelado, inicio: e.inicio, duracaoMin: e.duracaoMin, titulo: e.titulo },
+    ]);
+  }
+  return db
+    .select()
+    .from(t.compromissos)
+    .orderBy(asc(t.compromissos.inicio))
+    .all()
+    .map((c) => ({
+      id: c.id,
+      tipo: c.tipo,
+      titulo: c.titulo,
+      categoria: c.categoria,
+      inicio: c.inicio,
+      duracaoMin: c.duracaoMin,
+      fuso: c.fuso,
+      recorrencia: c.recorrencia,
+      excecoes: excecoes.get(c.id) ?? [],
+    }));
+}
+
+export function criarCompromisso(db: Db, e: CompromissoEntrada): string {
+  const id = novoId("c");
+  db.insert(t.compromissos)
+    .values({
+      id,
+      tipo: e.tipo,
+      titulo: e.titulo.trim(),
+      categoria: (e.categoria ?? "").trim(),
+      inicio: new Date(e.inicio).toISOString(),
+      duracaoMin: e.duracaoMin,
+      fuso: FUSO_CONSULTORIO,
+      recorrencia: e.recorrencia ?? null,
+    })
+    .run();
+  return id;
+}
+
+/** Início original (sem exceção) da ocorrência da data civil `data`. */
+function inicioOriginal(c: typeof t.compromissos.$inferSelect, data: string): string {
+  const p = partesNoFuso(Date.parse(c.inicio), c.fuso);
+  const [a, m, d] = data.split("-").map(Number) as [number, number, number];
+  return new Date(instanteDeParede(a, m - 1, d, p.hora, p.minuto, c.fuso)).toISOString();
+}
+
+/** Desloca os dias de uma regra semanal (ex.: tudo um dia depois). */
+function regraDeslocada(rrule: string, deltaDias: number): string {
+  const r = lerRegra(rrule);
+  if (r.freq !== "WEEKLY" || !r.dias.length || deltaDias % 7 === 0) return rrule;
+  const dias = r.dias.map((d) => ((((d - 1 + deltaDias) % 7) + 7) % 7) + 1).sort((a, b) => a - b);
+  return escreverRegra({ ...r, dias: [...new Set(dias)] });
+}
+
+/**
+ * Muda uma ocorrência com o alcance escolhido: "este" vira exceção; "seguintes" encerra
+ * a série na véspera e começa outra a partir desta; "todos" muda a série inteira.
+ * Devolve o id do compromisso que ficou com a ocorrência.
+ */
+export function alterarCompromisso(db: Db, id: string, e: CompromissoAlteracao): string {
+  return db.transaction((tx) => {
+    const c = existe(tx.select().from(t.compromissos).where(eq(t.compromissos.id, id)).get(), "Compromisso não encontrado");
+    const dataInicial = chaveDiaNoFuso(Date.parse(c.inicio), c.fuso);
+    const excecao = tx
+      .select()
+      .from(t.compromissosExcecoes)
+      .where(and(eq(t.compromissosExcecoes.compromissoId, id), eq(t.compromissosExcecoes.data, e.data)))
+      .get();
+    const original = inicioOriginal(c, e.data);
+    const atual = excecao?.inicio ?? original;
+    const novoInicio = e.inicio ? new Date(e.inicio).toISOString() : atual;
+    const duracaoMin = e.duracaoMin ?? excecao?.duracaoMin ?? c.duracaoMin;
+    const comuns = {
+      ...(e.tipo ? { tipo: e.tipo } : {}),
+      ...(e.titulo ? { titulo: e.titulo.trim() } : {}),
+      ...(e.categoria !== undefined ? { categoria: e.categoria.trim() } : {}),
+    };
+    const alcance = !c.recorrencia ? "todos" : e.alcance === "seguintes" && e.data <= dataInicial ? "todos" : e.alcance;
+
+    if (alcance === "este") {
+      const valores = { cancelado: false, inicio: novoInicio, duracaoMin, titulo: e.titulo?.trim() ?? excecao?.titulo ?? null };
+      tx.insert(t.compromissosExcecoes)
+        .values({ compromissoId: id, data: e.data, ...valores })
+        .onConflictDoUpdate({ target: [t.compromissosExcecoes.compromissoId, t.compromissosExcecoes.data], set: valores })
+        .run();
+      return id;
+    }
+
+    // O deslocamento é medido a partir de onde a ocorrência estava (com ou sem exceção).
+    const deltaMs = Date.parse(novoInicio) - Date.parse(atual);
+    const dataNova = chaveDiaNoFuso(Date.parse(novoInicio), c.fuso);
+    const deltaDias = Math.round((Date.parse(dataNova + "T00:00:00Z") - Date.parse(chaveDiaNoFuso(Date.parse(atual), c.fuso) + "T00:00:00Z")) / 86_400_000);
+
+    if (alcance === "todos") {
+      const recorrencia = e.recorrencia !== undefined ? e.recorrencia : c.recorrencia ? regraDeslocada(c.recorrencia, deltaDias) : null;
+      tx.update(t.compromissos)
+        .set({ ...comuns, inicio: new Date(Date.parse(c.inicio) + deltaMs).toISOString(), duracaoMin, recorrencia })
+        .where(eq(t.compromissos.id, id))
+        .run();
+      // Mudanças de horário pontuais perdem o sentido; cancelamentos ficam.
+      if (deltaMs !== 0 || e.recorrencia !== undefined) {
+        tx.delete(t.compromissosExcecoes)
+          .where(and(eq(t.compromissosExcecoes.compromissoId, id), eq(t.compromissosExcecoes.cancelado, false)))
+          .run();
+      }
+      return id;
+    }
+
+    // "seguintes": a série antiga para na véspera; a nova começa nesta ocorrência.
+    const novoId_ = novoId("c");
+    const recorrencia = e.recorrencia !== undefined ? e.recorrencia : regraMovida(c.recorrencia!, diaIso(e.data), diaIso(dataNova));
+    tx.update(t.compromissos).set({ recorrencia: regraAte(c.recorrencia!, e.data) }).where(eq(t.compromissos.id, id)).run();
+    tx.delete(t.compromissosExcecoes)
+      .where(and(eq(t.compromissosExcecoes.compromissoId, id), sql`${t.compromissosExcecoes.data} >= ${e.data}`))
+      .run();
+    tx.insert(t.compromissos)
+      .values({
+        id: novoId_,
+        tipo: comuns.tipo ?? c.tipo,
+        titulo: comuns.titulo ?? c.titulo,
+        categoria: comuns.categoria ?? c.categoria,
+        inicio: novoInicio,
+        duracaoMin,
+        fuso: c.fuso,
+        recorrencia: recorrencia ? escreverRegra({ ...lerRegra(recorrencia), vezes: null }) : null,
+      })
+      .run();
+    return novoId_;
+  });
+}
+
+export function excluirCompromisso(db: Db, id: string, e: CompromissoExclusao) {
+  db.transaction((tx) => {
+    const c = existe(tx.select().from(t.compromissos).where(eq(t.compromissos.id, id)).get(), "Compromisso não encontrado");
+    const dataInicial = chaveDiaNoFuso(Date.parse(c.inicio), c.fuso);
+    const tudo = !c.recorrencia || e.alcance === "todos" || (e.alcance === "seguintes" && e.data <= dataInicial);
+    if (tudo) {
+      tx.delete(t.compromissos).where(eq(t.compromissos.id, id)).run();
+    } else if (e.alcance === "este") {
+      tx.insert(t.compromissosExcecoes)
+        .values({ compromissoId: id, data: e.data, cancelado: true })
+        .onConflictDoUpdate({ target: [t.compromissosExcecoes.compromissoId, t.compromissosExcecoes.data], set: { cancelado: true } })
+        .run();
+    } else {
+      tx.update(t.compromissos).set({ recorrencia: regraAte(c.recorrencia!, e.data) }).where(eq(t.compromissos.id, id)).run();
+      tx.delete(t.compromissosExcecoes)
+        .where(and(eq(t.compromissosExcecoes.compromissoId, id), sql`${t.compromissosExcecoes.data} >= ${e.data}`))
+        .run();
+    }
+  });
 }
