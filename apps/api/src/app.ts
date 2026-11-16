@@ -32,11 +32,29 @@ import * as srv from "./servico";
 import * as backup from "./backup";
 import { gerarProntuario } from "./prontuario";
 import * as google from "./agendaGoogle";
+import { log } from "./infra/log";
+import { randomUUID } from "node:crypto";
 import { SenhaOuArquivoInvalido } from "./infra/cofre";
 
 type Env = { Variables: { banco: Banco; ctx: Contexto } };
 
 export const app = new Hono<Env>().basePath("/api");
+
+// ── Log de cada requisição ───────────────────────────────────
+// Só método, padrão da rota, status e tempo. Nunca corpo, query ou ids.
+app.use("*", async (c, next) => {
+  const inicio = performance.now();
+  const id = c.req.header("x-request-id") ?? randomUUID().slice(0, 8);
+  c.header("x-request-id", id);
+  await next();
+  log(c.res.status >= 500 ? "erro" : "info", "requisicao", {
+    metodo: c.req.method,
+    rota: c.req.routePath,
+    status: c.res.status,
+    ms: Math.round(performance.now() - inicio),
+    req: id,
+  });
+});
 
 // ── Defesas de borda ─────────────────────────────────────────
 // 1) Host: só loopback (protege contra DNS rebinding).
@@ -45,7 +63,8 @@ export const app = new Hono<Env>().basePath("/api");
 app.use("*", async (c, next) => {
   const host = (c.req.header("host") ?? "").replace(/:\d+$/, "");
   if (host !== "127.0.0.1" && host !== "localhost") return c.json({ erro: "Host não permitido" }, 403);
-  if (c.req.path !== "/api/health" && c.req.header("x-consultorio") !== "1") return c.json({ erro: "Cabeçalho ausente" }, 403);
+  const livre = c.req.path === "/api/health" || c.req.path === "/api/pronto";
+  if (!livre && c.req.header("x-consultorio") !== "1") return c.json({ erro: "Cabeçalho ausente" }, 403);
   c.header("Cache-Control", "no-store");
   await next();
 });
@@ -55,12 +74,22 @@ app.onError((err, c) => {
   if (err instanceof srv.ErroDominio) return c.json({ erro: err.message }, err.status);
   if (err instanceof SenhaOuArquivoInvalido) return c.json({ erro: err.message }, 400);
   if (err instanceof SyntaxError) return c.json({ erro: "JSON inválido" }, 400);
-  // SIGILO: não logar corpo de requisição nem dados de pacientes.
-  console.error(`[api] erro em ${c.req.method} ${c.req.routePath}:`, err instanceof Error ? err.name : "desconhecido");
+  // SIGILO: só o tipo do erro e a rota; nunca a mensagem (pode conter dados) nem o corpo.
+  log("erro", "erro_interno", { metodo: c.req.method, rota: c.req.routePath, tipo: err instanceof Error ? err.name : "desconhecido" });
   return c.json({ erro: "Erro interno" }, 500);
 });
 
+/** Vivo: o processo responde (sem tocar no banco). */
 app.get("/health", (c) => c.json({ ok: true, moedaPrincipal: MOEDA_PRINCIPAL }));
+/** Pronto: o banco abre e responde (para o Cloud Run e o Docker saberem quando mandar tráfego). */
+app.get("/pronto", (c) => {
+  try {
+    bancoAtual().sqlite.prepare("select 1").get();
+    return c.json({ ok: true });
+  } catch {
+    return c.json({ ok: false }, 503);
+  }
+});
 
 // Daqui para baixo, todas as rotas usam o banco (aberto na primeira chamada).
 app.use("*", async (c, next) => {

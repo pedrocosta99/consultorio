@@ -21,6 +21,9 @@ docs/PLANO.md      plano do produto
 
 - `pnpm dev` sobe API + web juntos. Banco em `data/consultorio.db` (ou `CONSULTORIO_DB`). `CONSULTORIO_AGORA` fixa o relógio da API (testes).
 - Migrações: edite `apps/api/src/db/schema.ts` e rode `pnpm --filter @consultorio/api exec drizzle-kit generate --name <nome>`. SQL à mão (FTS5, triggers): `--custom`.
+- Variáveis da API em `apps/api/src/infra/config.ts`. Fora do container, `HOST` só aceita loopback.
+- Docker: `docker build -t consultorio .` e `docker run --rm -p 127.0.0.1:8080:8080 -v consultorio-dados:/dados consultorio` (publique só em 127.0.0.1).
+- Logs: use `log()` de `apps/api/src/infra/log.ts` (JSON); nunca corpo, query, nomes ou ids de pacientes.
 - `pnpm test` roda o Vitest (unitários em `packages/*/src/**/*.test.ts` e `apps/*/src/**`)
 - `pnpm typecheck` roda o `tsc` em todos os pacotes
 - `pnpm test:visual` roda Playwright (screenshots em 1440/390 px, claro/escuro) + axe

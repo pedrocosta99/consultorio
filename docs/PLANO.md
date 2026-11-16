@@ -442,7 +442,7 @@ Cinco fases de core, cada uma termina num app que você já usa de verdade. A Fa
 - [x] API por recurso: `GET /pacientes`, `/sessoes?de&ate`, `/notas?pacienteId`, `/pagamentos`, `/lancamentos`, `/compromissos`, `/configuracoes`… (o `GET /consultorio` fica só por compatibilidade). Paginação entra quando o volume pedir (no Postgres)
 - [x] Cliente tipado: as leituras e gravações usam os tipos de `packages/shared`, que o app Expo também vai usar. **OpenAPI gerado foi adiado para a 6.2** (quando as rotas forem reescritas para o Postgres): web e mobile são TypeScript e já compartilham os tipos
 - [x] Web com TanStack Query: uma consulta por recurso; cada gravação recarrega só os recursos que afeta
-- [ ] Configuração por variáveis de ambiente (`HOST`, `PORT`, banco, modo de login), healthcheck, logs estruturados sem dados de pacientes, `Dockerfile`
+- [x] Configuração por variáveis de ambiente (`HOST`, `PORT`, `CONSULTORIO_DB`, `CONSULTORIO_WEB`), `/api/health` e `/api/pronto`, logs JSON sem dados de pacientes, `Dockerfile` (API + web numa imagem). A imagem ainda não foi construída: o Docker não estava rodando
 
 *Login mockado*
 

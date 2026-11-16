@@ -1,0 +1,13 @@
+# Nunca vão para a imagem: banco, backups, segredos e artefatos locais.
+**/node_modules
+data/
+*.db
+*.db-*
+*.cofre
+.env
+.env.*
+.git
+**/dist
+apps/web/test-results
+apps/web/playwright-report
+apps/web/e2e/__screenshots__

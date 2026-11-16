@@ -1,16 +1,28 @@
+import path from "node:path";
 import { serve } from "@hono/node-server";
+import { serveStatic } from "@hono/node-server/serve-static";
+import { Hono } from "hono";
+import { lerConfig } from "./infra/config";
+import { log } from "./infra/log";
 import { adaptadorGoogle, app } from "./app";
 import { processarFila } from "./agendaGoogle";
 import { bancoAtual } from "./estado";
 import { agora } from "./infra/relogio";
 import { contextoLocal } from "./servico";
 
-// SIGILO: o servidor escuta apenas no loopback. Nunca troque para 0.0.0.0.
-const HOST = "127.0.0.1";
-const PORT = Number(process.env.API_PORT ?? 8787);
+// SIGILO: fora do container, só loopback (lerConfig recusa outro HOST).
+const config = lerConfig();
 
-serve({ fetch: app.fetch, hostname: HOST, port: PORT }, (info) => {
-  console.log(`API local em http://${info.address}:${info.port}/api`);
+/** A API em /api; com CONSULTORIO_WEB, também o web compilado (SPA: rotas desconhecidas → index.html). */
+const raiz = new Hono();
+raiz.route("/", app);
+if (config.web) {
+  raiz.use("/*", serveStatic({ root: path.relative(process.cwd(), config.web) }));
+  raiz.get("*", serveStatic({ path: path.relative(process.cwd(), path.join(config.web, "index.html")) }));
+}
+
+serve({ fetch: raiz.fetch, hostname: config.host, port: config.porta }, (info) => {
+  log("info", "api_no_ar", { endereco: info.address, porta: info.port, web: !!config.web, container: config.container });
 });
 
 // Worker da fila do Google Agenda: a cada 15 s, se houver agenda conectada. Na nuvem,
