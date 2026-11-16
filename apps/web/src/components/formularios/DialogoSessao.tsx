@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { lerCentavos, sessaoAvulsaSchema, type Moeda } from "@consultorio/shared";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -10,10 +10,6 @@ import { chaveDia, instanteEm, nomeFuso } from "@/lib/datas";
 import { contratoVigente } from "@/lib/pacientes";
 import { Campo, CampoDinheiro, SeletorSimples, textoDeDinheiro } from "./campos";
 
-/**
- * Sessão fora da grade fixa: primeira entrevista, sessão extra, reposição.
- * Valor e duração vêm do contrato vigente, se houver.
- */
 export interface SessaoInicial {
   /** "yyyy-MM-dd" */
   data: string;
@@ -23,47 +19,36 @@ export interface SessaoInicial {
   duracaoMin?: number;
 }
 
-export function DialogoSessao({
-  aberto,
-  aoFechar,
+/**
+ * Formulário da sessão avulsa (primeira entrevista, sessão extra, reposição). Valor e
+ * duração vêm do contrato vigente, se houver. O estado começa do zero a cada montagem.
+ */
+export function FormSessao({
   pacienteId: fixo,
   inicial,
+  aoConcluir,
+  aoCancelar,
 }: {
-  aberto: boolean;
-  aoFechar: () => void;
   pacienteId?: string;
   inicial?: SessaoInicial | null;
+  aoConcluir: () => void;
+  aoCancelar: () => void;
 }) {
   const { pacientes, contratos, mutar, nomeExibicao } = useDados();
   const { fusoPrincipal } = usePreferencias();
   const { avisar } = useAvisos();
+
+  const doContrato = (id: string) => {
+    const k = contratoVigente(contratos, id);
+    return { valor: textoDeDinheiro(k?.valor), duracao: String(inicial?.duracaoMin ?? k?.duracaoMin ?? 50) };
+  };
   const [pacienteId, setPacienteId] = useState(fixo ?? "");
-  const [data, setData] = useState("");
-  const [horario, setHorario] = useState("");
-  const [duracao, setDuracao] = useState("50");
-  const [valor, setValor] = useState<{ texto: string; moeda: Moeda }>({ texto: "", moeda: "BRL" });
+  const [data, setData] = useState(inicial?.data ?? chaveDia(new Date(), fusoPrincipal));
+  const [horario, setHorario] = useState(inicial?.horario ?? "");
+  const [duracao, setDuracao] = useState(() => (fixo ? doContrato(fixo).duracao : String(inicial?.duracaoMin ?? 50)));
+  const [valor, setValor] = useState<{ texto: string; moeda: Moeda }>(() => (fixo ? doContrato(fixo).valor : { texto: "", moeda: "BRL" }));
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
-
-  const prepararPara = (id: string) => {
-    const k = contratoVigente(contratos, id);
-    setValor(textoDeDinheiro(k?.valor));
-    setDuracao(String(inicial?.duracaoMin ?? k?.duracaoMin ?? 50));
-  };
-
-  useEffect(() => {
-    if (!aberto) return;
-    setPacienteId(fixo ?? "");
-    setData(inicial?.data ?? chaveDia(new Date(), fusoPrincipal));
-    setHorario(inicial?.horario ?? "");
-    setErro(null);
-    if (fixo) prepararPara(fixo);
-    else {
-      setValor({ texto: "", moeda: "BRL" });
-      setDuracao(String(inicial?.duracaoMin ?? 50));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aberto, fixo]);
 
   const enviar = async (e: FormEvent) => {
     e.preventDefault();
@@ -85,7 +70,7 @@ export function DialogoSessao({
     try {
       await mutar("POST", "/sessoes", r.data);
       avisar("Sessão marcada na agenda.");
-      aoFechar();
+      aoConcluir();
     } catch (err) {
       setErro(err instanceof Error ? err.message : "Não foi possível salvar.");
     } finally {
@@ -96,56 +81,75 @@ export function DialogoSessao({
   const opcoes = pacientes.filter((p) => p.status === "ativo" || p.status === "pausa" || p.id === fixo);
 
   return (
+    <form onSubmit={enviar} className="flex flex-col gap-4" noValidate>
+      {!fixo && (
+        <Campo rotulo="Paciente">
+          {(id) => (
+            <SeletorSimples
+              id={id}
+              valor={pacienteId}
+              aoMudar={(v) => {
+                setPacienteId(v);
+                const k = doContrato(v);
+                setValor(k.valor);
+                setDuracao(k.duracao);
+              }}
+              opcoes={opcoes.map((p) => [p.id, nomeExibicao(p)] as const)}
+            />
+          )}
+        </Campo>
+      )}
+      <div className="grid grid-cols-[1fr_7.5rem] gap-3">
+        <Campo rotulo="Data">{(id) => <Input id={id} type="date" value={data} onChange={(e) => setData(e.target.value)} />}</Campo>
+        <Campo rotulo={`Hora (${nomeFuso(fusoPrincipal)})`}>
+          {(id) => <Input id={id} type="time" step={900} value={horario} onChange={(e) => setHorario(e.target.value)} />}
+        </Campo>
+      </div>
+      <div className="grid grid-cols-[1fr_7.5rem] gap-3">
+        <Campo rotulo="Valor" ajuda="Zero para sessão sem cobrança.">
+          {(id, d) => <CampoDinheiro id={id} descricaoId={d} valor={valor} aoMudar={setValor} />}
+        </Campo>
+        <Campo rotulo="Duração (min)">
+          {(id) => <Input id={id} type="number" min={5} max={240} step={5} inputMode="numeric" value={duracao} onChange={(e) => setDuracao(e.target.value)} />}
+        </Campo>
+      </div>
+      {erro && (
+        <p className="text-sm text-destructive" role="alert">
+          {erro}
+        </p>
+      )}
+      <DialogFooter>
+        <Button type="button" variant="outline" onClick={aoCancelar}>
+          Cancelar
+        </Button>
+        <Button type="submit" disabled={enviando}>
+          {enviando ? "Salvando…" : "Marcar sessão"}
+        </Button>
+      </DialogFooter>
+    </form>
+  );
+}
+
+/** Sessão fora da grade fixa, aberta pelo menu Novo e pela ficha do paciente. */
+export function DialogoSessao({
+  aberto,
+  aoFechar,
+  pacienteId,
+  inicial,
+}: {
+  aberto: boolean;
+  aoFechar: () => void;
+  pacienteId?: string;
+  inicial?: SessaoInicial | null;
+}) {
+  return (
     <Dialog open={aberto} onOpenChange={(v) => !v && aoFechar()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="font-serif text-xl font-medium">Sessão avulsa</DialogTitle>
           <DialogDescription>Fora do horário fixo: primeira entrevista, sessão extra, reposição.</DialogDescription>
         </DialogHeader>
-        <form onSubmit={enviar} className="flex flex-col gap-4" noValidate>
-          {!fixo && (
-            <Campo rotulo="Paciente">
-              {(id) => (
-                <SeletorSimples
-                  id={id}
-                  valor={pacienteId}
-                  aoMudar={(v) => {
-                    setPacienteId(v);
-                    prepararPara(v);
-                  }}
-                  opcoes={opcoes.map((p) => [p.id, nomeExibicao(p)] as const)}
-                />
-              )}
-            </Campo>
-          )}
-          <div className="grid grid-cols-[1fr_7.5rem] gap-3">
-            <Campo rotulo="Data">{(id) => <Input id={id} type="date" value={data} onChange={(e) => setData(e.target.value)} />}</Campo>
-            <Campo rotulo={`Hora (${nomeFuso(fusoPrincipal)})`}>
-              {(id) => <Input id={id} type="time" step={900} value={horario} onChange={(e) => setHorario(e.target.value)} />}
-            </Campo>
-          </div>
-          <div className="grid grid-cols-[1fr_7.5rem] gap-3">
-            <Campo rotulo="Valor" ajuda="Zero para sessão sem cobrança.">
-              {(id, d) => <CampoDinheiro id={id} descricaoId={d} valor={valor} aoMudar={setValor} />}
-            </Campo>
-            <Campo rotulo="Duração (min)">
-              {(id) => <Input id={id} type="number" min={5} max={240} step={5} inputMode="numeric" value={duracao} onChange={(e) => setDuracao(e.target.value)} />}
-            </Campo>
-          </div>
-          {erro && (
-            <p className="text-sm text-destructive" role="alert">
-              {erro}
-            </p>
-          )}
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={aoFechar}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={enviando}>
-              {enviando ? "Salvando…" : "Marcar sessão"}
-            </Button>
-          </DialogFooter>
-        </form>
+        <FormSessao pacienteId={pacienteId} inicial={inicial} aoConcluir={aoFechar} aoCancelar={aoFechar} />
       </DialogContent>
     </Dialog>
   );

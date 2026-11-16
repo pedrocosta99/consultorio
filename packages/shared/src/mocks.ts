@@ -8,6 +8,7 @@
 import { addDays, addWeeks, format, startOfWeek } from "date-fns";
 import { chaveDiaNoFuso, instanteDeParede, paraParede } from "./fuso";
 import { dinheiro, type Moeda } from "./money";
+import type { Compromisso } from "./recorrencia";
 import {
   sessaoCobravel,
   type Campanha,
@@ -33,6 +34,7 @@ export interface Mocks {
   contas: Conta[];
   lancamentos: Lancamento[];
   campanhas: Campanha[];
+  compromissos: Compromisso[];
 }
 
 // PRNG determinístico (mulberry32) semeado por string.
@@ -375,5 +377,15 @@ export function gerarMocks(referencia: Date = new Date()): Mocks {
       });
     });
 
-  return { referencia, pacientes, contratos, sessoes, pagamentos, notas, contas: CONTAS, lancamentos, campanhas: CAMPANHAS };
+  // Compromissos da agenda: análise pessoal toda terça e supervisão a cada 2 semanas (desde 3 semanas atrás).
+  const parede = (dias: number, h: number, m = 0) => {
+    const d = addDays(addWeeks(semanaAtual, -3), dias);
+    return new Date(instanteDeParede(d.getFullYear(), d.getMonth(), d.getDate(), h, m, FUSO_CONSULTORIO)).toISOString();
+  };
+  const compromissos: Compromisso[] = [
+    { id: "c-analise", tipo: "compromisso", titulo: "Análise pessoal", categoria: "Análise pessoal", inicio: parede(1, 8), duracaoMin: 50, fuso: FUSO_CONSULTORIO, recorrencia: "FREQ=WEEKLY;BYDAY=TU", excecoes: [] },
+    { id: "c-supervisao", tipo: "compromisso", titulo: "Supervisão", categoria: "Supervisão", inicio: parede(4, 9), duracaoMin: 60, fuso: FUSO_CONSULTORIO, recorrencia: "FREQ=WEEKLY;INTERVAL=2;BYDAY=FR", excecoes: [] },
+  ];
+
+  return { referencia, pacientes, contratos, sessoes, pagamentos, notas, contas: CONTAS, lancamentos, campanhas: CAMPANHAS, compromissos };
 }

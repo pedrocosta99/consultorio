@@ -13,7 +13,7 @@ import {
   startOfWeek,
 } from "date-fns";
 import { CalendarOff, ChevronLeft, ChevronRight, CircleDollarSign, Globe2, Undo2, X } from "lucide-react";
-import type { Sessao } from "@consultorio/shared";
+import { ocorrencias as expandir, type Alcance, type Compromisso, type Ocorrencia, type Sessao } from "@consultorio/shared";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -30,7 +30,12 @@ import { usePreferencias } from "@/app/preferencias";
 import { ESTILO_ESTADO } from "@/components/comuns";
 import { DialogoRecorrencia } from "@/components/calendar/DialogoRecorrencia";
 import { GradeHorario, type Fantasma } from "@/components/calendar/GradeHorario";
-import { DialogoSessao, type SessaoInicial } from "@/components/formularios/DialogoSessao";
+import { type SessaoInicial } from "@/components/formularios/DialogoSessao";
+import { FormCompromisso, type ValoresCompromisso } from "@/components/formularios/FormCompromisso";
+import { DialogoNovoEvento } from "@/components/calendar/DialogoNovoEvento";
+import { PainelCompromisso } from "@/components/calendar/PainelCompromisso";
+import { lerIdOcorrencia } from "@/components/calendar/BlocoCompromisso";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PainelSessao } from "@/components/calendar/PainelSessao";
 import { VisaoMes } from "@/components/calendar/VisaoMes";
 import { capitalizar, chaveDia, FUSOS_DISPONIVEIS, fmt, hora, instanteEm, minutosDoDia, nomeFuso, noFuso, offsetFuso, SEMANA } from "@/lib/datas";
@@ -72,14 +77,24 @@ interface Pendente {
   duracaoMin: number;
 }
 
-type Alcance = "so_esta" | "seguintes";
+type AlcanceSessao = "so_esta" | "seguintes";
+
+/** Mudança num compromisso que se repete, esperando "este / este e os seguintes / todos". */
+interface PendenteCompromisso {
+  compromisso: Compromisso;
+  ocorrencia: Ocorrencia;
+  acao: "alterar" | "excluir";
+  mudanca?: Partial<ValoresCompromisso>;
+  /** A regra mudou: "só este" não faz sentido. */
+  regraMudou?: boolean;
+}
 
 function hhmm(m: number): string {
   return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 }
 
 export function PaginaAgenda() {
-  const { sessoes, carregando, atualizarSessao, paciente, mutar } = useDados();
+  const { sessoes, compromissos, carregando, atualizarSessao, paciente, mutar } = useDados();
   const { fusoPrincipal, fusoSecundario, atualizar } = usePreferencias();
   const [params, setParams] = useSearchParams();
   const [agora, setAgora] = useState(() => new Date());
@@ -87,6 +102,9 @@ export function PaginaAgenda() {
   const [aviso, setAviso] = useState<Aviso | null>(null);
   const [pendente, setPendente] = useState<Pendente | null>(null);
   const [criando, setCriando] = useState<Fantasma | null>(null);
+  const [compromissoAberto, setCompromissoAberto] = useState<string | null>(null);
+  const [pendenteC, setPendenteC] = useState<PendenteCompromisso | null>(null);
+  const [editando, setEditando] = useState<{ compromisso: Compromisso; ocorrencia: Ocorrencia } | null>(null);
 
   useEffect(() => {
     const t = setInterval(() => setAgora(new Date()), 60_000);
@@ -158,6 +176,22 @@ export function PaginaAgenda() {
     () => sessoes.filter((s) => chavesVisiveis.has(chaveDia(s.inicio, fusoPrincipal))),
     [sessoes, chavesVisiveis, fusoPrincipal],
   );
+  const ocorrenciasVisiveis = useMemo(() => {
+    const de = format(addDays(dias[0]!, -1), "yyyy-MM-dd");
+    const ate = format(addDays(dias.at(-1)!, 1), "yyyy-MM-dd");
+    return compromissos.flatMap((c) => expandir(c, de, ate)).filter((o) => chavesVisiveis.has(chaveDia(o.inicio, fusoPrincipal)));
+  }, [compromissos, dias, chavesVisiveis, fusoPrincipal]);
+  const ocorrenciaPorId = useCallback(
+    (id: string) => {
+      const ref = lerIdOcorrencia(id);
+      if (!ref) return null;
+      const o = ocorrenciasVisiveis.find((x) => x.compromissoId === ref.compromissoId && x.data === ref.data);
+      const c = compromissos.find((x) => x.id === ref.compromissoId);
+      return o && c ? { o, c } : null;
+    },
+    [ocorrenciasVisiveis, compromissos],
+  );
+  const abertoC = compromissoAberto ? ocorrenciaPorId(compromissoAberto) : null;
 
   /** "Só esta": muda a sessão; se veio da grade, ela passa a ser uma exceção (remarcada). */
   const aplicarSoEsta = useCallback(
@@ -175,9 +209,81 @@ export function PaginaAgenda() {
     [atualizarSessao, paciente, fusoPrincipal],
   );
 
+  /** Grava uma mudança de compromisso com o alcance escolhido. */
+  const gravarCompromisso = useCallback(
+    async (c: Compromisso, o: Ocorrencia, alcance: Alcance, mudanca: Partial<ValoresCompromisso>) => {
+      const { recorrencia, ...resto } = mudanca;
+      await mutar("PATCH", `/compromissos/${c.id}`, {
+        alcance,
+        data: o.data,
+        ...resto,
+        ...(recorrencia !== undefined && alcance !== "este" ? { recorrencia } : {}),
+      });
+    },
+    [mutar],
+  );
+
+  /** Mover/redimensionar um compromisso: pergunta o alcance se ele se repete; senão grava com desfazer. */
+  const alterarCompromisso = useCallback(
+    (id: string, mudanca: { inicio?: string; duracaoMin?: number }) => {
+      const achado = ocorrenciaPorId(id);
+      if (!achado) return;
+      const { o, c } = achado;
+      if ((mudanca.inicio ?? o.inicio) === o.inicio && (mudanca.duracaoMin ?? o.duracaoMin) === o.duracaoMin) return;
+      if (c.recorrencia) {
+        setPendenteC({ compromisso: c, ocorrencia: o, acao: "alterar", mudanca });
+        return;
+      }
+      const antes = { inicio: o.inicio, duracaoMin: o.duracaoMin };
+      gravarCompromisso(c, o, "todos", mudanca)
+        .then(() =>
+          setAviso({
+            texto: `${o.titulo}: ${fmt(noFuso(mudanca.inicio ?? o.inicio, fusoPrincipal), "EEE, d MMM")} às ${hora(mudanca.inicio ?? o.inicio, fusoPrincipal)}`,
+            desfazer: () => {
+              const novaData = chaveDia(mudanca.inicio ?? o.inicio, c.fuso);
+              mutar("PATCH", `/compromissos/${c.id}`, { alcance: "todos", data: novaData, ...antes }).catch(() => {});
+            },
+          }),
+        )
+        .catch((e) => setAviso({ texto: e instanceof Error ? e.message : "Não foi possível mover." }));
+    },
+    [ocorrenciaPorId, gravarCompromisso, mutar, fusoPrincipal],
+  );
+
+  const responderAlcanceCompromisso = async (alcance: Alcance) => {
+    if (!pendenteC) return;
+    const { compromisso: c, ocorrencia: o, acao, mudanca } = pendenteC;
+    try {
+      if (acao === "excluir") {
+        await mutar("POST", `/compromissos/${c.id}/excluir`, { alcance, data: o.data });
+        setAviso({ texto: alcance === "este" ? `${o.titulo}: excluído neste dia.` : alcance === "seguintes" ? `${o.titulo}: excluído daqui em diante.` : `${o.titulo}: excluído.` });
+      } else {
+        await gravarCompromisso(c, o, alcance, mudanca ?? {});
+        setAviso({ texto: `${o.titulo}: ${alcance === "este" ? "alterado só neste dia" : alcance === "seguintes" ? "alterado daqui em diante" : "todos alterados"}.` });
+      }
+    } catch (e) {
+      setAviso({ texto: e instanceof Error ? e.message : "Não foi possível salvar." });
+    }
+    setPendenteC(null);
+    setCompromissoAberto(null);
+  };
+
+  const excluirCompromisso = async (c: Compromisso, o: Ocorrencia) => {
+    if (c.recorrencia) return setPendenteC({ compromisso: c, ocorrencia: o, acao: "excluir" });
+    await mutar("POST", `/compromissos/${c.id}/excluir`, { alcance: "todos", data: o.data });
+    setCompromissoAberto(null);
+    setAviso({
+      texto: `${o.titulo}: excluído.`,
+      desfazer: () => {
+        mutar("POST", "/compromissos", { tipo: c.tipo, titulo: c.titulo, categoria: c.categoria, inicio: c.inicio, duracaoMin: c.duracaoMin, recorrencia: null }).catch(() => {});
+      },
+    });
+  };
+
   /** Ponto único para mover e redimensionar: pergunta o alcance quando a sessão vem da grade. */
   const alterar = useCallback(
     (id: string, mudanca: { inicio?: string; duracaoMin?: number }) => {
+      if (lerIdOcorrencia(id)) return alterarCompromisso(id, mudanca);
       const s = sessoes.find((x) => x.id === id);
       if (!s) return;
       const inicio = mudanca.inicio ?? s.inicio;
@@ -186,7 +292,7 @@ export function PaginaAgenda() {
       if (s.contratoId && s.estado === "agendada") setPendente({ sessao: s, inicio, duracaoMin });
       else aplicarSoEsta(s, inicio, duracaoMin);
     },
-    [sessoes, aplicarSoEsta],
+    [sessoes, aplicarSoEsta, alterarCompromisso],
   );
 
   const mover = useCallback(
@@ -195,8 +301,9 @@ export function PaginaAgenda() {
     [alterar, fusoPrincipal],
   );
   const redimensionar = useCallback((id: string, duracaoMin: number) => alterar(id, { duracaoMin }), [alterar]);
+  const abrirCompromisso = useCallback((o: Ocorrencia) => setCompromissoAberto(`c:${o.compromissoId}:${o.data}`), []);
 
-  const responderAlcance = async (alcance: Alcance) => {
+  const responderAlcance = async (alcance: AlcanceSessao) => {
     if (!pendente) return;
     const { sessao: s, inicio, duracaoMin } = pendente;
     if (alcance === "so_esta") {
@@ -304,7 +411,7 @@ export function PaginaAgenda() {
         <span className="ml-auto hidden lg:inline">Clique num horário para criar · arraste para remarcar · puxe a borda para a duração · C cria · T hoje</span>
       </div>
 
-      {!carregando && visiveis.length === 0 && (
+      {!carregando && visiveis.length === 0 && ocorrenciasVisiveis.length === 0 && (
         <div className="mb-3 flex items-center gap-3 rounded-xl border border-dashed bg-card px-4 py-3 text-sm">
           <CalendarOff className="size-5 shrink-0 text-muted-foreground" aria-hidden />
           <span>
@@ -322,6 +429,8 @@ export function PaginaAgenda() {
           <VisaoMes
             referencia={ref}
             sessoes={visiveis}
+            ocorrencias={ocorrenciasVisiveis}
+            aoAbrirCompromisso={abrirCompromisso}
             agora={agora}
             fusoPrincipal={fusoPrincipal}
             carregando={carregando}
@@ -333,6 +442,8 @@ export function PaginaAgenda() {
           <GradeHorario
             dias={dias}
             sessoes={visiveis}
+            ocorrencias={ocorrenciasVisiveis}
+            aoAbrirCompromisso={abrirCompromisso}
             agora={agora}
             pxPorHora={visao === "dia" ? 64 : 48}
             fusoPrincipal={fusoPrincipal}
@@ -348,7 +459,7 @@ export function PaginaAgenda() {
         )}
       </div>
 
-      <DialogoRecorrencia<Alcance>
+      <DialogoRecorrencia<AlcanceSessao>
         aberto={pendente !== null}
         titulo="Alterar sessão do horário fixo"
         descricao={pendente ? `${paciente(pendente.sessao.pacienteId)?.apelido ?? "Paciente"}: ${fmt(noFuso(pendente.inicio, fusoPrincipal), "EEE, d MMM")}, ${hora(pendente.inicio, fusoPrincipal)} · ${pendente.duracaoMin} min` : undefined}
@@ -364,7 +475,64 @@ export function PaginaAgenda() {
         aoFechar={() => setPendente(null)}
       />
 
-      <DialogoSessao aberto={criando !== null} inicial={inicialCriacao} aoFechar={() => setCriando(null)} />
+      <DialogoNovoEvento inicial={inicialCriacao} aoFechar={() => setCriando(null)} />
+
+      <PainelCompromisso
+        ocorrencia={abertoC?.o ?? null}
+        compromisso={abertoC?.c}
+        fusoPrincipal={fusoPrincipal}
+        aoFechar={() => setCompromissoAberto(null)}
+        aoEditar={() => abertoC && setEditando({ compromisso: abertoC.c, ocorrencia: abertoC.o })}
+        aoExcluir={() => abertoC && excluirCompromisso(abertoC.c, abertoC.o).catch((e) => setAviso({ texto: e instanceof Error ? e.message : "Não foi possível excluir." }))}
+      />
+
+      <Dialog open={editando !== null} onOpenChange={(v) => !v && setEditando(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-xl font-medium">{editando?.compromisso.tipo === "bloqueio" ? "Editar bloqueio" : "Editar compromisso"}</DialogTitle>
+          </DialogHeader>
+          {editando && (
+            <FormCompromisso
+              inicial={{
+                tipo: editando.compromisso.tipo,
+                titulo: editando.ocorrencia.titulo,
+                categoria: editando.compromisso.categoria,
+                data: chaveDia(editando.ocorrencia.inicio, fusoPrincipal),
+                horario: hora(editando.ocorrencia.inicio, fusoPrincipal),
+                duracaoMin: editando.ocorrencia.duracaoMin,
+                recorrencia: editando.compromisso.recorrencia,
+              }}
+              rotuloEnviar="Salvar"
+              aoEnviar={async (v) => {
+                const { compromisso: c, ocorrencia: o } = editando;
+                const regraMudou = v.recorrencia !== c.recorrencia;
+                if (c.recorrencia) {
+                  setPendenteC({ compromisso: c, ocorrencia: o, acao: "alterar", mudanca: v, regraMudou });
+                } else {
+                  await gravarCompromisso(c, o, "todos", v);
+                  setAviso({ texto: `${v.titulo}: salvo.` });
+                  setCompromissoAberto(null);
+                }
+                setEditando(null);
+              }}
+              aoCancelar={() => setEditando(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <DialogoRecorrencia<Alcance>
+        aberto={pendenteC !== null}
+        titulo={pendenteC?.acao === "excluir" ? "Excluir evento recorrente" : "Alterar evento recorrente"}
+        descricao={pendenteC?.ocorrencia.titulo}
+        opcoes={[
+          ...(pendenteC?.regraMudou ? [] : [{ valor: "este" as const, rotulo: "Este evento" }]),
+          { valor: "seguintes" as const, rotulo: "Este e os seguintes" },
+          { valor: "todos" as const, rotulo: "Todos os eventos" },
+        ]}
+        aoEscolher={responderAlcanceCompromisso}
+        aoFechar={() => setPendenteC(null)}
+      />
 
       <PainelSessao
         sessaoId={aberta}
@@ -374,7 +542,7 @@ export function PaginaAgenda() {
         aoRemarcar={mover}
       />
 
-      {aviso && !pendente && (
+      {aviso && !pendente && !pendenteC && (
         <div
           role="status"
           className="fixed inset-x-4 bottom-[calc(1rem+env(safe-area-inset-bottom,0px))] z-50 mx-auto flex max-w-md items-center gap-3 rounded-xl border bg-popover px-4 py-3 text-sm shadow-lg"

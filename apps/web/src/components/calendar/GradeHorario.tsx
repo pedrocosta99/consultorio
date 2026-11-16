@@ -11,10 +11,11 @@ import {
   type Modifier,
 } from "@dnd-kit/core";
 import { format } from "date-fns";
-import type { Sessao } from "@consultorio/shared";
+import type { Ocorrencia, Sessao } from "@consultorio/shared";
 import { Skeleton } from "@/components/ui/skeleton";
 import { capitalizar, chaveDia, fmt, hora, instanteEm, minutosDoDia, nomeFuso } from "@/lib/datas";
 import { cn } from "@/lib/utils";
+import { BlocoCompromisso, idOcorrencia } from "./BlocoCompromisso";
 import { BlocoSessao } from "./BlocoSessao";
 import { PASSO_MIN, intervaloSelecionado, novoHorario, pixelsParaMinutos, posicionar } from "./layout";
 
@@ -113,6 +114,7 @@ function ColunaDia({
 export function GradeHorario({
   dias,
   sessoes,
+  ocorrencias = [],
   agora,
   pxPorHora,
   fusoPrincipal,
@@ -124,9 +126,13 @@ export function GradeHorario({
   aoRedimensionar,
   aoCriar,
   fantasma,
+  aoAbrirCompromisso,
 }: {
   dias: Date[];
   sessoes: Sessao[];
+  /** Compromissos e bloqueios já expandidos no intervalo visível. */
+  ocorrencias?: Ocorrencia[];
+  aoAbrirCompromisso?: (o: Ocorrencia) => void;
   agora: Date;
   pxPorHora: number;
   fusoPrincipal: string;
@@ -155,20 +161,28 @@ export function GradeHorario({
     }
     return mapa;
   }, [sessoes, fusoPrincipal]);
+  const ocorrenciasPorDia = useMemo(() => {
+    const mapa = new Map<string, Ocorrencia[]>();
+    for (const o of ocorrencias) {
+      const k = chaveDia(o.inicio, fusoPrincipal);
+      mapa.set(k, [...(mapa.get(k) ?? []), o]);
+    }
+    return mapa;
+  }, [ocorrencias, fusoPrincipal]);
 
   // Faixa de horas: 07–22, ampliada se houver sessão fora dela.
   const [horaIni, horaFim] = useMemo(() => {
     let ini = 7;
     let fim = 22;
     for (const k of chaves) {
-      for (const s of porDia.get(k) ?? []) {
+      for (const s of [...(porDia.get(k) ?? []), ...(ocorrenciasPorDia.get(k) ?? [])]) {
         const m = minutosDoDia(s.inicio, fusoPrincipal);
         ini = Math.min(ini, Math.floor(m / 60));
         fim = Math.max(fim, Math.ceil((m + s.duracaoMin) / 60));
       }
     }
     return [ini, Math.min(24, fim)];
-  }, [chaves, porDia, fusoPrincipal]);
+  }, [chaves, porDia, ocorrenciasPorDia, fusoPrincipal]);
 
   const horas = Array.from({ length: horaFim - horaIni }, (_, i) => horaIni + i);
   const alturaTotal = horas.length * pxPorHora;
@@ -258,12 +272,17 @@ export function GradeHorario({
             {dias.map((_, i) => {
               const chave = chaves[i]!;
               const lista = porDia.get(chave) ?? [];
-              const pos = posicionar(
-                lista.map((s) => {
+              const doDia = ocorrenciasPorDia.get(chave) ?? [];
+              const pos = posicionar([
+                ...lista.map((s) => {
                   const ini = minutosDoDia(s.inicio, fusoPrincipal);
                   return { id: s.id, inicio: ini, fim: ini + s.duracaoMin };
                 }),
-              );
+                ...doDia.map((o) => {
+                  const ini = minutosDoDia(o.inicio, fusoPrincipal);
+                  return { id: idOcorrencia(o), inicio: ini, fim: ini + o.duracaoMin };
+                }),
+              ]);
               const hoje = chave === hojeChave;
               return (
                 <ColunaDia
@@ -319,6 +338,27 @@ export function GradeHorario({
                           />
                         );
                       })}
+                  {!carregando &&
+                    doDia.map((o) => {
+                      const ini = minutosDoDia(o.inicio, fusoPrincipal);
+                      const id = idOcorrencia(o);
+                      const { coluna, colunas: n } = pos.get(id) ?? { coluna: 0, colunas: 1 };
+                      return (
+                        <BlocoCompromisso
+                          key={id}
+                          ocorrencia={o}
+                          inicioMin={ini}
+                          topo={(ini - horaIni * 60) * pxPorMin}
+                          altura={o.duracaoMin * pxPorMin - 2}
+                          esquerda={(coluna / n) * 100}
+                          largura={100 / n}
+                          pxPorMin={pxPorMin}
+                          fusoPrincipal={fusoPrincipal}
+                          aoAbrir={(x) => aoAbrirCompromisso?.(x)}
+                          aoRedimensionar={aoRedimensionar}
+                        />
+                      );
+                    })}
 
                   {hoje && minAgora >= horaIni * 60 && minAgora <= horaFim * 60 && (
                     <div

@@ -11,13 +11,45 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core";
 import { eachDayOfInterval, endOfMonth, endOfWeek, format, isSameMonth, startOfMonth, startOfWeek } from "date-fns";
-import { ROTULO_ESTADO, type Sessao } from "@consultorio/shared";
+import { ROTULO_ESTADO, type Ocorrencia, type Sessao } from "@consultorio/shared";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDados } from "@/app/dados";
 import { ESTILO_ESTADO, grupoEstado } from "@/components/comuns";
 import { chaveDia, fmt, hora, minutosDoDia, SEMANA } from "@/lib/datas";
 import { cn } from "@/lib/utils";
 import { podeArrastar } from "./BlocoSessao";
+import { ESTILO_BLOQUEIO, ESTILO_COMPROMISSO, LISTRAS_BLOQUEIO, idOcorrencia } from "./BlocoCompromisso";
+
+function ChipCompromisso({ o, fuso, aoAbrir }: { o: Ocorrencia; fuso: string; aoAbrir: (o: Ocorrencia) => void }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: idOcorrencia(o),
+    data: { inicioMin: minutosDoDia(o.inicio, fuso), duracaoMin: o.duracaoMin },
+  });
+  const bloqueio = o.tipo === "bloqueio";
+  return (
+    <button
+      ref={setNodeRef}
+      type="button"
+      {...attributes}
+      {...listeners}
+      onClick={() => aoAbrir(o)}
+      className={cn(
+        "flex w-full cursor-grab items-center gap-1 truncate rounded border border-l-2 px-1 py-px text-left text-[11px] leading-snug",
+        bloqueio ? ESTILO_BLOQUEIO : ESTILO_COMPROMISSO,
+        isDragging && "relative z-30 shadow-lg ring-2 ring-ring/60",
+      )}
+      style={{
+        transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+        touchAction: "none",
+        backgroundImage: bloqueio ? LISTRAS_BLOQUEIO : undefined,
+      }}
+    >
+      <span className="tabular opacity-80">{hora(o.inicio, fuso)}</span>
+      <span className="truncate font-medium">{o.titulo}</span>
+      <span className="sr-only">{bloqueio ? ", bloqueio" : ", compromisso"}</span>
+    </button>
+  );
+}
 
 const NOMES_DIAS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 const MAX_VISIVEIS = 3;
@@ -63,23 +95,31 @@ function Celula({
   noMes,
   hoje,
   sessoes,
+  ocorrencias,
   fuso,
   carregando,
   aoAbrir,
   aoAbrirDia,
+  aoAbrirCompromisso,
 }: {
   dia: Date;
   chave: string;
   noMes: boolean;
   hoje: boolean;
   sessoes: Sessao[];
+  ocorrencias: Ocorrencia[];
   fuso: string;
   carregando: boolean;
   aoAbrir: (s: Sessao) => void;
   aoAbrirDia: (d: Date) => void;
+  aoAbrirCompromisso: (o: Ocorrencia) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: chave });
-  const extras = sessoes.length - MAX_VISIVEIS;
+  // Sessões e compromissos juntos, na ordem do horário.
+  const itens = [...sessoes.map((s) => ({ tipo: "s" as const, s, inicio: s.inicio })), ...ocorrencias.map((o) => ({ tipo: "c" as const, o, inicio: o.inicio }))].sort((a, b) =>
+    a.inicio.localeCompare(b.inicio),
+  );
+  const extras = itens.length - MAX_VISIVEIS;
   return (
     <div
       ref={setNodeRef}
@@ -110,11 +150,18 @@ function Celula({
             {sessoes.slice(0, 6).map((s) => (
               <span key={s.id} className={cn("size-1.5 rounded-full border", ESTILO_ESTADO[grupoEstado(s.estado)], "bg-current")} />
             ))}
+            {ocorrencias.slice(0, 3).map((o) => (
+              <span key={idOcorrencia(o)} className="size-1.5 rounded-full bg-muted-foreground/50" />
+            ))}
           </div>
           <div className="hidden flex-col gap-0.5 sm:flex">
-            {sessoes.slice(0, MAX_VISIVEIS).map((s) => (
-              <Chip key={s.id} s={s} fuso={fuso} aoAbrir={aoAbrir} />
-            ))}
+            {itens.slice(0, MAX_VISIVEIS).map((x) =>
+              x.tipo === "s" ? (
+                <Chip key={x.s.id} s={x.s} fuso={fuso} aoAbrir={aoAbrir} />
+              ) : (
+                <ChipCompromisso key={idOcorrencia(x.o)} o={x.o} fuso={fuso} aoAbrir={aoAbrirCompromisso} />
+              ),
+            )}
             {extras > 0 && (
               <button type="button" onClick={() => aoAbrirDia(dia)} className="px-1 text-left text-[11px] font-medium text-muted-foreground hover:text-foreground">
                 +{extras} mais
@@ -130,15 +177,19 @@ function Celula({
 export function VisaoMes({
   referencia,
   sessoes,
+  ocorrencias = [],
   agora,
   fusoPrincipal,
   carregando,
   aoAbrir,
   aoAbrirDia,
   aoMover,
+  aoAbrirCompromisso = () => {},
 }: {
   referencia: Date;
   sessoes: Sessao[];
+  ocorrencias?: Ocorrencia[];
+  aoAbrirCompromisso?: (o: Ocorrencia) => void;
   agora: Date;
   fusoPrincipal: string;
   carregando: boolean;
@@ -160,6 +211,14 @@ export function VisaoMes({
     }
     return mapa;
   }, [sessoes, fusoPrincipal]);
+  const ocorrenciasPorDia = useMemo(() => {
+    const mapa = new Map<string, Ocorrencia[]>();
+    for (const o of ocorrencias) {
+      const k = chaveDia(o.inicio, fusoPrincipal);
+      mapa.set(k, [...(mapa.get(k) ?? []), o]);
+    }
+    return mapa;
+  }, [ocorrencias, fusoPrincipal]);
 
   const sensores = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -193,10 +252,12 @@ export function VisaoMes({
                 noMes={isSameMonth(d, referencia)}
                 hoje={chave === hojeChave}
                 sessoes={porDia.get(chave) ?? []}
+                ocorrencias={ocorrenciasPorDia.get(chave) ?? []}
                 fuso={fusoPrincipal}
                 carregando={carregando}
                 aoAbrir={aoAbrir}
                 aoAbrirDia={aoAbrirDia}
+                aoAbrirCompromisso={aoAbrirCompromisso}
               />
             );
           })}

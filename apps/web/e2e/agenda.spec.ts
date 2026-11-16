@@ -43,7 +43,7 @@ test("clicar num horário vazio abre a sessão avulsa já com data e hora", asyn
   await abrir(page, "/agenda?visao=dia&data=2026-11-07");
   const p = await ponto(page, "2026-11-07", 10 * 60);
   await page.mouse.click(p.x, p.y);
-  const dialogo = page.getByRole("dialog", { name: "Sessão avulsa" });
+  const dialogo = page.getByRole("dialog", { name: "Novo evento" });
   await expect(dialogo).toBeVisible();
   await expect(dialogo.getByLabel("Data")).toHaveValue("2026-11-07");
   await expect(dialogo.getByLabel(/^Hora/)).toHaveValue("10:00");
@@ -59,7 +59,7 @@ test("arrastar num horário vazio escolhe a duração", async ({ page }) => {
   await page.mouse.down();
   await page.mouse.move(b.x, b.y, { steps: 8 });
   await page.mouse.up();
-  const dialogo = page.getByRole("dialog", { name: "Sessão avulsa" });
+  const dialogo = page.getByRole("dialog", { name: "Novo evento" });
   await expect(dialogo.getByLabel(/^Hora/)).toHaveValue("10:00");
   await expect(dialogo.getByLabel("Duração (min)")).toHaveValue("90");
 });
@@ -69,7 +69,7 @@ test("C cria uma sessão no dia aberto", async ({ page }) => {
   await abrir(page, "/agenda?visao=dia&data=2026-11-07");
   await page.locator("main").click({ position: { x: 5, y: 5 } });
   await page.keyboard.press("c");
-  await expect(page.getByRole("dialog", { name: "Sessão avulsa" }).getByLabel(/^Hora/)).toHaveValue("09:00");
+  await expect(page.getByRole("dialog", { name: "Novo evento" }).getByLabel(/^Hora/)).toHaveValue("09:00");
 });
 
 async function sessaoDaGrade(page: Page) {
@@ -121,4 +121,37 @@ test("puxar a borda muda a duração; 'só esta' vira remarcada", async ({ page 
   const c = chamadas.find((x) => x.metodo === "PATCH");
   expect(c?.corpo).toMatchObject({ estado: "remarcada" });
   expect(c?.corpo).toMatchObject({ duracaoMin: 60 }); // 50 + 15 → encaixa em 60
+});
+
+test("criar um compromisso semanal pela aba Compromisso", async ({ page }) => {
+  const chamadas = await interceptarGravacoes(page);
+  await abrir(page, "/agenda?visao=dia&data=2026-11-07");
+  const p = await ponto(page, "2026-11-07", 15 * 60);
+  await page.mouse.click(p.x, p.y);
+  const dialogo = page.getByRole("dialog", { name: "Novo evento" });
+  await dialogo.getByRole("radio", { name: /Compromisso/ }).click();
+  await dialogo.getByLabel("Título").fill("Grupo de estudo");
+  await dialogo.getByLabel("Repetição").click();
+  await page.getByRole("option", { name: "Toda semana" }).click();
+  await dialogo.getByRole("button", { name: "Criar compromisso" }).click();
+  const c = chamadas.find((x) => x.caminho === "/api/compromissos");
+  expect(c?.corpo).toMatchObject({ tipo: "compromisso", titulo: "Grupo de estudo", duracaoMin: 50, recorrencia: "FREQ=WEEKLY;BYDAY=SA" });
+});
+
+test("arrastar um compromisso que se repete pergunta este / seguintes / todos", async ({ page }) => {
+  const chamadas = await interceptarGravacoes(page);
+  await abrir(page, "/agenda?visao=semana&data=2026-11-04");
+  const bloco = page.locator('[aria-roledescription="compromisso arrastável"]').filter({ hasText: "Análise pessoal" });
+  const caixa = (await bloco.boundingBox())!;
+  await page.mouse.move(caixa.x + caixa.width / 2, caixa.y + 6);
+  await page.mouse.down();
+  await page.mouse.move(caixa.x + caixa.width / 2, caixa.y + 6 + 48, { steps: 10 });
+  await page.mouse.up();
+  await page.clock.runFor(100);
+  const pergunta = page.getByRole("dialog", { name: "Alterar evento recorrente" });
+  await expect(pergunta.getByRole("radio")).toHaveText([/Este evento/, /Este e os seguintes/, /Todos os eventos/]);
+  await pergunta.getByRole("radio", { name: /Todos os eventos/ }).click();
+  await pergunta.getByRole("button", { name: "OK" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "todos alterados" })).toBeVisible();
+  expect(chamadas.find((x) => x.metodo === "PATCH")?.corpo).toMatchObject({ alcance: "todos", data: "2026-11-03" });
 });

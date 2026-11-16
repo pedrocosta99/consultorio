@@ -77,5 +77,9 @@ export function semearFicticio(db: Db, agora: Date) {
         .values({ ...l, valorCentavos: l.valor.centavos, moeda: l.valor.moeda })
         .run();
     }
+    for (const { excecoes, ...c } of m.compromissos) {
+      tx.insert(t.compromissos).values(c).run();
+      for (const e of excecoes) tx.insert(t.compromissosExcecoes).values({ ...e, compromissoId: c.id }).run();
+    }
   });
 }

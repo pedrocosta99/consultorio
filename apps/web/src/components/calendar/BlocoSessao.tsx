@@ -1,4 +1,3 @@
-import { useRef, useState, type PointerEvent as PE } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { CircleDollarSign } from "lucide-react";
 import { ROTULO_ESTADO, type Sessao } from "@consultorio/shared";
@@ -6,7 +5,8 @@ import { useDados } from "@/app/dados";
 import { ESTILO_ESTADO, grupoEstado } from "@/components/comuns";
 import { hora } from "@/lib/datas";
 import { cn } from "@/lib/utils";
-import { PASSO_MIN, novaDuracao, novoHorario, pixelsParaMinutos } from "./layout";
+import { novoHorario, pixelsParaMinutos } from "./layout";
+import { usePuxarBorda } from "./usePuxarBorda";
 
 export function podeArrastar(s: Sessao): boolean {
   return s.estado === "agendada" || s.estado === "remarcada";
@@ -51,32 +51,17 @@ export function BlocoSessao({
     data: { inicioMin, duracaoMin: s.duracaoMin },
   });
   const grupo = grupoEstado(s.estado);
-  // Duração em prévia enquanto a borda de baixo é puxada.
-  const [duracaoPrevia, setDuracaoPrevia] = useState<number | null>(null);
-  const puxando = useRef<{ y: number; acabouDe: boolean }>({ y: 0, acabouDe: false });
   const redimensionavel = arrastavel && !!aoRedimensionar;
+  const borda = usePuxarBorda({
+    inicioMin,
+    duracaoMin: s.duracaoMin,
+    pxPorMin,
+    ativo: redimensionavel,
+    aoMudar: (d) => aoRedimensionar?.(s.id, d),
+  });
+  const duracaoPrevia = borda.previa;
   const alturaVista = duracaoPrevia !== null ? duracaoPrevia * pxPorMin - 2 : altura;
   const compacto = alturaVista < 44;
-
-  const iniciarPuxar = (e: PE<HTMLSpanElement>) => {
-    e.stopPropagation(); // não deixa o arrastar (dnd-kit) começar
-    e.preventDefault();
-    e.currentTarget.setPointerCapture(e.pointerId);
-    puxando.current = { y: e.clientY, acabouDe: false };
-    setDuracaoPrevia(s.duracaoMin);
-  };
-  const puxar = (e: PE<HTMLSpanElement>) => {
-    if (duracaoPrevia === null) return;
-    setDuracaoPrevia(novaDuracao(inicioMin, s.duracaoMin, pixelsParaMinutos(e.clientY - puxando.current.y, pxPorMin)));
-  };
-  const soltar = (e: PE<HTMLSpanElement>) => {
-    if (duracaoPrevia === null) return;
-    e.stopPropagation();
-    const d = duracaoPrevia;
-    setDuracaoPrevia(null);
-    puxando.current.acabouDe = true;
-    if (d !== s.duracaoMin) aoRedimensionar?.(s.id, d);
-  };
   const previa = isDragging && transform ? novoHorario(inicioMin, pixelsParaMinutos(transform.y, pxPorMin), s.duracaoMin) : null;
 
   return (
@@ -85,20 +70,9 @@ export function BlocoSessao({
       type="button"
       {...(arrastavel ? { ...attributes, ...listeners } : {})}
       onClick={() => {
-        // O clique que fecha um "puxar a borda" não abre a sessão.
-        if (puxando.current.acabouDe) {
-          puxando.current.acabouDe = false;
-          return;
-        }
-        aoAbrir(s);
+        if (!borda.engolirClique()) aoAbrir(s);
       }}
-      onKeyDown={(e) => {
-        // Shift + ↑/↓ muda a duração pelo teclado.
-        if (!redimensionavel || !e.shiftKey || (e.key !== "ArrowDown" && e.key !== "ArrowUp")) return;
-        e.preventDefault();
-        const d = novaDuracao(inicioMin, s.duracaoMin, e.key === "ArrowDown" ? PASSO_MIN : -PASSO_MIN);
-        if (d !== s.duracaoMin) aoRedimensionar?.(s.id, d);
-      }}
+      onKeyDown={borda.teclado}
       aria-roledescription={arrastavel ? "sessão arrastável" : "sessão"}
       className={cn(
         "absolute overflow-hidden rounded-md border border-l-[3px] px-1.5 py-1 text-left text-[11px] leading-tight shadow-xs transition-shadow",
@@ -139,10 +113,7 @@ export function BlocoSessao({
       {redimensionavel && (
         <span
           aria-hidden
-          onPointerDown={iniciarPuxar}
-          onPointerMove={puxar}
-          onPointerUp={soltar}
-          onPointerCancel={() => setDuracaoPrevia(null)}
+          {...borda.alca}
           className="absolute inset-x-0 bottom-0 h-2 cursor-ns-resize touch-none after:absolute after:inset-x-1/3 after:bottom-0.5 after:h-0.5 after:rounded-full after:bg-current after:opacity-0 hover:after:opacity-40"
         />
       )}
