@@ -17,7 +17,7 @@ Princípios que guiam as decisões:
 - **Sigilo por padrão:** login com MFA, isolamento por consultório no banco, registro de quem abriu o quê, dados no Brasil, e nada clínico sai do app (nem para o Google Agenda).
 - **Pronto para mais de um consultório:** `consultorio_id` desde já, para poder vender sem refazer.
 
-Fora do escopo por ora: integração direta com bancos (extratos). A emissão de nota fiscal e uma área do paciente entraram no plano em 16 nov 2026 (ver [App completo](#app-completo-fase-8)).
+Fora do escopo por ora: integração direta com bancos (extratos). **Sem assistente de IA** (decisão de 16 nov 2026): nada de resumo, transcrição ou análise automática das notas. A emissão de nota fiscal e uma área do paciente entraram no plano em 16 nov 2026 (ver [App completo](#app-completo-fase-8)).
 
 ## Módulo Consultório
 
@@ -180,7 +180,6 @@ Sugestões de 16 nov 2026 para o app cobrir o dia a dia inteiro de quem atende, 
 
 **A avaliar com cuidado**
 
-- Assistente com IA (resumo de notas, transcrição): mexe com o dado mais sensível do app. Só com consentimento explícito, processamento no Brasil ou sem retenção pelo fornecedor, e desligado por padrão.
 - Mobile offline (rascunho de nota sem rede): só depois do mobile básico, e sem guardar notas no aparelho sem cifra.
 
 **Fórum entre profissionais** (registrado em 16 nov 2026; a expandir)
