@@ -439,9 +439,9 @@ Cinco fases de core, cada uma termina num app que você já usa de verdade. A Fa
 - `consultorio_id` em todas as tabelas foi para a 6.2, junto com o RLS: filtrar à mão cada consulta do SQLite agora seria refeito no Postgres
 - [x] Conflito de edição (409) nas notas, com "Salvar mesmo assim". Sessões ficam com "vale a última": são cliques rápidos de estado, e travar daria falso conflito
 - [x] Registro de acesso: abrir ficha, exportar PDF e buscar gravam em `acessos`; Configurações → Registro de acesso (só o dono). Abrir nota individual entra quando as notas vierem por paciente (API por recurso)
-- [ ] API por recurso (pacientes, sessões por intervalo, notas por paciente, com paginação) no lugar do pacote único `GET /consultorio`
-- [ ] OpenAPI gerado dos schemas Zod (`@hono/zod-openapi`) e cliente tipado
-- [ ] Web com TanStack Query sobre o cliente tipado (recarrega só o que mudou)
+- [x] API por recurso: `GET /pacientes`, `/sessoes?de&ate`, `/notas?pacienteId`, `/pagamentos`, `/lancamentos`, `/compromissos`, `/configuracoes`… (o `GET /consultorio` fica só por compatibilidade). Paginação entra quando o volume pedir (no Postgres)
+- [x] Cliente tipado: as leituras e gravações usam os tipos de `packages/shared`, que o app Expo também vai usar. **OpenAPI gerado foi adiado para a 6.2** (quando as rotas forem reescritas para o Postgres): web e mobile são TypeScript e já compartilham os tipos
+- [x] Web com TanStack Query: uma consulta por recurso; cada gravação recarrega só os recursos que afeta
 - [ ] Configuração por variáveis de ambiente (`HOST`, `PORT`, banco, modo de login), healthcheck, logs estruturados sem dados de pacientes, `Dockerfile`
 
 *Login mockado*
@@ -472,6 +472,7 @@ Cinco fases de core, cada uma termina num app que você já usa de verdade. A Fa
 - [ ] Serviço async
 - [ ] Row-Level Security por `consultorio_id`
 - [ ] Busca com `tsvector` + `unaccent` (substitui FTS5 e triggers)
+- [ ] Rotas com `@hono/zod-openapi` (contrato OpenAPI gerado dos schemas Zod) e paginação nas listas grandes (notas, sessões, pagamentos)
 - [ ] Importação do SQLite/`.cofre` para o Postgres
 
 **Fase 6.3 — Login de verdade** (local, emulador do Firebase Auth)

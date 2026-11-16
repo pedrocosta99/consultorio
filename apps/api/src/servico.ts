@@ -113,11 +113,18 @@ function paraContrato(r: typeof t.contratos.$inferSelect): Contrato {
   };
 }
 
-export function carregarConsultorio(db: Db, agora: Date, consultorioId = CONSULTORIO_LOCAL): PacoteConsultorio {
-  const pagos = new Map(db.select().from(t.pagamentoSessoes).all().map((v) => [v.sessaoId, v.pagamentoId]));
-  const sessoes: Sessao[] = db
+// ── Leitura por recurso (cada tela/app pede só o que precisa) ─
+
+export function listarSessoes(db: Db, filtro: { de?: string; ate?: string } = {}): Sessao[] {
+  const pagos = new Set(db.select({ id: t.pagamentoSessoes.sessaoId }).from(t.pagamentoSessoes).all().map((v) => v.id));
+  const conds = [
+    ...(filtro.de ? [sql`${t.sessoes.inicio} >= ${filtro.de}`] : []),
+    ...(filtro.ate ? [sql`${t.sessoes.inicio} < ${filtro.ate}`] : []),
+  ];
+  return db
     .select()
     .from(t.sessoes)
+    .where(conds.length ? and(...conds) : undefined)
     .orderBy(asc(t.sessoes.inicio))
     .all()
     .map((s) => ({
@@ -130,9 +137,14 @@ export function carregarConsultorio(db: Db, agora: Date, consultorioId = CONSULT
       valor: dinheiro(s.valorCentavos, s.moeda),
       pago: pagos.has(s.id),
     }));
+}
+
+export function listarPagamentos(db: Db): Pagamento[] {
   const sessoesPorPagamento = new Map<string, string[]>();
-  for (const [sessaoId, pagamentoId] of pagos) sessoesPorPagamento.set(pagamentoId, [...(sessoesPorPagamento.get(pagamentoId) ?? []), sessaoId]);
-  const pagamentos: Pagamento[] = db
+  for (const v of db.select().from(t.pagamentoSessoes).all()) {
+    sessoesPorPagamento.set(v.pagamentoId, [...(sessoesPorPagamento.get(v.pagamentoId) ?? []), v.sessaoId]);
+  }
+  return db
     .select()
     .from(t.pagamentos)
     .orderBy(asc(t.pagamentos.data))
@@ -148,25 +160,58 @@ export function carregarConsultorio(db: Db, agora: Date, consultorioId = CONSULT
       reciboEm: p.reciboEm,
       ...(p.reciboNumero ? { reciboNumero: p.reciboNumero } : {}),
     }));
+}
+
+export function listarPacientes(db: Db): Paciente[] {
+  return db.select().from(t.pacientes).orderBy(asc(t.pacientes.nome)).all().map(paraPaciente);
+}
+
+export function listarContratos(db: Db): Contrato[] {
+  return db.select().from(t.contratos).orderBy(asc(t.contratos.vigenteDe)).all().map(paraContrato);
+}
+
+export function listarContas(db: Db): Conta[] {
+  return db.select().from(t.contas).all() as Conta[];
+}
+
+export function listarFeriados(db: Db) {
+  return db.select().from(t.feriados).orderBy(asc(t.feriados.data)).all();
+}
+
+/** Notas, de todos os pacientes ou de um. */
+export function listarNotas(db: Db, pacienteId?: string) {
+  return db
+    .select()
+    .from(t.notas)
+    .where(pacienteId ? eq(t.notas.pacienteId, pacienteId) : undefined)
+    .orderBy(asc(t.notas.criadoEm))
+    .all()
+    .map(({ supervisaoTexto, ...n }) => ({ ...n, sessaoId: n.sessaoId ?? null, ...(supervisaoTexto ? { supervisaoTexto } : {}) }));
+}
+
+/** Configurações do consultório + o relógio do servidor (as telas calculam "hoje" por ele). */
+export function lerConfiguracoes(db: Db, agora: Date, consultorioId = CONSULTORIO_LOCAL) {
   return {
     agora: agora.toISOString(),
-    pacientes: db.select().from(t.pacientes).orderBy(asc(t.pacientes.nome)).all().map(paraPaciente),
-    contratos: db.select().from(t.contratos).orderBy(asc(t.contratos.vigenteDe)).all().map(paraContrato),
-    sessoes,
-    pagamentos,
-    contas: db.select().from(t.contas).all() as Conta[],
-    feriados: db.select().from(t.feriados).orderBy(asc(t.feriados.data)).all(),
     moedas: moedasAtivas(db, consultorioId),
-    notas: db
-      .select()
-      .from(t.notas)
-      .orderBy(asc(t.notas.criadoEm))
-      .all()
-      .map(({ supervisaoTexto, ...n }) => ({ ...n, sessaoId: n.sessaoId ?? null, ...(supervisaoTexto ? { supervisaoTexto } : {}) })),
-    lancamentos: listarLancamentos(db),
-    compromissos: listarCompromissos(db),
     mensagens: lerMensagens(db, consultorioId),
     horarioAtendimento: lerHorarioAtendimento(db, consultorioId),
+  };
+}
+
+/** Tudo de uma vez (testes e compatibilidade). As telas usam as leituras por recurso. */
+export function carregarConsultorio(db: Db, agora: Date, consultorioId = CONSULTORIO_LOCAL): PacoteConsultorio {
+  return {
+    ...lerConfiguracoes(db, agora, consultorioId),
+    pacientes: listarPacientes(db),
+    contratos: listarContratos(db),
+    sessoes: listarSessoes(db),
+    pagamentos: listarPagamentos(db),
+    contas: listarContas(db),
+    feriados: listarFeriados(db),
+    notas: listarNotas(db),
+    lancamentos: listarLancamentos(db),
+    compromissos: listarCompromissos(db),
     cotacoes: listarCotacoes(db),
   };
 }
@@ -685,7 +730,7 @@ export function criarConta(db: Db, c: Omit<Conta, "id" | "ativa">): string {
 
 // ── Lançamentos (Finanças v0) ────────────────────────────────
 
-function listarLancamentos(db: Db): Lancamento[] {
+export function listarLancamentos(db: Db): Lancamento[] {
   return db
     .select()
     .from(t.lancamentos)
@@ -869,7 +914,7 @@ export function buscar(sqlite: import("better-sqlite3").Database, q: string, lim
 
 // ── Compromissos (agenda) ────────────────────────────────────
 
-function listarCompromissos(db: Db): Compromisso[] {
+export function listarCompromissos(db: Db): Compromisso[] {
   const excecoes = new Map<string, Compromisso["excecoes"]>();
   for (const e of db.select().from(t.compromissosExcecoes).all()) {
     excecoes.set(e.compromissoId, [
@@ -1027,7 +1072,7 @@ export function excluirCompromisso(db: Db, id: string, e: CompromissoExclusao) {
 
 // ── Cotações (câmbio só para exibição) ───────────────────────
 
-function listarCotacoes(db: Db): Cotacao[] {
+export function listarCotacoes(db: Db): Cotacao[] {
   return db
     .select()
     .from(t.cotacoes)

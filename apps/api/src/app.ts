@@ -92,6 +92,30 @@ app.use("/pacientes/:id/prontuario.pdf", async (c, next) => {
   await next();
 });
 
+// ── Leitura por recurso ─────────────────────────────────────
+// Cada tela (e o app de celular) pede só o que precisa. Sem papel clínico, notas e
+// pontos fixos não saem.
+
+const clinico = (c: Context<Env>) => podeLerClinico(ctx(c).papel);
+app.get("/configuracoes", (c) => c.json(srv.lerConfiguracoes(db(c), agora(), ctx(c).consultorioId)));
+app.get("/pacientes", (c) => {
+  const lista = srv.listarPacientes(db(c));
+  return c.json(clinico(c) ? lista : lista.map((p) => ({ ...p, pontosFixos: "" })));
+});
+app.get("/contratos", (c) => c.json(srv.listarContratos(db(c))));
+app.get("/sessoes", (c) => {
+  srv.garantirSessoes(db(c), agora());
+  const { de, ate } = z.object({ de: z.iso.datetime().optional(), ate: z.iso.datetime().optional() }).parse(c.req.query());
+  return c.json(srv.listarSessoes(db(c), { de, ate }));
+});
+app.get("/pagamentos", (c) => c.json(srv.listarPagamentos(db(c))));
+app.get("/contas", (c) => c.json(srv.listarContas(db(c))));
+app.get("/feriados", (c) => c.json(srv.listarFeriados(db(c))));
+app.get("/notas", (c) => c.json(clinico(c) ? srv.listarNotas(db(c), c.req.query("pacienteId") || undefined) : []));
+app.get("/lancamentos", (c) => c.json(srv.listarLancamentos(db(c))));
+app.get("/compromissos", (c) => c.json(srv.listarCompromissos(db(c))));
+app.get("/cotacoes", (c) => c.json(srv.listarCotacoes(db(c))));
+
 /** Quem está usando, em qual consultório e com que papel. */
 app.get("/sessao", (c) => c.json(srv.sessaoDoUsuario(db(c), ctx(c))));
 

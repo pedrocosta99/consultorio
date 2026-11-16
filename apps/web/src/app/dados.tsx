@@ -1,15 +1,19 @@
 /**
  * Fonte de dados do app.
  *
- * Consultório (pacientes, contratos, sessões, pagamentos, contas, feriados), notas e
- * lançamentos de Finanças: vêm da API local (banco SQLite). Só a Divulgação
- * (campanhas) ainda é FICTÍCIA.
+ * Tudo vem da API local, um recurso por vez (pacientes, sessões, notas…), com cache
+ * do TanStack Query. Só a Divulgação (campanhas) ainda é FICTÍCIA.
  *
  * Parâmetro de simulação na URL (útil para revisar estados e para os testes):
  *   ?mock=vazio       → sem dados
  *   ?mock=carregando  → fica carregando para sempre
  */
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { notifyManager, QueryClient, QueryClientProvider, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+
+// O TanStack Query avisa as telas com setTimeout(0); com o relógio congelado dos testes
+// visuais, isso nunca rodaria. Microtarefa dá o mesmo efeito sem depender de relógio.
+notifyManager.setScheduler((cb) => queueMicrotask(cb));
 import {
   gerarMocks,
   MENSAGENS_PADRAO,
@@ -29,6 +33,9 @@ import {
   type Sessao,
 } from "@consultorio/shared";
 import { api } from "@/lib/api";
+import { RECURSOS, recursosAfetados, type Listas } from "@/lib/recursos";
+
+export { recursosAfetados };
 import { useAvisos } from "./avisos";
 import { usePreferencias } from "./preferencias";
 
@@ -77,64 +84,106 @@ export function somarPorMoeda(valores: Dinheiro[]): Dinheiro[] {
   return ordem.filter((m) => mapa.has(m)).map((m) => ({ moeda: m, centavos: mapa.get(m)! }));
 }
 
+// ── Recursos ─────────────────────────────────────────────────
+// Cada recurso é uma consulta própria (TanStack Query). Uma gravação recarrega só os
+// recursos que ela afeta, em vez do consultório inteiro.
+
+interface Configuracoes {
+  agora: string;
+  moedas: Moeda[];
+  mensagens: Mensagens;
+  horarioAtendimento: HorarioAtendimento;
+}
+
 export function DadosProvider({ children }: { children: ReactNode }) {
+  const [cliente] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          // Local e com um usuário só: os dados só mudam pelas gravações, que já recarregam o que afetam.
+          queries: { staleTime: Infinity, refetchOnWindowFocus: false, retry: 1 },
+        },
+      }),
+  );
+  return (
+    <QueryClientProvider client={cliente}>
+      <DadosInterno>{children}</DadosInterno>
+    </QueryClientProvider>
+  );
+}
+
+function DadosInterno({ children }: { children: ReactNode }) {
   const { modoDiscreto } = usePreferencias();
   const { avisarErro } = useAvisos();
   const [modo] = useState(lerModoMock);
-  const [pacote, setPacote] = useState<PacoteConsultorio | null>(null);
-  const versao = useRef(0);
+  const qc = useQueryClient();
+  const ativo = modo !== "carregando";
+
+  const config = useQuery({ queryKey: ["configuracoes"], queryFn: () => api<Configuracoes>("GET", "/configuracoes"), enabled: ativo });
+  const listas = useQueries({
+    queries: RECURSOS.map((r) => ({
+      queryKey: [r],
+      queryFn: () => (modo === "vazio" ? Promise.resolve([]) : api<unknown[]>("GET", `/${r}`)),
+      enabled: ativo,
+    })),
+  });
+
+  const erro = config.error ?? listas.find((q) => q.error)?.error ?? null;
+  useEffect(() => {
+    if (erro) avisarErro(erro);
+  }, [erro, avisarErro]);
 
   const recarregar = useCallback(async () => {
-    if (modo === "carregando") return;
-    const v = ++versao.current;
-    const p = await api<PacoteConsultorio>("GET", "/consultorio");
-    // Ignora respostas antigas que chegaram depois de uma mais nova.
-    if (v === versao.current) setPacote(modo === "vazio" ? { ...PACOTE_VAZIO, agora: p.agora } : p);
-  }, [modo]);
-
-  useEffect(() => {
-    recarregar().catch(avisarErro);
-  }, [recarregar, avisarErro]);
+    await qc.invalidateQueries();
+  }, [qc]);
 
   const mutar = useCallback<Ctx["mutar"]>(
     async (metodo, rota, corpo) => {
       const r = await api<any>(metodo, rota, corpo);
-      await recarregar();
+      await Promise.all(recursosAfetados(rota).map((k) => qc.invalidateQueries({ queryKey: [k] })));
       return r;
     },
-    [recarregar],
+    [qc],
   );
 
   const atualizarSessao = useCallback<Ctx["atualizarSessao"]>(
     (id, patch) => {
-      setPacote((p) => {
-        if (!p) return p;
-        const sessoes = p.sessoes
-          .map((s) => {
+      qc.setQueryData<Sessao[]>(["sessoes"], (lista) =>
+        lista
+          ?.map((s) => {
             if (s.id !== id) return s;
             const novo = { ...s, ...patch };
             if (!sessaoCobravel(novo.estado)) novo.pago = false;
             return novo;
           })
-          .sort((a, b) => a.inicio.localeCompare(b.inicio));
-        return { ...p, sessoes };
-      });
+          .sort((a, b) => a.inicio.localeCompare(b.inicio)),
+      );
       mutar("PATCH", `/sessoes/${id}`, patch).catch((e) => {
         avisarErro(e);
         recarregar().catch(() => {});
       });
     },
-    [mutar, recarregar, avisarErro],
+    [qc, mutar, recarregar, avisarErro],
   );
 
+  const pronto = !!config.data && listas.every((q) => q.data);
+  const dadosListas = Object.fromEntries(RECURSOS.map((r, i) => [r, listas[i]!.data ?? []])) as unknown as Listas;
+  // As listas mudam de identidade só quando o recurso muda.
+  const assinatura = listas.map((q) => q.dataUpdatedAt).join(",");
+
   // Divulgação: fictícia por enquanto, só com os dados fictícios carregados. Gerada a partir do relógio da API.
+  const agoraApi = config.data?.agora;
+  const temCartao = dadosListas.contas.some((c) => c.id === "c-cartao");
   const campanhas = useMemo(() => {
-    if (!pacote || modo === "vazio" || !pacote.contas.some((c) => c.id === "c-cartao")) return [];
-    return gerarMocks(new Date(pacote.agora)).campanhas;
-  }, [pacote, modo]);
+    if (!agoraApi || modo === "vazio" || !temCartao) return [];
+    return gerarMocks(new Date(agoraApi)).campanhas;
+  }, [agoraApi, modo, temCartao]);
 
   const valor = useMemo<Ctx>(() => {
-    const base = pacote ?? { ...PACOTE_VAZIO, agora: new Date().toISOString() };
+    const padrao = { agora: config.data?.agora ?? new Date().toISOString(), moedas: ["BRL"] as Moeda[], mensagens: MENSAGENS_PADRAO, horarioAtendimento: HORARIO_ATENDIMENTO_PADRAO };
+    // ?mock=vazio: só o relógio vem da API; o resto é o de um consultório novo.
+    const cfg = config.data && modo !== "vazio" ? config.data : padrao;
+    const base = { ...PACOTE_VAZIO, ...dadosListas, ...cfg };
     const porId = new Map(base.pacientes.map((p) => [p.id, p]));
     return {
       referencia: new Date(base.agora),
@@ -153,7 +202,7 @@ export function DadosProvider({ children }: { children: ReactNode }) {
       horarioAtendimento: base.horarioAtendimento ?? HORARIO_ATENDIMENTO_PADRAO,
       cotacoes: base.cotacoes ?? [],
       campanhas,
-      carregando: modo === "carregando" || pacote === null,
+      carregando: !ativo || !pronto,
       recarregar,
       mutar,
       atualizarSessao,
@@ -172,7 +221,8 @@ export function DadosProvider({ children }: { children: ReactNode }) {
           new Date(),
         ),
     };
-  }, [pacote, campanhas, modo, recarregar, mutar, atualizarSessao, modoDiscreto]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config.data, assinatura, pronto, ativo, modo, campanhas, recarregar, mutar, atualizarSessao, modoDiscreto]);
 
   return <DadosCtx.Provider value={valor}>{children}</DadosCtx.Provider>;
 }
