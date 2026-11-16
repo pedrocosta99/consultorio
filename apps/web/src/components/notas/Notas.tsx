@@ -22,6 +22,7 @@ import { capitalizar, fmt, hora, noFuso } from "@/lib/datas";
 import { Markdown } from "@/lib/markdown";
 import { DiscussaoSupervisao } from "./DiscussaoSupervisao";
 import { cn } from "@/lib/utils";
+import { ErroApi } from "@/lib/api";
 
 type Natureza = Nota["natureza"];
 type Situacao = "ocioso" | "salvando" | "salvo" | "erro";
@@ -77,6 +78,9 @@ export function EditorNota({
   const [situacao, setSituacao] = useState<Situacao>("ocioso");
   const [erro, setErro] = useState<string | null>(null);
   const id = useRef<string | null>(nota?.id ?? null);
+  // Versão que esta tela conhece; a API recusa (409) se a nota mudou em outro lugar.
+  const versao = useRef<string | undefined>(nota?.atualizadoEm);
+  const [conflito, setConflito] = useState(false);
   const salvando = useRef<Promise<void> | null>(null);
   const primeira = useRef(true);
   const area = useRef<HTMLTextAreaElement>(null);
@@ -93,20 +97,32 @@ export function EditorNota({
     ];
   }, [sessoes, paciente.id, fusoPrincipal]);
 
-  const salvar = useCallback(async () => {
-    if (!texto.trim()) return;
-    const corpo = { texto, tags: lerTags(tags), natureza, levarSupervisao: supervisao, sessaoId: sessaoId || null, ...(supervisao ? { supervisaoTexto: discussao } : {}) };
-    setSituacao("salvando");
-    try {
-      if (id.current) await mutar("PATCH", `/notas/${id.current}`, corpo);
-      else id.current = (await mutar<{ id: string }>("POST", "/notas", { ...corpo, pacienteId: paciente.id })).id;
-      setSituacao("salvo");
-      setErro(null);
-    } catch (e) {
-      setSituacao("erro");
-      setErro(e instanceof Error ? e.message : "Não salvou.");
-    }
-  }, [texto, tags, natureza, supervisao, discussao, sessaoId, mutar, paciente.id]);
+  const salvar = useCallback(
+    async (forcar = false) => {
+      if (!texto.trim()) return;
+      if (conflito && !forcar) return; // espera a pessoa decidir
+      const corpo = { texto, tags: lerTags(tags), natureza, levarSupervisao: supervisao, sessaoId: sessaoId || null, ...(supervisao ? { supervisaoTexto: discussao } : {}) };
+      setSituacao("salvando");
+      try {
+        if (id.current) {
+          const r = await mutar<{ ok: true; atualizadoEm: string }>("PATCH", `/notas/${id.current}`, { ...corpo, ...(forcar ? {} : { versao: versao.current }) });
+          versao.current = r.atualizadoEm;
+        } else {
+          const r = await mutar<{ ok: true; id: string; atualizadoEm: string }>("POST", "/notas", { ...corpo, pacienteId: paciente.id });
+          id.current = r.id;
+          versao.current = r.atualizadoEm;
+        }
+        setConflito(false);
+        setSituacao("salvo");
+        setErro(null);
+      } catch (e) {
+        setSituacao("erro");
+        setConflito(e instanceof ErroApi && e.status === 409);
+        setErro(e instanceof Error ? e.message : "Não salvou.");
+      }
+    },
+    [texto, tags, natureza, supervisao, discussao, sessaoId, mutar, paciente.id, conflito],
+  );
 
   // Salvamento automático 900 ms depois da última mudança.
   useEffect(() => {
@@ -256,10 +272,15 @@ export function EditorNota({
             />
           </div>
         )}
-        <div className="ml-auto flex items-center gap-3">
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-3">
           <span className={cn("text-xs text-muted-foreground", situacao === "erro" && "text-destructive")} role="status">
             {situacao === "salvando" ? "Salvando…" : situacao === "salvo" ? "Salvo" : situacao === "erro" ? erro : ""}
           </span>
+          {conflito && (
+            <Button size="sm" variant="outline" onClick={() => void salvar(true)} title="Substitui a versão salva pelo que está nesta tela">
+              Salvar mesmo assim
+            </Button>
+          )}
           <Button size="sm" onClick={() => void concluir()}>
             <Check aria-hidden /> Concluir
           </Button>

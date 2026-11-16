@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { ArrowLeftRight, CalendarOff, Clock, Coins, RefreshCw, FlaskConical, HardDriveDownload, Landmark, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { ArrowLeftRight, CalendarOff, Clock, Coins, Eye, RefreshCw, FlaskConical, HardDriveDownload, Landmark, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { formatarTaxa, lerTaxa, feriadoEntradaSchema, horarioAtendimentoSchema, HORARIO_ATENDIMENTO_PADRAO, TIPOS_CONTA, type Conta, type HorarioAtendimento, type Moeda } from "@consultorio/shared";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -10,7 +10,7 @@ import { useAvisos } from "@/app/avisos";
 import { useDados } from "@/app/dados";
 import { usePreferencias } from "@/app/preferencias";
 import { api } from "@/lib/api";
-import { fmt } from "@/lib/datas";
+import { fmt, noFuso } from "@/lib/datas";
 import { Campo, DialogoConfirmacao, SeletorSimples } from "./campos";
 
 const ROTULO_TIPO_CONTA: Record<Conta["tipo"], string> = {
@@ -81,6 +81,73 @@ export function SecaoFeriados() {
                 >
                   <Trash2 aria-hidden />
                 </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+const ROTULO_ACAO = { abriu_ficha: "Abriu a ficha", exportou_prontuario: "Exportou o prontuário (PDF)", buscou: "Buscou nas notas" } as const;
+
+interface Acesso {
+  em: string;
+  acao: keyof typeof ROTULO_ACAO;
+  pacienteId: string | null;
+  usuario: string;
+}
+
+/** Quem abriu o quê e quando (só o dono vê). Não guarda conteúdo nem o termo buscado. */
+export function SecaoRegistroAcesso() {
+  const { paciente, nomeExibicao } = useDados();
+  const { fusoPrincipal } = usePreferencias();
+  const [lista, setLista] = useState<Acesso[] | null>(null);
+  const [aberto, setAberto] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  const carregar = async () => {
+    setAberto(true);
+    setErro(null);
+    try {
+      setLista(await api<Acesso[]>("GET", "/acessos"));
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : "Não foi possível carregar.");
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader className="border-b">
+        <CardTitle className="flex items-center gap-2 font-serif text-lg font-medium">
+          <Eye className="size-4 text-muted-foreground" aria-hidden /> Registro de acesso
+        </CardTitle>
+        <CardDescription>Quem abriu fichas, exportou prontuários ou buscou nas notas, e quando. Guarda só isso: nunca o conteúdo nem o termo buscado.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {!aberto ? (
+          <Button type="button" variant="outline" onClick={carregar}>
+            Ver os últimos acessos
+          </Button>
+        ) : erro ? (
+          <p className="text-sm text-destructive" role="alert">
+            {erro}
+          </p>
+        ) : !lista ? (
+          <p className="text-sm text-muted-foreground">Carregando…</p>
+        ) : lista.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nenhum acesso registrado ainda.</p>
+        ) : (
+          <ul className="max-h-80 divide-y overflow-y-auto rounded-lg border text-sm">
+            {lista.map((a, i) => (
+              <li key={i} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 px-3 py-2">
+                <span className="w-32 shrink-0 text-muted-foreground tabular">{fmt(noFuso(a.em, fusoPrincipal), "dd/MM/yy HH:mm")}</span>
+                <span className="min-w-0 flex-1">
+                  {ROTULO_ACAO[a.acao]}
+                  {a.pacienteId && <span className="font-medium"> · {nomeExibicao(paciente(a.pacienteId))}</span>}
+                </span>
+                <span className="text-xs text-muted-foreground">{a.usuario}</span>
               </li>
             ))}
           </ul>

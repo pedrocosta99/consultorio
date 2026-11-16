@@ -63,3 +63,10 @@ test("finanças: tudo em reais (convertido)", async ({ page }) => {
   await expect(page).toHaveScreenshot("financas-convertido.png", { fullPage: true });
   await semViolacoesA11y(page);
 });
+
+test("registro de acesso: abrir a ficha fica anotado", async ({ page }) => {
+  await abrir(page, "/pacientes/p07");
+  await abrir(page, "/configuracoes");
+  await page.getByRole("button", { name: "Ver os últimos acessos" }).click();
+  await expect(page.getByText(/Abriu a ficha/).first()).toBeVisible();
+});

@@ -171,6 +171,37 @@ export function carregarConsultorio(db: Db, agora: Date, consultorioId = CONSULT
   };
 }
 
+// ── Autoria e registro de acesso ─────────────────────────────
+
+const criacao = (por: string) => ({ criadoPor: por, atualizadoPor: por, atualizadoEm: new Date().toISOString() });
+const alteracao = (por: string) => ({ atualizadoPor: por, atualizadoEm: new Date().toISOString() });
+
+export type AcaoAcesso = (typeof t.acessos.$inferInsert)["acao"];
+
+/** Registra quem abriu o quê (só ids e a ação; nunca conteúdo nem termo buscado). */
+export function registrarAcesso(db: Db, ctx: Contexto, acao: AcaoAcesso, pacienteId: string | null, agora: Date) {
+  db.insert(t.acessos).values({ consultorioId: ctx.consultorioId, usuarioId: ctx.usuarioId, acao, pacienteId, em: agora.toISOString() }).run();
+}
+
+export interface Acesso {
+  em: string;
+  acao: AcaoAcesso;
+  pacienteId: string | null;
+  usuario: string;
+}
+
+/** Últimos acessos do consultório, mais recentes primeiro. */
+export function listarAcessos(db: Db, consultorioId: string, limite = 200): Acesso[] {
+  return db
+    .select({ em: t.acessos.em, acao: t.acessos.acao, pacienteId: t.acessos.pacienteId, usuario: t.usuarios.nome })
+    .from(t.acessos)
+    .innerJoin(t.usuarios, eq(t.usuarios.id, t.acessos.usuarioId))
+    .where(eq(t.acessos.consultorioId, consultorioId))
+    .orderBy(desc(t.acessos.em), desc(t.acessos.id))
+    .limit(limite)
+    .all();
+}
+
 // ── Consultório, usuário e contexto ──────────────────────────
 
 /** Consultório e usuário da versão local (criados pela migração 0010). */
@@ -346,15 +377,15 @@ function desvincularPagamento(db: Db, sessaoId: string) {
   if (restantes.length === 0) db.delete(t.pagamentos).where(eq(t.pagamentos.id, v.pagamentoId)).run();
 }
 
-export function atualizarSessao(db: Db, id: string, patch: SessaoPatch, agora: Date) {
+export function atualizarSessao(db: Db, id: string, patch: SessaoPatch, agora: Date, por: string = USUARIO_LOCAL) {
   db.transaction((tx) => {
     const s = existe(tx.select().from(t.sessoes).where(eq(t.sessoes.id, id)).get(), "Sessão não encontrada");
     const estado = patch.estado ?? s.estado;
-    const mudancas: Partial<typeof t.sessoes.$inferInsert> = {};
+    const mudancas: Partial<typeof t.sessoes.$inferInsert> = { ...alteracao(por) };
     if (patch.estado) mudancas.estado = patch.estado;
     if (patch.inicio) mudancas.inicio = new Date(patch.inicio).toISOString();
     if (patch.duracaoMin) mudancas.duracaoMin = patch.duracaoMin;
-    if (Object.keys(mudancas).length) tx.update(t.sessoes).set(mudancas).where(eq(t.sessoes.id, id)).run();
+    tx.update(t.sessoes).set(mudancas).where(eq(t.sessoes.id, id)).run();
 
     const vinculada = !!tx.select().from(t.pagamentoSessoes).where(eq(t.pagamentoSessoes.sessaoId, id)).get();
     const deveEstarPaga = sessaoCobravel(estado) && (patch.pago ?? vinculada);
@@ -373,6 +404,7 @@ export function atualizarSessao(db: Db, id: string, patch: SessaoPatch, agora: D
           data: hojeCivil(agora),
           meio: s.moeda === "BRL" ? "pix" : "transferencia",
           contaId: contaPadrao(tx as unknown as Db, s.moeda),
+          ...criacao(por),
         })
         .run();
       tx.insert(t.pagamentoSessoes).values({ pagamentoId, sessaoId: id }).run();
@@ -380,7 +412,7 @@ export function atualizarSessao(db: Db, id: string, patch: SessaoPatch, agora: D
   });
 }
 
-export function criarSessaoAvulsa(db: Db, e: SessaoAvulsa): string {
+export function criarSessaoAvulsa(db: Db, e: SessaoAvulsa, por: string = USUARIO_LOCAL): string {
   existe(db.select().from(t.pacientes).where(eq(t.pacientes.id, e.pacienteId)).get(), "Paciente não encontrado");
   const id = novoId("s");
   db.insert(t.sessoes)
@@ -392,6 +424,7 @@ export function criarSessaoAvulsa(db: Db, e: SessaoAvulsa): string {
       estado: "agendada",
       valorCentavos: e.valor.centavos,
       moeda: e.valor.moeda,
+      ...criacao(por),
     })
     .run();
   return id;
@@ -399,18 +432,18 @@ export function criarSessaoAvulsa(db: Db, e: SessaoAvulsa): string {
 
 // ── Pacientes ────────────────────────────────────────────────
 
-export function criarPaciente(db: Db, e: PacienteEntrada): string {
+export function criarPaciente(db: Db, e: PacienteEntrada, por: string = USUARIO_LOCAL): string {
   const id = novoId("p");
   db.insert(t.pacientes)
-    .values({ id, ...e, contato: e.contato || null, pontosFixos: e.pontosFixos ?? "" })
+    .values({ id, ...e, contato: e.contato || null, pontosFixos: e.pontosFixos ?? "", ...criacao(por) })
     .run();
   return id;
 }
 
-export function atualizarPaciente(db: Db, id: string, e: Partial<PacienteEntrada>, agora: Date) {
+export function atualizarPaciente(db: Db, id: string, e: Partial<PacienteEntrada>, agora: Date, por: string = USUARIO_LOCAL) {
   db.transaction((tx) => {
     const atual = existe(tx.select().from(t.pacientes).where(eq(t.pacientes.id, id)).get(), "Paciente não encontrado");
-    const dados = { ...e, ...(e.contato !== undefined ? { contato: e.contato || null } : {}) };
+    const dados = { ...e, ...(e.contato !== undefined ? { contato: e.contato || null } : {}), ...alteracao(por) };
     tx.update(t.pacientes).set(dados).where(eq(t.pacientes.id, id)).run();
     // Saiu de "ativo": as sessões futuras geradas pela grade deixam de existir.
     if (e.status && e.status !== "ativo" && atual.status === "ativo") removerFuturas(tx as unknown as Db, id, agora);
@@ -581,7 +614,7 @@ export function alterarDaquiEmDiante(db: Db, id: string, e: SessaoSeguintes, ago
 
 // ── Pagamentos ───────────────────────────────────────────────
 
-export function registrarPagamento(db: Db, e: PagamentoEntrada & { sessaoIds: string[] }): string {
+export function registrarPagamento(db: Db, e: PagamentoEntrada & { sessaoIds: string[] }, por: string = USUARIO_LOCAL): string {
   const id = novoId("pg");
   db.transaction((tx) => {
     existe(tx.select().from(t.pacientes).where(eq(t.pacientes.id, e.pacienteId)).get(), "Paciente não encontrado");
@@ -605,6 +638,7 @@ export function registrarPagamento(db: Db, e: PagamentoEntrada & { sessaoIds: st
         meio: e.meio,
         contaId: e.contaId,
         observacao: e.observacao ?? "",
+        ...criacao(por),
       })
       .run();
     for (const sessaoId of e.sessaoIds) tx.insert(t.pagamentoSessoes).values({ pagamentoId: id, sessaoId }).run();
@@ -612,10 +646,10 @@ export function registrarPagamento(db: Db, e: PagamentoEntrada & { sessaoIds: st
   return id;
 }
 
-export function marcarRecibo(db: Db, id: string, e: ReciboEntrada) {
+export function marcarRecibo(db: Db, id: string, e: ReciboEntrada, por: string = USUARIO_LOCAL) {
   const r = db
     .update(t.pagamentos)
-    .set({ reciboEm: e.em, reciboNumero: e.em ? (e.numero ?? "") : "" })
+    .set({ reciboEm: e.em, reciboNumero: e.em ? (e.numero ?? "") : "", ...alteracao(por) })
     .where(eq(t.pagamentos.id, id))
     .run();
   if (!r.changes) throw new ErroDominio(404, "Pagamento não encontrado");
@@ -742,7 +776,7 @@ export function lancarFixos(db: Db, mes: string): number {
 
 // ── Notas e busca ────────────────────────────────────────────
 
-export function criarNota(db: Db, e: NotaEntrada): string {
+export function criarNota(db: Db, e: NotaEntrada, por: string = USUARIO_LOCAL): string {
   existe(db.select().from(t.pacientes).where(eq(t.pacientes.id, e.pacienteId)).get(), "Paciente não encontrado");
   if (e.sessaoId) {
     const s = existe(db.select().from(t.sessoes).where(eq(t.sessoes.id, e.sessaoId)).get(), "Sessão não encontrada");
@@ -761,14 +795,29 @@ export function criarNota(db: Db, e: NotaEntrada): string {
       natureza: e.natureza ?? "documental",
       supervisaoTexto: e.supervisaoTexto ?? "",
       supervisaoEm: e.supervisaoEm ?? null,
+      criadoPor: por,
     })
     .run();
   return id;
 }
 
-export function atualizarNota(db: Db, id: string, e: Partial<Omit<NotaEntrada, "pacienteId">>) {
+/** `atualizadoEm` atual de uma nota (a "versão" usada para detectar conflito). */
+export function versaoDaNota(db: Db, id: string): string {
+  return existe(db.select({ v: t.notas.atualizadoEm }).from(t.notas).where(eq(t.notas.id, id)).get(), "Nota não encontrada").v;
+}
+
+/**
+ * Atualiza uma nota. Se `versao` vier (o `atualizadoEm` que a tela leu) e a nota tiver
+ * mudado desde então (outra aba, outro aparelho), recusa com 409 em vez de sobrescrever.
+ * Devolve o novo `atualizadoEm`.
+ */
+export function atualizarNota(db: Db, id: string, e: Partial<Omit<NotaEntrada, "pacienteId">> & { versao?: string }, por: string = USUARIO_LOCAL): string {
   const n = existe(db.select().from(t.notas).where(eq(t.notas.id, id)).get(), "Nota não encontrada");
-  const mudancas: Partial<typeof t.notas.$inferInsert> = { atualizadoEm: new Date().toISOString() };
+  if (e.versao && e.versao !== n.atualizadoEm) {
+    throw new ErroDominio(409, "Esta nota foi alterada em outro lugar depois que você abriu. Copie o seu texto e reabra a nota.");
+  }
+  const atualizadoEm = new Date().toISOString();
+  const mudancas: Partial<typeof t.notas.$inferInsert> = { atualizadoEm, atualizadoPor: por };
   if (e.texto !== undefined) mudancas.texto = e.texto;
   if (e.tags !== undefined) mudancas.tags = e.tags;
   if (e.levarSupervisao !== undefined) mudancas.levarSupervisao = e.levarSupervisao;
@@ -784,6 +833,7 @@ export function atualizarNota(db: Db, id: string, e: Partial<Omit<NotaEntrada, "
     mudancas.tipo = e.sessaoId ? "sessao" : "fixa";
   }
   db.update(t.notas).set(mudancas).where(eq(t.notas.id, id)).run();
+  return atualizadoEm;
 }
 
 export function excluirNota(db: Db, id: string) {

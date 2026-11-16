@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { api } from "@/lib/api";
 import { Link, useParams, useSearchParams } from "react-router";
 import { ArrowLeft, CalendarX2, Globe2, Receipt, Trash2, UserX } from "lucide-react";
 import {
@@ -36,6 +37,11 @@ export function PaginaPacienteFicha() {
   const [params, setParams] = useSearchParams();
   const aba = (ABAS as readonly string[]).includes(params.get("aba") ?? "") ? (params.get("aba") as Aba) : "resumo";
   const p = paciente(id);
+  // Registro de acesso: abrir a ficha fica anotado (só o id e quando).
+  const existe = !!p;
+  useEffect(() => {
+    if (existe) api("POST", "/acessos", { acao: "abriu_ficha", pacienteId: id }).catch(() => {});
+  }, [id, existe]);
 
   if (!p) {
     return (

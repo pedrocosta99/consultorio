@@ -403,3 +403,29 @@ describe("cotações", () => {
     expect(url).toContain("@moeda='EUR'&@dataInicial='11-01-2026'&@dataFinalCotacao='11-04-2026'");
   });
 });
+
+describe("autoria, conflito de nota e registro de acesso", () => {
+  it("nota guarda quem criou/alterou e recusa versão velha (409)", async () => {
+    const { criarNota, atualizarNota, versaoDaNota } = await import("./servico");
+    const id = criarNota(db, { pacienteId: pid, texto: "primeira" }, "u_a");
+    const v1 = versaoDaNota(db, id);
+    await new Promise((r) => setTimeout(r, 2));
+    const v2 = atualizarNota(db, id, { texto: "segunda", versao: v1 }, "u_b");
+    expect(v2).not.toBe(v1);
+    expect(() => atualizarNota(db, id, { texto: "aba antiga", versao: v1 })).toThrow(/outro lugar/);
+    atualizarNota(db, id, { texto: "forçado" }); // sem versão: sobrescreve
+    const n = carregarConsultorio(db, AGORA).notas.find((x) => x.id === id) as unknown as { texto: string; criadoPor: string; atualizadoPor: string };
+    expect(n).toMatchObject({ texto: "forçado", criadoPor: "u_a", atualizadoPor: "u_local" });
+  });
+
+  it("registro de acesso lista o mais recente primeiro, sem conteúdo", async () => {
+    const { registrarAcesso, listarAcessos, contextoLocal } = await import("./servico");
+    const ctx = contextoLocal(db);
+    registrarAcesso(db, ctx, "abriu_ficha", pid, new Date("2026-11-04T10:00:00Z"));
+    registrarAcesso(db, ctx, "buscou", null, new Date("2026-11-04T11:00:00Z"));
+    expect(listarAcessos(db, ctx.consultorioId)).toEqual([
+      { em: "2026-11-04T11:00:00.000Z", acao: "buscou", pacienteId: null, usuario: "Você" },
+      { em: "2026-11-04T10:00:00.000Z", acao: "abriu_ficha", pacienteId: pid, usuario: "Você" },
+    ]);
+  });
+});

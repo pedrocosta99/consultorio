@@ -78,6 +78,20 @@
       "when": 1794865191227,
       "tag": "0010_consultorios_e_usuarios",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1794865377595,
+      "tag": "0011_autoria_e_acessos",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1794865378316,
+      "tag": "0012_sem_transacao_id",
+      "breakpoints": true
     }
   ]
 }

@@ -21,6 +21,17 @@ import {
 
 const criadoEm = () => text("criado_em").notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ','now'))`);
 
+/**
+ * Quem criou / alterou por último (id de `usuarios`; null = o sistema, ex.: a grade) e
+ * quando foi a última alteração. Sem default: o SQLite não aceita ADD COLUMN com
+ * default calculado, então o serviço preenche.
+ */
+const autoria = () => ({
+  atualizadoEm: text("atualizado_em"),
+  criadoPor: text("criado_por"),
+  atualizadoPor: text("atualizado_por"),
+});
+
 /** Versão do esquema, id do dispositivo, hash da senha, último sync… */
 export const metaSistema = sqliteTable("meta_sistema", {
   chave: text("chave").primaryKey(),
@@ -43,6 +54,7 @@ export const pacientes = sqliteTable(
     /** Arquivado = some das listas, mas o prontuário fica guardado (CFP: 5 anos). */
     arquivadoEm: text("arquivado_em"),
     criadoEm: criadoEm(),
+    ...autoria(),
   },
   (t) => [index("pacientes_status").on(t.status)],
 );
@@ -88,6 +100,7 @@ export const sessoes = sqliteTable(
     valorCentavos: integer("valor_centavos").notNull(),
     moeda: text("moeda", { enum: MOEDAS }).notNull(),
     criadoEm: criadoEm(),
+    ...autoria(),
   },
   (t) => [
     index("sessoes_paciente").on(t.pacienteId),
@@ -116,13 +129,12 @@ export const pagamentos = sqliteTable(
     data: text("data").notNull(),
     meio: text("meio", { enum: MEIOS_PAGAMENTO }).notNull(),
     contaId: text("conta_id").notNull().references(() => contas.id),
-    /** Ponte com Finanças (Fase 3). */
-    transacaoId: text("transacao_id"),
     observacao: text("observacao").notNull().default(""),
     /** Recibo emitido (ex.: Receita Saúde) em "yyyy-MM-dd"; null = ainda não. */
     reciboEm: text("recibo_em"),
     reciboNumero: text("recibo_numero").notNull().default(""),
     criadoEm: criadoEm(),
+    ...autoria(),
   },
   (t) => [index("pagamentos_paciente").on(t.pacienteId)],
 );
@@ -165,6 +177,8 @@ export const notas = sqliteTable(
     supervisaoEm: text("supervisao_em"),
     criadoEm: criadoEm(),
     atualizadoEm: text("atualizado_em").notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ','now'))`),
+    criadoPor: text("criado_por"),
+    atualizadoPor: text("atualizado_por"),
   },
   (t) => [index("notas_paciente").on(t.pacienteId), index("notas_sessao").on(t.sessaoId)],
 );
@@ -284,3 +298,20 @@ export const configuracoes = sqliteTable("configuracoes", {
   horarioAtendimento: text("horario_atendimento", { mode: "json" }).$type<unknown[]>(),
   atualizadoEm: text("atualizado_em").notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ','now'))`),
 });
+
+/**
+ * Registro de acesso a dados de pacientes (quem abriu o quê e quando), visível para o
+ * dono. SIGILO: guarda só ids e a ação, nunca o conteúdo nem o termo buscado.
+ */
+export const acessos = sqliteTable(
+  "acessos",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    consultorioId: text("consultorio_id").notNull(),
+    usuarioId: text("usuario_id").notNull(),
+    acao: text("acao", { enum: ["abriu_ficha", "exportou_prontuario", "buscou"] }).notNull(),
+    pacienteId: text("paciente_id"),
+    em: text("em").notNull(),
+  },
+  (t) => [index("acessos_em").on(t.consultorioId, t.em)],
+);

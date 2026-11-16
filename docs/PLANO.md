@@ -433,12 +433,12 @@ Cinco fases de core, cada uma termina num app que você já usa de verdade. A Fa
 
 - [x] Contexto da requisição: um middleware define usuário, consultório e papel (local: `dono` fixo); `GET /sessao`; o papel `suporte` não lê notas, busca nem prontuário
 - [x] Novas tabelas `consultorios`, `usuarios`, `membros` e `configuracoes` (moedas, mensagens e horário de atendimento saíram do `meta_sistema`)
-- [ ] `acessos` (registro de acesso)
+- [x] `acessos` (registro de acesso)
 - `convites` vai para a 6.3 (com o login); `preferencias` no servidor também, para cada usuário ter as suas (antes do login, os testes compartilhariam um usuário só)
-- [ ] `atualizado_em` e `criado_por`/`atualizado_por` nas tabelas clínicas; sai `pagamentos.transacao_id`
+- [x] `atualizado_em` e `criado_por`/`atualizado_por` nas tabelas clínicas; sai `pagamentos.transacao_id`
 - `consultorio_id` em todas as tabelas foi para a 6.2, junto com o RLS: filtrar à mão cada consulta do SQLite agora seria refeito no Postgres
-- [ ] Conflito de edição (409) com `atualizado_em`, começando por notas e sessões
-- [ ] Registro de acesso: abrir ficha, nota e PDF grava em `acessos`
+- [x] Conflito de edição (409) nas notas, com "Salvar mesmo assim". Sessões ficam com "vale a última": são cliques rápidos de estado, e travar daria falso conflito
+- [x] Registro de acesso: abrir ficha, exportar PDF e buscar gravam em `acessos`; Configurações → Registro de acesso (só o dono). Abrir nota individual entra quando as notas vierem por paciente (API por recurso)
 - [ ] API por recurso (pacientes, sessões por intervalo, notas por paciente, com paginação) no lugar do pacote único `GET /consultorio`
 - [ ] OpenAPI gerado dos schemas Zod (`@hono/zod-openapi`) e cliente tipado
 - [ ] Web com TanStack Query sobre o cliente tipado (recarrega só o que mudou)

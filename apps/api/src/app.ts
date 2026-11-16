@@ -112,20 +112,20 @@ app.get("/consultorio", (c) => {
 });
 
 app.patch("/sessoes/:id", async (c) => {
-  srv.atualizarSessao(db(c), c.req.param("id"), sessaoPatchSchema.parse(await c.req.json()), agora());
+  srv.atualizarSessao(db(c), c.req.param("id"), sessaoPatchSchema.parse(await c.req.json()), agora(), ctx(c).usuarioId);
   return ok(c);
 });
 app.post("/sessoes/:id/seguintes", async (c) =>
   ok(c, srv.alterarDaquiEmDiante(db(c), c.req.param("id"), sessaoSeguintesSchema.parse(await c.req.json()), agora())),
 );
-app.post("/sessoes", async (c) => ok(c, { id: srv.criarSessaoAvulsa(db(c), sessaoAvulsaSchema.parse(await c.req.json())) }));
+app.post("/sessoes", async (c) => ok(c, { id: srv.criarSessaoAvulsa(db(c), sessaoAvulsaSchema.parse(await c.req.json()), ctx(c).usuarioId) }));
 
 app.post("/pacientes", async (c) => {
-  const id = srv.criarPaciente(db(c), pacienteEntradaSchema.parse(await c.req.json()));
+  const id = srv.criarPaciente(db(c), pacienteEntradaSchema.parse(await c.req.json()), ctx(c).usuarioId);
   return ok(c, { id });
 });
 app.patch("/pacientes/:id", async (c) => {
-  srv.atualizarPaciente(db(c), c.req.param("id"), pacienteEntradaSchema.partial().parse(await c.req.json()), agora());
+  srv.atualizarPaciente(db(c), c.req.param("id"), pacienteEntradaSchema.partial().parse(await c.req.json()), agora(), ctx(c).usuarioId);
   return ok(c);
 });
 app.post("/pacientes/:id/arquivar", (c) => {
@@ -152,11 +152,11 @@ app.post("/contratos/:id/encerrar", async (c) => {
 });
 
 app.post("/pagamentos", async (c) => {
-  const id = srv.registrarPagamento(db(c), pagamentoEntradaSchema.parse(await c.req.json()));
+  const id = srv.registrarPagamento(db(c), pagamentoEntradaSchema.parse(await c.req.json()), ctx(c).usuarioId);
   return ok(c, { id });
 });
 app.put("/pagamentos/:id/recibo", async (c) => {
-  srv.marcarRecibo(db(c), c.req.param("id"), reciboEntradaSchema.parse(await c.req.json()));
+  srv.marcarRecibo(db(c), c.req.param("id"), reciboEntradaSchema.parse(await c.req.json()), ctx(c).usuarioId);
   return ok(c);
 });
 app.delete("/pagamentos/:id", (c) => {
@@ -173,23 +173,45 @@ app.delete("/feriados/:data", (c) => {
   return ok(c);
 });
 
-app.post("/notas", async (c) => ok(c, { id: srv.criarNota(db(c), notaEntradaSchema.parse(await c.req.json())) }));
+app.post("/notas", async (c) => {
+  const id = srv.criarNota(db(c), notaEntradaSchema.parse(await c.req.json()), ctx(c).usuarioId);
+  return ok(c, { id, atualizadoEm: srv.versaoDaNota(db(c), id) });
+});
 app.patch("/notas/:id", async (c) => {
-  srv.atualizarNota(db(c), c.req.param("id"), notaPatchSchema.parse(await c.req.json()));
-  return ok(c);
+  return ok(c, { atualizadoEm: srv.atualizarNota(db(c), c.req.param("id"), notaPatchSchema.parse(await c.req.json()), ctx(c).usuarioId) });
 });
 app.delete("/notas/:id", (c) => {
   srv.excluirNota(db(c), c.req.param("id"));
   return ok(c);
 });
 app.get("/pacientes/:id/prontuario.pdf", async (c) => {
+  srv.registrarAcesso(db(c), ctx(c), "exportou_prontuario", c.req.param("id"), agora());
   const pdf = await gerarProntuario(db(c), c.req.param("id"), { pessoais: c.req.query("pessoais") === "1", agora: agora() });
   return c.body(pdf as Uint8Array<ArrayBuffer>, 200, {
     "Content-Type": "application/pdf",
     "Content-Disposition": `attachment; filename="prontuario-${c.req.param("id")}.pdf"`,
   });
 });
-app.get("/busca", (c) => c.json(srv.buscar(c.get("banco").sqlite, c.req.query("q") ?? "")));
+app.get("/busca", (c) => {
+  const q = c.req.query("q") ?? "";
+  // O termo buscado NÃO é registrado: só que houve uma busca.
+  if (q.trim().length >= 2) srv.registrarAcesso(db(c), ctx(c), "buscou", null, agora());
+  return c.json(srv.buscar(c.get("banco").sqlite, q));
+});
+
+// ── Registro de acesso ───────────────────────────────────────
+
+/** A tela avisa que abriu a ficha (enquanto os dados vêm num pacote só; ver 6.1). */
+app.post("/acessos", async (c) => {
+  exigirClinico(c);
+  const { pacienteId } = z.object({ acao: z.literal("abriu_ficha"), pacienteId: z.string().min(1) }).parse(await c.req.json());
+  srv.registrarAcesso(db(c), ctx(c), "abriu_ficha", pacienteId, agora());
+  return ok(c);
+});
+app.get("/acessos", (c) => {
+  if (ctx(c).papel !== "dono") throw new srv.ErroDominio(403, "Só o dono vê o registro de acesso.");
+  return c.json(srv.listarAcessos(db(c), ctx(c).consultorioId));
+});
 
 app.put("/configuracoes/moedas", async (c) => {
   const { moedas } = z.object({ moedas: z.array(z.enum(MOEDAS)) }).parse(await c.req.json());

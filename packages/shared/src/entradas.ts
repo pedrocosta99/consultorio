@@ -143,6 +143,8 @@ export type NotaEntrada = z.input<typeof notaEntradaSchema>;
  * mantém os defaults, e um PATCH parcial zeraria tags, supervisão e natureza.
  */
 export const notaPatchSchema = z.object({
+  /** `atualizadoEm` que a tela leu: se a nota mudou desde então, a API recusa (409). */
+  versao: z.string().optional(),
   sessaoId: z.string().nullable().optional(),
   texto: z.string().trim().min(1, "A nota está vazia").optional(),
   tags: z.array(z.string().trim().min(1).max(40)).max(20).optional(),
