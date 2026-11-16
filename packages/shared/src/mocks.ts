@@ -141,7 +141,7 @@ const PACIENTES: PacienteBase[] = [
     contrato: { dias: [2, 4], horario: "12:00", valor: 5000, moeda: "EUR", cobranca: "sessao", duracao: 10 },
   },
   {
-    id: "p18", nome: "Flavio Bolsonaro", apelido: "S.R.", contato: "Só via assessor",
+    id: "p18", nome: "Fausto Bragança", apelido: "S.R.", contato: "Só via assessor",
     origem: "indicacao", modalidade: "presencial", status: "ativo", inicioEm: "2026-04-09", fuso: FUSO_CONSULTORIO,
     pontosFixos: [
       "Parlamentar no terceiro mandato. Veio porque \"o advogado mandou fazer alguma coisa pela imagem\".",
