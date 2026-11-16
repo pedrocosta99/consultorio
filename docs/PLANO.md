@@ -1,22 +1,23 @@
 # Plano — Sistema de Consultório + Finanças
 
-Nov 3, 2026 · @Pedro
+Nov 3, 2026 · @Pedro · revisado em 16 nov 2026 para a nuvem (banco vivo no Google Cloud, login normal e com Google)
 
 ## Visão geral
 
-Um único app local, com dois módulos que conversam entre si: **Consultório** (pacientes, sessões, cobranças, notas) e **Finanças** (contas, gastos, investimentos, patrimônio). Todo pagamento de paciente vira automaticamente uma receita no módulo financeiro, então o influxo da clínica aparece no seu fluxo de caixa sem digitar nada duas vezes.
+Um app com dois módulos que conversam entre si: **Consultório** (pacientes, sessões, cobranças, notas) e **Finanças** (entradas dos pacientes e lançamentos manuais: aluguel, supervisão…). Todo pagamento de paciente já conta como entrada em Finanças, sem digitar nada duas vezes.
+
+Hoje o app roda só na sua máquina (SQLite, sem login). O destino é um **app na nuvem**, com web agora e mobile depois, **login com e-mail/senha ou com Google**, banco vivo no **Google Cloud** e integração com o **Google Agenda**.
 
 Princípios que guiam as decisões:
 
-- **Local primeiro:** o banco roda na sua máquina; a nuvem é só um backup/sincronização sob seu controle.
-- **Um arquivo só:** todo o estado cabe num arquivo SQLite, fácil de copiar, versionar e mandar para o Drive.
+- **Um backend, vários clientes:** web hoje, mobile depois. As regras ficam em `packages/shared` e a API tem um contrato (OpenAPI) que os dois usam.
+- **Banco vivo na nuvem:** o Postgres no Google Cloud é a fonte da verdade. Não há sincronização de arquivos nem "um computador por vez". No desenvolvimento, o mesmo stack roda local.
 - **Registrar em segundos:** marcar uma sessão como realizada e paga deve levar 2 cliques; uma nota, um campo de texto.
-- **Multimoeda desde o dia 1:** BRL e AED convivem (e USD/EUR quando precisar), com uma moeda de relatório à escolha.
-- **Sigilo por padrão:** dados clínicos cifrados fora da máquina e protegidos por senha dentro dela.
+- **Multimoeda desde o dia 1:** BRL é a moeda principal; USD e EUR quando precisar.
+- **Sigilo por padrão:** login com MFA, isolamento por consultório no banco, registro de quem abriu o quê, dados no Brasil, e nada clínico sai do app (nem para o Google Agenda).
+- **Pronto para mais de um consultório:** `consultorio_id` desde já, para poder vender sem refazer.
 
-Fora do escopo inicial: agenda online para pacientes, emissão fiscal automática, app mobile nativo e integração direta com bancos.
-
-> **Atualização 12 nov 2026:** "Local primeiro" e "Um arquivo só" descrevem a versão local de hoje. A direção agora é a nuvem (Postgres no Google Cloud, login, Google Agenda e, depois, mobile): ver [Nuvem e venda](#nuvem-e-venda-direção-decidida-em-12-nov-2026-google-cloud).
+Fora do escopo: agenda online para pacientes, emissão fiscal automática e integração direta com bancos.
 
 ## Módulo Consultório
 
@@ -27,27 +28,29 @@ O centro do módulo é a ficha do paciente: dali você vê sessões, pagamentos 
 - Cadastro: nome (ou iniciais/pseudônimo), contato, data de início, origem (clínica-escola, particular, indicação, anúncio), modalidade (online/presencial), status (ativo, pausa, alta, interrompido).
 - Contrato: frequência (1x, 2x semana…), dia e horário fixos, valor por sessão, moeda, forma de cobrança (por sessão ou fechamento mensal) e política de faltas.
 - Histórico de reajustes de valor, com data, para os relatórios não distorcerem o passado.
-- **Excluir paciente:** permitido só para quem está com status *interrompido*, sempre com confirmação. Por padrão é um **arquivamento** (some das listas, mas o prontuário fica guardado, por causa da guarda mínima de 5 anos do CFP). A exclusão definitiva fica disponível com aviso explícito. *(Entra na Fase 1, junto com o CRUD.)*
+- **Excluir paciente:** permitido só para quem está com status *interrompido*, sempre com confirmação. Por padrão é um **arquivamento** (some das listas, mas o prontuário fica guardado, por causa da guarda mínima de 5 anos do CFP). A exclusão definitiva fica disponível com aviso explícito.
 
 **Sessões e agenda**
 
 - A grade fixa gera as sessões futuras automaticamente.
 - Cada sessão recebe um estado: realizada, falta cobrada, falta não cobrada, cancelada, remarcada.
 - Visão semanal da agenda e lista "hoje" para marcar tudo rápido ao fim do dia.
+- **Google Agenda** (Fase 6.6): as sessões aparecem na sua agenda do Google, só com iniciais/pseudônimo. Depois, opcionalmente, os horários ocupados do Google aparecem na agenda do app, para evitar conflito.
 
 **Cobranças e pagamentos**
 
 - Saldo por paciente: sessões devidas × pagamentos recebidos.
-- Registro de pagamento (valor, data, meio: Pix, transferência, dinheiro) e em qual conta entrou — isso cria a receita no módulo Finanças.
-- Fechamento mensal com lista de quem deve e quanto.
-- Recibo em PDF; se você emite recibos pela Receita Saúde, o sistema guarda só o número/comprovante.
+- Registro de pagamento (valor, data, meio: Pix, transferência, dinheiro) e em qual conta entrou.
+- Fechamento mensal com lista de quem deve e quanto, e mensagem pronta com a chave Pix.
+- Recibos da Receita Saúde: o sistema guarda só a data e o número.
+- Recibo em PDF (Fase 5).
 
 **Notas clínicas**
 
 - Nota por sessão (texto livre em markdown).
 - Pontos fixos do paciente: o que é importante lembrar sempre — história, significantes recorrentes, sonhos, hipóteses.
-- Tags e busca em todas as notas (busca de texto completo do SQLite).
-- Marcador "levar para supervisão" e uma lista que junta essas notas.
+- Tags e busca de texto completo em todas as notas.
+- Marcador "levar para supervisão", com o que foi discutido e quando.
 - Separação entre registro documental (o que poderia ser exigido) e anotações pessoais do analista.
 
 **Painel do consultório**
@@ -68,145 +71,132 @@ O centro do módulo é a ficha do paciente: dali você vê sessões, pagamentos 
 
 **Ideias para depois (fora da v0)**
 
-O objetivo original era responder em uma tela: quanto entrou, quanto saiu, onde está guardado e quanto vale o patrimônio hoje.
-
-**Contas — onde está cada coisa**
-
-- Cada lugar onde há dinheiro é uma conta: banco no Brasil, banco em Dubai, cartão de crédito, corretora, cripto, dinheiro vivo.
-- Cada conta tem instituição, país, moeda e tipo (corrente, poupança, cartão, investimento).
-- Saldo calculado pelas transações, com ajuste manual de conferência ("o extrato diz X").
-
-**Transações e gastos**
-
-- Receita, despesa e transferência entre contas (inclusive entre moedas, com a taxa usada).
-- Categorias em dois níveis (ex.: Moradia → Aluguel; Transporte → Parcela do carro) editáveis por você.
-- Recorrências: aluguel, parcelas, assinaturas são lançadas sozinhas todo mês para confirmar.
-- Importação de extratos CSV/OFX com regras de categorização automática ("contém UBER → Transporte").
-
-**Receita da clínica**
-
-- Pagamentos de pacientes entram como receita na categoria Clínica, ligados ao paciente e à sessão.
+- Contas com saldo calculado e ajuste de conferência; transferências entre contas e moedas.
+- Categorias em dois níveis; importação de extratos CSV/OFX com regras ("contém UBER → Transporte").
 - Relatórios: receita por mês, por paciente, por origem (clínica-escola × particular), ticket médio e taxa de faltas.
-- Visão fiscal mensal: total recebido de pessoas físicas, útil para o carnê-leão (ou para a PJ, se a receita passar por ela).
-
-**Investimentos** (fora do escopo, decisão de 9 nov 2026)
-
-- Ativos por tipo: renda fixa, ações, FIIs, ETFs, cripto, previdência.
-- Aportes, resgates e posição atual por ativo; no início o valor atual é atualizado à mão, depois por cotação automática.
-- Alocação por classe, moeda e país.
-
-**Orçamento, metas e painéis**
-
-- Orçamento mensal por categoria com alerta de estouro.
-- Metas com valor-alvo e prazo (reserva de emergência, viagem, mudança) e quanto falta por mês.
-- Painéis: patrimônio líquido ao longo do tempo, fluxo de caixa mensal, gastos por categoria, taxa de poupança.
-- Câmbio: tabela de cotações diárias; todo valor é guardado na moeda original e convertido só na exibição.
+- Visão fiscal mensal: total recebido de pessoas físicas, útil para o carnê-leão (ou para a PJ).
+- Orçamento mensal por categoria e metas.
+- Câmbio: cotações registradas; todo valor guardado na moeda original e convertido só na exibição.
+- ~~Investimentos e patrimônio~~ (fora do escopo, decisão de 9 nov 2026).
 
 ## Módulo Divulgação (anúncios)
 
 Ajuda a controlar quanto se gasta com anúncios (Instagram, Google, outros) e se isso traz pacientes. Começa simples e será refinado depois.
 
-**Básico (já na Etapa 0, com dados fictícios)**
+**Básico (hoje com dados fictícios)**
 
 - Campanhas: nome, plataforma (Instagram, Google, Facebook, outro), período, orçamento, valor gasto, alcance/impressões, cliques e contatos recebidos.
 - Pacientes captados: pacientes com origem "anúncio" ligados à campanha.
 - Indicadores do mês: gasto total, contatos, custo por contato, pacientes captados e custo por paciente captado.
-- O gasto com anúncios entra em Finanças como despesa na categoria *Divulgação*.
+- O gasto com anúncios entra em Finanças como saída na categoria *Divulgação*.
 
 **Depois (a definir)**
 
-- Gasto lançado automaticamente a partir da fatura do cartão ou da importação de extrato.
 - Retorno por campanha: receita gerada pelos pacientes captados × gasto.
 - Funil simples (contato → primeira sessão → paciente ativo) e orçamento mensal de divulgação com alerta.
 - Talvez importar relatórios CSV do Meta/Google Ads.
 
 ## Arquitetura e stack
 
-Uma aplicação web que roda só no seu computador: o navegador mostra a interface, uma API local fala com um arquivo SQLite, e o sync manda cópias cifradas para o Drive.
+**Destino (nuvem):**
 
-> Esta é a stack da versão local. A stack da nuvem (Cloud Run, Cloud SQL PostgreSQL, Identity Platform, Pulumi) está em [Nuvem e venda](#nuvem-e-venda-direção-decidida-em-12-nov-2026-google-cloud).
-
-&#91;embedded content: arquitetura · 5 partes, sync com o Drive\]
-
-Tudo acima da linha de baixo funciona offline; o Drive só entra quando você faz push ou pull.
+```text
+  Web (React)            Mobile (Expo, depois)
+        \                      /
+   Firebase Hosting — app.<domínio>          Login: Identity Platform
+        |  /api/**                            (e-mail/senha ou Google)
+   API Hono — Cloud Run ──── Cloud Tasks ──── Google Agenda
+        |
+   Cloud SQL PostgreSQL (RLS por consultório)
+```
 
 | Camada | Escolha | Por quê |
 | --- | --- | --- |
-| Linguagem | TypeScript em tudo | Sua stack de sempre; tipos compartilhados entre front e API |
+| Linguagem | TypeScript em tudo | Tipos e regras compartilhados entre web, mobile e API |
 | Interface | React + Vite + Tailwind + shadcn/ui | Rápido de montar telas bonitas e consistentes |
-| Gráficos | Recharts | Simples para fluxo de caixa, patrimônio e categorias |
-| API | Hono (Node) + Zod | Leve, tipada, roda local com um comando |
-| Banco | SQLite (better-sqlite3 ou SQLCipher) + Drizzle ORM | Arquivo único, migrações tipadas, fácil de copiar para o Drive |
-| Busca | SQLite FTS5 | Busca nas notas sem serviço extra |
-| Testes | Vitest | Regras de dinheiro e de sessões precisam de teste |
-| Desktop (opcional) | Tauri | Vira um app de verdade no fim, sem reescrever |
+| Dados no web | TanStack Query sobre o cliente tipado da API | Cache por recurso, recarga só do que mudou; o mesmo padrão vale no mobile |
+| Gráficos | Recharts | Simples para entradas, saídas e categorias |
+| API | Hono (Node) + Zod + `@hono/zod-openapi` | Leve, tipada, mesmo container local e no Cloud Run |
+| Banco | PostgreSQL + Drizzle ORM | Banco vivo, RLS, backup contínuo. Local: Postgres em Docker; testes: PGlite |
+| Busca | `tsvector` + `unaccent` | Busca nas notas sem serviço extra |
+| Login | Identity Platform (Firebase Auth) | E-mail/senha e Google, MFA, SDK para web e mobile. Local: emulador do Firebase Auth |
+| Testes | Vitest + Playwright + axe | Regras de dinheiro e sessões, e telas em 1440/390 px |
+| Mobile | React Native + Expo | Reaproveita `packages/shared` e o cliente da API |
+| Infra | Pulumi (TypeScript) no Google Cloud | Ver [Infraestrutura no Google Cloud](#infraestrutura-no-google-cloud) |
+
+**Hoje:** API local em Hono com SQLite + FTS5 (até a Fase 6.2), só em `127.0.0.1` e sem login (até a 6.3). O web busca tudo de uma vez (`GET /consultorio`) e recarrega tudo depois de cada mudança. Isso funciona na máquina, mas não serve para rede nem para o mobile; a Fase 6.1 troca por chamadas por recurso.
 
 ## Modelo de dados
 
-São 14 tabelas; a ponte entre os módulos é `pagamentos.transacao_id`, que liga cada pagamento de paciente a uma transação de receita. Valores sempre em centavos (inteiro) + código da moeda, nunca em ponto flutuante.
+Valores sempre em centavos (inteiro) + código da moeda. Instantes em ISO UTC; datas civis como `yyyy-MM-dd`. Os ids continuam texto com prefixo (`p_…`, `s_…`), o que funciona igual no Postgres.
 
-| Tabela | Campos principais | Liga com |
+**Tabelas de hoje (SQLite)**
+
+| Tabela | Campos principais |
+| --- | --- |
+| pacientes | nome, apelido, contato, origem, modalidade, status, inicio\_em, fuso, pontos\_fixos, arquivado\_em |
+| contratos | dias\_semana, horario, duracao\_min, valor, cobranca, politica\_faltas, vigente\_de, vigente\_ate |
+| sessoes | paciente, contrato (null = avulsa), vaga da grade, inicio, duracao\_min, estado, valor |
+| pagamentos + pagamento\_sessoes | valor, data, meio, conta, observação, recibo\_em, recibo\_numero; quais sessões quita |
+| feriados | data, descrição |
+| contas | nome, instituição, país, moeda, tipo |
+| notas (+ busca\_fts) | paciente, sessão, tipo, texto, tags, levar\_supervisao, natureza, supervisao\_texto, supervisao\_em |
+| lancamentos | data, tipo, descrição, valor, categoria, fixo, serie\_id |
+| meta\_sistema | chave/valor: moedas ativas, mensagens e modelos, id do dispositivo |
+
+**O que entra para a nuvem** (Fase 6.1, ainda no SQLite; vai junto para o Postgres na 6.2)
+
+| Tabela | Campos principais | Para quê |
 | --- | --- | --- |
-| pacientes | nome, apelido, contato, origem, modalidade, status, inicio\_em, notas\_fixas | contratos, sessoes, notas |
-| contratos | frequencia, dia\_semana, horario, valor\_centavos, moeda, cobranca (sessao/mensal), vigente\_de, vigente\_ate | pacientes |
-| sessoes | data\_hora, duracao\_min, estado, valor\_centavos, cobravel | pacientes, notas, pagamentos |
-| notas | texto, tipo (sessao/fixa/supervisao), tags, criado\_em | pacientes, sessoes |
-| pagamentos | valor\_centavos, moeda, data, meio, conta\_id, transacao\_id | pacientes, sessoes, transacoes |
-| contas | nome, instituicao, pais, moeda, tipo, ativa | transacoes, posicoes |
-| categorias | nome, pai\_id, tipo (receita/despesa) | transacoes, orcamentos |
-| transacoes | data, valor\_centavos, moeda, tipo, descricao, conta\_id, categoria\_id, transferencia\_par\_id | contas, categorias |
-| recorrencias | regra (mensal, dia X), valor, conta, categoria, proxima\_data | transacoes |
-| regras\_importacao | padrao\_texto, categoria\_id | categorias |
-| ativos | nome, ticker, classe, moeda | posicoes, movimentos\_investimento |
-| movimentos\_investimento | data, tipo (aporte/resgate/dividendo), quantidade, valor\_centavos | ativos, contas |
-| cotacoes | data, de\_moeda, para\_moeda (ou ativo), valor | ativos |
-| orcamentos\_metas | categoria ou meta, valor\_alvo, periodo/prazo | categorias, contas |
-| campanhas | nome, plataforma, inicio, fim, orcamento\_centavos, gasto\_centavos, moeda, impressoes, cliques, contatos | pacientes (captados), transacoes |
+| consultorios | nome, fuso, moeda principal | A raiz de tudo: toda tabela clínica e financeira ganha `consultorio_id` |
+| usuarios | uid do Identity Platform, nome, e-mail | Quem faz login (o mesmo e-mail por Google ou senha é a mesma conta) |
+| membros | consultorio\_id, usuario\_id, papel (`dono`, `profissional`, `suporte`) | Quem acessa qual consultório, e com que papel |
+| convites | consultorio\_id, e-mail, papel, hash do token, expira\_em, aceito\_em | Só entra quem foi convidado (sem cadastro aberto até a Fase 7) |
+| configuracoes | consultorio\_id, moedas ativas, mensagens e modelos, chave Pix | Sai do `meta_sistema` |
+| preferencias | usuario\_id, tema, paleta, tamanho do texto, fusos, modo discreto | Sai do `localStorage`, para valer no web e no celular |
+| acessos | consultorio\_id, usuario\_id, ação, recurso (paciente, nota, PDF), recurso\_id, quando | Registro de quem abriu o quê, visível para o `dono`. Nunca guarda o conteúdo |
+| integracoes\_google | usuario\_id, consultorio\_id, e-mail Google, calendário, refresh token cifrado, sync token, estado, último sync, erro | A conexão com o Google Agenda de cada pessoa |
+| eventos\_agenda | sessao\_id, integracao\_id, id do evento no Google, etag, sincronizado\_em | Liga sessão ↔ evento sem poluir `sessoes` |
+| fila\_saida | tipo (ex.: `sessao.alterada`), ids envolvidos, criado\_em, processado\_em, tentativas | Gravada na mesma transação da mudança; um worker repassa (local: no processo; nuvem: Cloud Tasks). Garante que nenhuma mudança se perde a caminho do Google |
 
-Uma tabela extra `meta_sistema` guarda versão do esquema, id do dispositivo e data do último sync — é o que torna a importação/exportação com o Drive segura.
+**Mudanças nas tabelas existentes**
 
-## Sincronização com o Google Drive
+- `consultorio_id` em todas, com índice e RLS. `feriados` passa a ter chave (`consultorio_id`, `data`).
+- `atualizado_em` em todas, e `criado_por`/`atualizado_por` nas clínicas (pacientes, sessões, pagamentos, notas).
+- **Conflito de edição:** quem edita envia o `atualizado_em` que leu; se mudou no meio, a API responde 409 ("isto foi alterado em outro lugar"). Com web e celular abertos ao mesmo tempo e notas com salvamento automático, isso evita sobrescrever texto.
+- Excluir ou remarcar uma sessão grava na `fila_saida`, para o evento no Google sair ou mudar junto.
+- Saem: `pagamentos.transacao_id` (ponte com a antiga tabela de transações) e as chaves de dispositivo/sync do `meta_sistema`.
 
-O banco ativo fica sempre no disco local; o Drive guarda **snapshots cifrados** que você envia e baixa. Nunca rode o SQLite direto de uma pasta sincronizada: o Drive pode copiar o arquivo no meio de uma escrita e corromper o banco.
+## Backup, exportação e portabilidade
 
-**Enviar (push)**
+> Substitui a antiga "Sincronização com o Google Drive" (16 nov 2026). Com o banco vivo na nuvem, não há snapshot para subir e baixar nem conflito entre computadores.
 
-1. O app gera uma cópia consistente do banco com `VACUUM INTO` (ou a API de backup do SQLite).
-2. Compacta e cifra o arquivo com uma senha sua (AES-256-GCM, chave derivada por Argon2/scrypt).
-3. Envia para uma pasta do app no Drive pela API oficial, com escopo `drive.file` (o app só enxerga os arquivos que ele mesmo criou).
-4. Grava nos metadados do arquivo: versão do esquema, id do dispositivo, data e um hash do conteúdo.
-5. Mantém os últimos N snapshots (ex.: 30) para poder voltar no tempo.
-
-**Baixar (pull)**
-
-1. Lista os snapshots e compara com o `meta_sistema` local.
-2. Se o remoto é mais novo e o local não mudou desde o último sync, substitui direto.
-3. Se os dois mudaram, avisa o conflito e deixa você escolher qual manter; o perdedor vira backup, nada se apaga.
-4. Antes de substituir, faz sempre um backup local do banco atual.
-5. Roda as migrações se o snapshot tiver esquema mais antigo.
-
-**Modo de uso recomendado:** um computador por vez ("escritor único"). Ao abrir o app ele oferece *pull*; ao fechar, ou a cada X minutos, faz *push*.
-
-Alternativa mais simples para a fase 1: o botão de exportar salva o snapshot cifrado numa pasta do Google Drive para Desktop, sem OAuth. A API entra na fase 3.
+- **Backup do banco:** PITR do Cloud SQL (volta a qualquer minuto dos últimos 7 dias) + backup diário. Um teste de restauração antes da produção e depois a cada poucos meses.
+- **Exportação pelo `dono`:** o `.cofre` (o consultório inteiro, AES-256-GCM com senha própria, ≥10 caracteres) e o prontuário em PDF por paciente. Depois, uma exportação aberta (JSON/CSV) para a portabilidade da LGPD.
+- **Migração:** o `.cofre` (ou o arquivo SQLite) da versão local é o que leva seus dados para a produção (Fase 6.5).
+- O Drive deixa de ser destino automático. Se quiser uma cópia fora do Google Cloud, baixe o `.cofre` e guarde onde preferir.
 
 ## Privacidade e segurança
 
 Notas clínicas são dado pessoal sensível pela LGPD, então o sistema trata sigilo como requisito, não como extra.
 
-- **Senha ao abrir o app** e bloqueio automático após inatividade.
-- **Banco cifrado em disco** com SQLCipher (ou, no mínimo, disco do computador cifrado com FileVault/BitLocker).
-- **Nada sai da máquina sem cifra:** snapshots no Drive são cifrados antes do upload; o Google só vê bytes ilegíveis.
-- **Servidor só em `127.0.0.1`**, nunca exposto à rede.
-- **Minimização:** opção de identificar pacientes por iniciais ou pseudônimo na interface.
-- **Guarda e exclusão:** exportar o prontuário de um paciente em PDF e arquivar quem teve alta. Se você atua como psicólogo registrado no CFP, a Resolução CFP 001/2009 pede guarda dos registros por no mínimo 5 anos.
+- **Login:** e-mail/senha ou Google. MFA (app autenticador) obrigatório para o `dono`. O app bloqueia depois de um tempo sem uso e pede o login de novo.
+- **Só convidados entram:** sem cadastro aberto até a Fase 7. Quem faz login sem ser membro de um consultório vê "sem acesso".
+- **Isolamento:** RLS por `consultorio_id`. A API define o consultório da requisição dentro da transação; uma consulta sem ele não enxerga nada.
+- **Papéis:** `dono` faz tudo; `profissional` atende e registra; `suporte` ajuda com a conta e **não lê notas clínicas**.
+- **Registro de acesso:** quem abriu qual paciente, nota ou PDF, e quando; visível para o `dono`.
+- **Dados no Brasil:** banco e API em `southamerica-east1` (São Paulo).
+- **Minimização:** modo discreto (iniciais/pseudônimo na interface). No Google Agenda, o evento é privado, leva só iniciais/pseudônimo e nenhuma informação clínica.
+- **Logs:** nunca conteúdo de notas nem dados de pacientes.
+- **Guarda e exclusão:** arquivar ≠ excluir. A Resolução CFP 001/2009 pede guarda dos registros por no mínimo 5 anos; a exclusão definitiva é só do `dono`, com aviso.
+- **Papéis na LGPD:** a psicóloga é a controladora dos dados dos pacientes; quando o app for vendido, ele é o operador (contrato de tratamento de dados, Fase 7).
 - **Clínica-escola:** pacientes atendidos por ela provavelmente já têm prontuário no sistema da instituição; vale confirmar a política dela antes de duplicar notas aqui.
-- **Senha de recuperação** guardada fora do app: sem ela, os snapshots cifrados não abrem.
+- **Senha do `.cofre`** guardada fora do app: sem ela, a exportação cifrada não abre.
+- Até a Fase 6.3 terminar, o app local segue as regras de sigilo do `CLAUDE.md` (só `127.0.0.1`, abre direto).
 
-## Nuvem e venda (direção decidida em 12 nov 2026: Google Cloud)
+## Infraestrutura no Google Cloud
 
-> **Substitui as direções anteriores:** a de 9 nov 2026 (SQLite por conta + libSQL/Turso + Lightsail) e a primeira versão de 12 nov (AWS: Lambda + RDS + Cognito). O objetivo é escalar com facilidade, com **um backend que atenda web e mobile**, domínio próprio, login (inclusive com Google) e integração com o **Google Agenda**. A escolha ficou no **Google Cloud (GCP)** porque o Google já entra no projeto de qualquer jeito (login, Agenda, Drive, push no mobile). Concentrando tudo lá, fica mais consistente e mais barato, e não precisa de VPC nem de NAT.
-
-Enquanto a Fase 6.2 (login) não termina, o app continua local e as regras de sigilo do `CLAUDE.md` (só `127.0.0.1`, sem tela de acesso) valem como estão.
+> Decidida em 12 nov 2026. Substitui a de 9 nov (SQLite por conta + libSQL/Turso + Lightsail) e a primeira versão de 12 nov (AWS: Lambda + RDS + Cognito). A escolha ficou no **Google Cloud** porque o Google já entra no projeto de qualquer jeito (login, Agenda, push no mobile). Concentrando tudo lá, fica mais consistente e mais barato, e não precisa de VPC nem de NAT.
 
 **Objetivo:** publicar numa URL com login, primeiro para você e para as pessoas que refinam o app, e depois poder vender para outros consultórios sem reescrever nada.
 
@@ -219,23 +209,19 @@ Enquanto a Fase 6.2 (login) não termina, o app continua local e as regras de si
 
 Os dois projetos ficam numa só conta de cobrança. Quem refina o app só recebe acesso ao projeto de homologação e **nunca** acessa a produção: notas clínicas reais não são vistas por quem desenvolve. Quando o domínio existir, os projetos entram numa **organização** (Cloud Identity Free, grátis), o que libera políticas para a organização toda.
 
-**Arquitetura**
+**Serviços**
 
 | Camada | Escolha | Por quê |
 |---|---|---|
 | Domínio | `.com.br` no Registro.br (+ `.com` se estiver livre), DNS na Cloudflare (o mesmo da landing page) | `.com.br` passa mais confiança para psicólogas no Brasil. A landing page já fica no Cloudflare Pages, então o DNS fica num lugar só. O Google exige domínio verificado para liberar a agenda |
 | Web | Firebase Hosting (CDN + HTTPS automático) | Grátis nesse tamanho. Os registros na Cloudflare ficam "só DNS" (sem o proxy laranja), para o certificado sair |
 | API | Hono num container no **Cloud Run** (`southamerica-east1`), servido em `app.<domínio>/api/**` por um rewrite do Firebase Hosting | O mesmo `@hono/node-server` de hoje, sem adaptador. Desliga sem uso (mínimo 0 instâncias) e tem um teto de instâncias. Mesma origem do web: sem CORS no navegador e sem subdomínio `api.`. Limite: 60 s por requisição pelo Hosting |
-| Banco | **Cloud SQL PostgreSQL** em `southamerica-east1`, conectado pelo conector do Cloud Run com autenticação IAM | Sem VPC e sem NAT. O IP público fica sem redes autorizadas, então só o conector entra. Backup automático + PITR, proteção contra exclusão. Dados no Brasil |
-| Multi-consultório | `consultorio_id` em toda tabela + Row-Level Security (RLS) no Postgres | Um consultório nunca vê o outro, mesmo se a API tiver bug. Construído desde já, porque custa pouco agora e evita refazer para vender |
-| Busca | `tsvector` + `unaccent` no Postgres | Substitui o FTS5 e as triggers do SQLite |
-| Login | **Identity Platform** (Firebase Auth): Google + e-mail/senha, MFA por app autenticador (TOTP) para o `dono` | Google nativo, SDK para web e para mobile (Expo). Grátis até 50 mil usuários ativos por mês. A API valida o ID token do Firebase |
-| Papéis | `dono`, `profissional`, `suporte` | Guardados como *custom claims* do token e conferidos na API |
-| Google Agenda | "Conectar agenda" em Configurações, OAuth separado do login, no mesmo projeto. Refresh token cifrado com **Cloud KMS** | O token do login não serve para chamar a agenda. As sincronizações rodam em **Cloud Tasks**, com novas tentativas automáticas |
+| Banco | **Cloud SQL PostgreSQL** em `southamerica-east1`, conectado pelo conector do Cloud Run com autenticação IAM | Sem VPC e sem NAT. O IP público fica sem redes autorizadas, então só o conector entra. Backup automático + PITR, proteção contra exclusão |
+| Login | **Identity Platform**: e-mail/senha + Google, uma conta por e-mail, MFA (TOTP) para o `dono` | Google nativo, SDK para web e mobile. Grátis até 50 mil usuários ativos por mês. A API valida o ID token; o papel vem da tabela `membros` |
+| Google Agenda | "Conectar agenda" em Configurações, OAuth separado do login, no mesmo projeto. Refresh token cifrado com **Cloud KMS** | O token do login não serve para chamar a agenda. A `fila_saida` alimenta o **Cloud Tasks**, que tenta de novo sozinho se o Google falhar |
 | Segredos | Secret Manager | Nada de segredo em variável fixa nem no repositório |
-| Contrato da API | OpenAPI gerado dos schemas Zod (`@hono/zod-openapi`) | Web e mobile usam um cliente tipado, sem duplicar regras. `packages/shared` continua sendo a fonte das regras |
-| Mobile | React Native + Expo, reaproveitando `packages/shared`. Push pelo **Firebase Cloud Messaging** | Regras, tipos, login e push ficam no mesmo projeto. Os componentes shadcn não vão |
-| Infra como código | **Pulumi em TypeScript** (`@pulumi/gcp`), estado num bucket do Cloud Storage, segredos do Pulumi cifrados com Cloud KMS | O projeto fica numa linguagem só, e o estado não depende de outro serviço. O Terraform foi considerado; tem mais material, mas é outra linguagem |
+| Mobile | Expo; push pelo **Firebase Cloud Messaging** | Login, push e API no mesmo projeto |
+| Infra como código | **Pulumi em TypeScript** (`@pulumi/gcp`), estado num bucket do Cloud Storage, segredos do Pulumi cifrados com Cloud KMS | O projeto fica numa linguagem só, e o estado não depende de outro serviço |
 | CI/CD | GitHub Actions com **Workload Identity Federation** (sem chave de conta de serviço). Imagem no Artifact Registry | Deploy automático na homologação a cada push |
 
 **Custo** (aproximado, confirmar na calculadora do GCP)
@@ -245,23 +231,19 @@ Os dois projetos ficam numa só conta de cobrança. Quem refina o app só recebe
 - **O alerta de orçamento não bloqueia o gasto.** O freio é o teto de instâncias do Cloud Run. Na homologação, um alerta que passar do limite pode desligar a cobrança do projeto automaticamente.
 - A menor instância do Cloud SQL é compartilhada e sem SLA: serve para começar. Para vender, sobe para uma instância dedicada.
 
-**Segurança e sigilo**
+**Segurança da infraestrutura**
 
 - **Acesso:** sua conta Google com verificação em duas etapas (chave de segurança ou passkey). Papéis IAM mínimos; uma conta de serviço por serviço, só com o que ele usa. Política da organização proíbe criar chaves de conta de serviço.
 - **Auditoria:** Cloud Audit Logs (atividade administrativa já vem ligada; ligar também os logs de acesso a dados do Cloud SQL e do KMS) e o nível gratuito do Security Command Center.
-- **Banco:** cifrado em disco por padrão (chave gerenciada pelo Google; chave própria no Cloud KMS, CMEK, quando for vender), TLS, RLS e um registro de acesso (quem abriu qual paciente e quando), visível para o `dono`.
+- **Banco:** cifrado em disco por padrão (chave gerenciada pelo Google; chave própria no Cloud KMS, CMEK, quando for vender) e TLS.
 - **Cifra campo a campo das notas fica para depois.** Ela impediria a busca no servidor. Se vier, começa só pelas anotações pessoais.
-- **Google Agenda:** o título do evento usa iniciais ou pseudônimo, como no modo discreto. Nunca o nome do paciente nem nada clínico.
-- **Proteção da API:** o filtro de Host loopback + `x-consultorio` dá lugar ao ID token obrigatório, à mesma origem pelo Hosting e a um limite de tentativas.
-- **Logs:** a regra continua: nada de conteúdo de notas nem dados de pacientes no Cloud Logging.
-- **Backup:** PITR do Cloud SQL, com um teste de restauração. O `.cofre` (AES-256-GCM) continua como exportação/download.
 - **Repositório:** privado no GitHub, com secret scanning e push protection, `master` protegida. O Dependabot fica desligado ou configurado para respeitar o `minimumReleaseAge` de 14 dias.
 
 **Google (começar cedo)**
 
-O login com Google e, principalmente, o escopo da agenda exigem domínio verificado, uma página de política de privacidade nele e uma verificação do app pelo Google. O escopo da agenda é "sensível" e a verificação pode levar semanas. Por isso a tela de consentimento OAuth do projeto `consultorio-prod` e o pedido de verificação entram na Fase 6.0, em paralelo com o resto. Na homologação, a tela de consentimento fica em modo de teste, com os refinadores como usuários de teste.
+O login com Google e, principalmente, o escopo da agenda exigem domínio verificado, uma página de política de privacidade nele, o logo do app e uma verificação do app pelo Google. O escopo da agenda é "sensível" e a verificação pode levar semanas. Por isso a tela de consentimento OAuth do projeto `consultorio-prod` e o pedido de verificação entram na Fase 6.0, em paralelo com o resto. Na homologação, a tela de consentimento fica em modo de teste, com os refinadores como usuários de teste.
 
-**Por que Postgres agora (e não SQLite por conta)**
+**Por que Postgres (e não SQLite por conta)**
 
 Com web, mobile e vários consultórios, um banco gerenciado com RLS, backup contínuo e conexões de vários clientes é o caminho que escala sem trocar de arquitetura depois. O custo é reescrever a busca (FTS5 → `tsvector`), as triggers e as migrações, e passar o serviço para async: trabalho de uma vez, feito localmente antes de qualquer gasto com nuvem.
 
@@ -272,15 +254,15 @@ Com web, mobile e vários consultórios, um banco gerenciado com RLS, backup con
 
 ## Roadmap por fases
 
-Cinco fases de core, cada uma termina num app que você já usa de verdade; a fase 1 sozinha já substitui uma planilha. As fases 6 (nuvem: Google Cloud, login, Google Agenda e mobile) e 7 (venda) vêm depois.
+Cinco fases de core, cada uma termina num app que você já usa de verdade. A Fase 6 leva o app para a nuvem e a 7 é a venda.
 
 **Fase 1 — Consultório básico**
 
-- [x] Estrutura do projeto, banco, migrações e tela de login com senha
+- [x] Estrutura do projeto, banco, migrações e tela de acesso com PIN *(o PIN saiu em 6 nov 2026; o login volta na Fase 6)*
 - [x] CRUD de pacientes e contratos (com arquivar/excluir só para *interrompido*)
 - [x] Geração de sessões pela grade fixa e marcação de estado
 - [x] Registro de pagamentos e saldo por paciente
-- [x] Exportar/importar snapshot cifrado para uma pasta do Drive
+- [x] Exportar/importar o `.cofre` (snapshot cifrado)
 
 **Fase 2 — Notas clínicas**
 
@@ -293,7 +275,7 @@ Cinco fases de core, cada uma termina num app que você já usa de verdade; a fa
 - [x] v0: pagamentos de pacientes como entradas + lançamentos manuais (entrada/saída, categoria)
 - [x] v0: fixos mensais (aluguel, supervisão…) com "Lançar fixos" do mês
 - [ ] Divulgação com dados reais: campanhas, gasto ligado aos lançamentos, pacientes captados
-- [ ] Sincronização com o Drive pela API (push/pull com detecção de conflito)
+- ~~Sincronização com o Drive pela API~~ (substituída pelo banco vivo na nuvem, 16 nov 2026)
 - [ ] Talvez: importação de extratos CSV/OFX com regras
 
 **Fase 4 — Investimentos e patrimônio** (fora do escopo por ora)
@@ -307,7 +289,8 @@ Cinco fases de core, cada uma termina num app que você já usa de verdade; a fa
 - [ ] Recibos em PDF e fechamento mensal
 - [ ] Visão fiscal mensal (carnê-leão / PJ)
 - [ ] Divulgação avançada: retorno por campanha, funil, orçamento de anúncios
-- [ ] Cotações automáticas e, se quiser, empacotar como app de desktop (Tauri)
+- [ ] Cotações automáticas
+- ~~Empacotar como app de desktop (Tauri)~~ (o destino agora é web + mobile)
 
 **Melhorias de uso (9 nov 2026)**: review pensando no dia a dia de uma psicóloga
 
@@ -324,57 +307,92 @@ Cinco fases de core, cada uma termina num app que você já usa de verdade; a fa
 - [x] Configurações: cor principal (paletas + personalizada), tamanho do texto, mensagens e modelos
 - [x] Painel: real primeiro nos cards; sem selo duplicado na lista "Hoje"
 
-A Fase 6 leva o app para a nuvem (Google Cloud); a 7 é a venda. Detalhes e decisões em [Nuvem e venda](#nuvem-e-venda-direção-decidida-em-12-nov-2026-google-cloud). A ordem tira o risco primeiro: a parte difícil (Postgres e login) é feita localmente, sem gastar com nuvem até a 6.3, e a verificação do Google corre em paralelo desde a 6.0.
+**Fase 6 — Nuvem.** A ordem tira o risco primeiro: a 6.1 prepara o app sem mudar nada de infraestrutura, a 6.2 e a 6.3 trocam banco e login localmente, e só a 6.4 começa a gastar com nuvem. A 6.0 corre em paralelo, porque a verificação do Google demora.
 
-**Fase 6.0 — Fundação** (sem gasto)
+**Fase 6.0 — Fundação** (sem gasto, em paralelo)
 
 - [x] `.gitignore` com `*.cofre` e `.env*`
 - [ ] Repositório privado no GitHub: secret scanning com push protection, `master` protegida, Dependabot desligado ou respeitando os 14 dias
 - [ ] Domínio `.com.br` no Registro.br (+ `.com` se livre), nameservers na Cloudflare (junto com a landing page)
 - [ ] Página de política de privacidade no domínio
 - [ ] Conta de cobrança no GCP + projetos `consultorio-staging` e `consultorio-prod`, verificação em duas etapas na conta Google
-- [ ] Tela de consentimento OAuth no `consultorio-prod`, domínio verificado e pedido de verificação do escopo da agenda
+- [ ] Tela de consentimento OAuth no `consultorio-prod` (com o logo da 6.1), domínio verificado e pedido de verificação do escopo da agenda
 
-**Fase 6.1 — API em Postgres** (local)
+**Fase 6.1 — Preparar o app** (local, no SQLite de hoje; já dá para começar)
+
+*Dados e API*
+
+- [ ] Contexto da requisição: um middleware define usuário, consultório e papel, e todo serviço recebe esse contexto. Local: `dono` fixo, sem login de verdade
+- [ ] Novas tabelas: `consultorios`, `usuarios`, `membros`, `convites`, `configuracoes` (sai do `meta_sistema`), `preferencias` (sai do `localStorage`), `acessos`
+- [ ] `consultorio_id` e `atualizado_em` em todas as tabelas; `criado_por`/`atualizado_por` nas clínicas; sai `pagamentos.transacao_id`
+- [ ] Conflito de edição (409) com `atualizado_em`, começando por notas e sessões
+- [ ] Registro de acesso: abrir ficha, nota e PDF grava em `acessos`
+- [ ] API por recurso (pacientes, sessões por intervalo, notas por paciente, com paginação) no lugar do pacote único `GET /consultorio`
+- [ ] OpenAPI gerado dos schemas Zod (`@hono/zod-openapi`) e cliente tipado
+- [ ] Web com TanStack Query sobre o cliente tipado (recarrega só o que mudou)
+- [ ] Configuração por variáveis de ambiente (`HOST`, `PORT`, banco, modo de login), healthcheck, logs estruturados sem dados de pacientes, `Dockerfile`
+
+*Login mockado*
+
+- [ ] Provedor de sessão (`useSessao`) com implementação mock, pronto para trocar pelo Firebase Auth
+- [ ] Telas: Entrar (Google + e-mail/senha), Criar senha a partir do convite, Esqueci a senha, Código do MFA, Sem acesso, Sair
+- [ ] Configurações → Conta: nome, e-mail, métodos de login (Google ligado, senha, MFA)
+- [ ] Local continua abrindo direto, logado como `dono` (regra do `CLAUDE.md`); `?mock=deslogado` mostra o login. Testes visuais das telas novas
+
+*Ícones*
+
+- [ ] Ícone do app na direção "Sálvia": favicon (SVG + ICO), `apple-touch-icon`, ícones maskable 192/512
+- [ ] `manifest.webmanifest` com nome, cores e `theme-color` claro/escuro (base para um PWA). Sem service worker que guarde dados clínicos
+- [ ] Logo 120×120 para a tela de consentimento do Google; os mesmos arquivos servem depois para o Expo
+
+*Google Agenda mockado*
+
+- [ ] Configurações → Integrações → Google Agenda: estados desconectado, conectando, conectado (e-mail e calendário escolhido), sincronizando e erro
+- [ ] Prévia de como a sessão aparece no Google (iniciais/pseudônimo, horário, sem nada clínico)
+- [ ] Função pura `eventoDaSessao` em `packages/shared`, com testes: título, início/fim, fuso, evento privado, id da sessão nas propriedades privadas
+- [ ] Tabelas `integracoes_google`, `eventos_agenda` e `fila_saida`; criar, remarcar, cancelar ou excluir sessão grava na fila; um worker local só marca como processado
+
+**Fase 6.2 — API em Postgres** (local)
 
 - [ ] Postgres em Docker no desenvolvimento; PGlite nos testes
-- [ ] Schema Drizzle em PostgreSQL, `consultorio_id` em toda tabela, migrações novas
+- [ ] Schema Drizzle em PostgreSQL (com tudo da 6.1) e migrações novas
 - [ ] Serviço async
 - [ ] Row-Level Security por `consultorio_id`
 - [ ] Busca com `tsvector` + `unaccent` (substitui FTS5 e triggers)
-- [ ] Contrato OpenAPI gerado dos schemas Zod (`@hono/zod-openapi`)
-- [ ] `Dockerfile` da API (o mesmo container roda local e no Cloud Run)
-- [ ] Script de exportação do SQLite e importação no Postgres
+- [ ] Importação do SQLite/`.cofre` para o Postgres
 
-**Fase 6.2 — Login** (local)
+**Fase 6.3 — Login de verdade** (local, emulador do Firebase Auth)
 
-- [ ] Identity Platform com Google + e-mail/senha, MFA (TOTP) para o `dono`; emulador do Firebase Auth no desenvolvimento
-- [ ] API valida o ID token; papéis `dono`, `profissional`, `suporte` como custom claims
-- [ ] Web com o SDK do Firebase Auth
+- [ ] Trocar o mock pelo Identity Platform: e-mail/senha e Google, uma conta por e-mail
+- [ ] API valida o ID token e busca o papel em `membros`; quem não é membro vê "sem acesso"
+- [ ] MFA (TOTP) obrigatório para o `dono`; bloqueio por inatividade
+- [ ] Convites por e-mail
 - [ ] Sai a guarda de loopback + `x-consultorio`; entram token obrigatório e limite de tentativas
-- [ ] Registro de acesso a dados de pacientes, visível para o `dono`
 - [ ] Atualizar `CLAUDE.md` (regras de loopback e de acesso)
 
-**Fase 6.3 — GCP e homologação**
+**Fase 6.4 — GCP e homologação**
 
 - [ ] Organização (Cloud Identity Free) com os dois projetos; política que proíbe chaves de conta de serviço
 - [ ] Alertas de orçamento, logs de acesso a dados (Cloud SQL, KMS), Security Command Center gratuito
-- [ ] Pulumi (TypeScript, estado no Cloud Storage): Cloud SQL, Cloud Run, Artifact Registry, Firebase Hosting com rewrite de `/api/**`, Identity Platform, Secret Manager, Cloud KMS
+- [ ] Pulumi (TypeScript, estado no Cloud Storage): Cloud SQL, Cloud Run, Artifact Registry, Firebase Hosting com rewrite de `/api/**`, Identity Platform, Secret Manager, Cloud KMS, Cloud Tasks
 - [ ] GitHub Actions com Workload Identity Federation, deploy na homologação a cada push
 - [ ] Homologação com mocks fictícios recriados a cada deploy; banco desligado fora do horário de uso
-- [ ] Convites por e-mail para refinadores (só homologação)
+- [ ] Convites para refinadores (só homologação)
 
-**Fase 6.4 — Produção**
+**Fase 6.5 — Produção**
 
 - [ ] Deploy no `consultorio-prod`; PITR ligado, proteção contra exclusão e um teste de restauração feito
-- [ ] Migrar seus dados do SQLite local
+- [ ] Migrar seus dados da versão local (`.cofre`/SQLite → Postgres) por um canal cifrado, e apagar as cópias temporárias
+- [ ] Teste final: login, paciente fictício, sessão, pagamento, nota, PDF, restauração
 
-**Fase 6.5 — Google Agenda**
+**Fase 6.6 — Google Agenda de verdade**
 
-- [ ] "Conectar agenda" em Configurações (OAuth separado), refresh token cifrado com Cloud KMS
-- [ ] Sincronização app → Google via Cloud Tasks, com títulos em iniciais/pseudônimo
+- [ ] OAuth "Conectar agenda" (escopo de eventos), refresh token cifrado com Cloud KMS
+- [ ] Cloud Tasks consumindo a `fila_saida`: sessão → evento no Google, com novas tentativas
+- [ ] Desconectar apaga o token e, se você quiser, os eventos criados pelo app
+- [ ] Depois, opcional: mostrar na agenda do app os horários ocupados do Google (só leitura)
 
-**Fase 6.6 — Mobile**
+**Fase 6.7 — Mobile**
 
 - [ ] Decidir: Expo nativo ou PWA primeiro
 - [ ] App consumindo a API pelo cliente gerado do OpenAPI e as regras de `packages/shared`; login pelo Firebase Auth; push pelo Firebase Cloud Messaging
@@ -387,148 +405,4 @@ A Fase 6 leva o app para a nuvem (Google Cloud); a 7 é a venda. Detalhes e deci
 - [ ] Termos de uso, política de privacidade e contrato de tratamento de dados (DPA)
 - [ ] Exportação completa e exclusão dos dados do cliente (portabilidade LGPD)
 
-## Como começar no Claude Code
-
-Exporte este doc como Markdown, salve como `docs/PLANO.md` numa pasta vazia, abra o Claude Code nela e cole o prompt abaixo. Peça uma fase por vez e revise antes de seguir.
-
-```text
-Leia docs/PLANO.md. Vamos construir a Fase 1 desse plano.
-
-Stack: monorepo com pnpm. Front em React + Vite + TypeScript + Tailwind + shadcn/ui.
-API local em Hono (Node) ouvindo só em 127.0.0.1. Banco SQLite com better-sqlite3
-(ou SQLCipher) e Drizzle ORM com migrações. Validação com Zod compartilhado entre
-front e API. Valores monetários em centavos (inteiro) + código de moeda.
-
-Antes de codar:
-1. Crie um CLAUDE.md com as convenções do projeto (pastas, comandos, regras de dinheiro
-   e de sigilo).
-2. Proponha o esquema Drizzle da Fase 1 e espere minha aprovação.
-
-Depois implemente, com testes (Vitest) para: geração de sessões pela grade fixa,
-cálculo de saldo por paciente e exportação/importação do snapshot cifrado.
-Interface em português. Um comando só (pnpm dev) deve subir tudo.
-```
-
-Dicas de uso: comece cada fase com o modo de planejamento do Claude Code, faça commits pequenos no git e use dados fictícios até a fase 1 estar estável.
-
-## Prompts por etapa
-
-Quatro prompts, um por sessão do Claude Code, nesta ordem: Layout → Fase 1 → Fase 2 → Fase 3. Eles substituem o prompt inicial acima. Só passe para a próxima etapa quando a anterior estiver aprovada e commitada.
-
-### Etapa 0 — Layout, calendário e testes visuais
-
-```text
-Leia docs/PLANO.md. Antes de qualquer regra de negócio, quero validar o visual do app.
-
-1. Setup: monorepo pnpm com apps/web (React + Vite + TypeScript + Tailwind + shadcn/ui)
-   e apps/api (Hono, só 127.0.0.1). Um comando: pnpm dev. Crie o CLAUDE.md com
-   convenções de pastas, comandos, regras de dinheiro (centavos + moeda) e de sigilo.
-
-2. Direção visual: proponha 3 direções (paleta, tipografia, densidade, cantos, uso de
-   cor) para um app calmo e profissional de consultório + finanças. Monte as 3 numa
-   rota /lab, lado a lado, e espere eu escolher. Depois transforme a escolhida em
-   tokens (CSS variables) com tema claro e escuro.
-
-3. Shell do app: sidebar com Painel, Agenda, Pacientes, Finanças, Configurações;
-   topo com busca global (Cmd+K) e botão "+ Novo". Responsivo até 390 px.
-
-4. Telas com dados fictícios (arquivo de mocks tipado, sem banco ainda):
-   - Painel: sessões de hoje, a receber, receita do mês, faltas.
-   - Pacientes: lista com filtro por status e origem; ficha com abas
-     Resumo / Sessões / Pagamentos / Notas.
-   - Finanças: contas com saldo por moeda (BRL, AED), lista de transações, um gráfico.
-
-5. Calendário (o mais caprichado): construa um componente próprio com date-fns e
-   dnd-kit, sem FullCalendar. Visões Dia, Semana e Mês; semana começando na segunda;
-   linha do "agora"; sessões coloridas por estado (agendada, realizada, falta,
-   cancelada) com o nome/iniciais do paciente; arrastar para remarcar; clique abre
-   um painel lateral com ações rápidas (realizada, falta, pago). Fuso configurável,
-   pois atendo pacientes no Brasil estando em outro fuso: mostre os dois horários.
-   Estados vazios e carregando bem resolvidos.
-
-6. Testes de layout: Playwright com screenshots de cada tela em 1440 px e 390 px,
-   nos temas claro e escuro, salvos como baseline (toHaveScreenshot). Rode axe para
-   acessibilidade. Adicione pnpm test:visual.
-
-Trabalhe em modo de planejamento primeiro, mostre o plano e espere meu ok.
-Ao terminar cada tela, me mostre as screenshots antes de seguir.
-```
-
-### Etapa 1 — Consultório básico
-
-```text
-Leia docs/PLANO.md e CLAUDE.md. O layout e o calendário da Etapa 0 estão aprovados;
-não mude o visual, só ligue as telas ao banco. Escopo: Fase 1 do plano.
-
-1. Banco: SQLite com better-sqlite3 + Drizzle, migrações versionadas, tabela
-   meta_sistema (versão do esquema, id do dispositivo, último sync). Proponha o
-   esquema de pacientes, contratos, sessoes e pagamentos e espere minha aprovação.
-2. Senha ao abrir o app e bloqueio após 15 min de inatividade.
-3. Pacientes e contratos: CRUD completo, com histórico de reajuste (vigente_de /
-   vigente_ate), sem apagar o passado.
-4. Sessões: gerar as próximas 8 semanas a partir da grade fixa; marcar estado pelo
-   calendário e pela lista "Hoje"; remarcar arrastando já grava no banco.
-5. Pagamentos e saldo: registrar pagamento (valor, data, meio, conta) e calcular
-   saldo por paciente (sessões cobráveis − pagamentos).
-6. Backup: botões Exportar/Importar que geram um snapshot com VACUUM INTO, cifrado com
-   AES-256-GCM e chave derivada da senha (scrypt), salvo numa pasta que eu escolho
-   (vou usar a do Google Drive para Desktop). Importar faz backup local antes.
-7. Substitua os mocks pelas chamadas reais; mantenha um seed de dados fictícios.
-
-Testes (Vitest): geração de sessões (incluindo feriados manuais e mudança de
-contrato), cálculo de saldo, ida e volta do snapshot cifrado. Os testes visuais da
-Etapa 0 devem continuar passando.
-```
-
-### Etapa 2 — Notas clínicas
-
-```text
-Leia docs/PLANO.md e CLAUDE.md. Escopo: Fase 2 do plano. Não altere regras de
-sessões ou pagamentos.
-
-1. Tabela notas (texto, tipo: sessao | fixa | supervisao, tags, datas), ligada a
-   paciente e, opcionalmente, a sessão.
-2. Editor markdown simples e rápido, com salvamento automático e atalho para abrir
-   a nota da sessão direto do calendário.
-3. Na ficha do paciente: bloco "Pontos fixos" sempre visível no topo e linha do
-   tempo das notas de sessão.
-4. Busca de texto completo com SQLite FTS5 em todas as notas, integrada ao Cmd+K,
-   com destaque do termo encontrado.
-5. Marcador "levar para supervisão" e uma página que reúne essas notas.
-6. Separar registro documental de anotação pessoal (campo e filtro), e exportar o
-   prontuário de um paciente em PDF.
-7. Painel do consultório com dados reais: semana, ativos, faltas do mês, a receber.
-8. Banco cifrado em disco com SQLCipher; migre o banco existente sem perder dados.
-
-Testes: busca FTS (acentos e termos parciais), migração para SQLCipher, export PDF.
-Atualize as baselines visuais só das telas que mudaram e me mostre as diferenças.
-```
-
-### Etapa 3 — Finanças essenciais e sync com o Drive
-
-```text
-Leia docs/PLANO.md e CLAUDE.md. Escopo: Fase 3 do plano.
-
-1. Tabelas contas, categorias (2 níveis), transacoes, recorrencias,
-   regras_importacao e cotacoes. Proponha o esquema e espere minha aprovação.
-2. Contas por instituição, país e moeda (começo com uma conta BRL e uma AED).
-   Saldo calculado + ajuste de conferência.
-3. Transações: receita, despesa e transferência entre contas, inclusive entre moedas
-   com a taxa usada gravada. Valor sempre na moeda original.
-4. Integração: todo pagamento de paciente cria (e atualiza/apaga junto) uma
-   transação de receita na categoria Clínica, ligada por pagamentos.transacao_id.
-5. Recorrências (aluguel, parcelas, assinaturas) lançadas como "a confirmar" no mês.
-6. Importação de extratos CSV e OFX com tela de pré-visualização, detecção de
-   duplicadas e regras de categorização ("contém X → categoria Y").
-7. Tela Finanças: saldo por conta e total na moeda de relatório escolhida,
-   fluxo de caixa mensal e gastos por categoria (Recharts), receita da clínica por
-   mês e por paciente.
-8. Sync com Google Drive pela API: me guie para criar o projeto no Google Cloud e o
-   OAuth (escopo drive.file). Push/pull dos snapshots cifrados, metadados com versão
-   do esquema, dispositivo e hash, retenção dos últimos 30, detecção de conflito
-   quando os dois lados mudaram (eu escolho; o outro vira backup).
-
-Testes: conversão de moeda, transferências entre moedas, criação automática de
-receita a partir de pagamento, importação com duplicadas, cenários de conflito do
-sync (local novo, remoto novo, ambos mudaram). Testes visuais das telas novas.
-```
+Os prompts usados nas Fases 1–3 estão em [`docs/historico/prompts-fases-1-3.md`](historico/prompts-fases-1-3.md).
