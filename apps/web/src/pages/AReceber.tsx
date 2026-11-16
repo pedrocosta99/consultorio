@@ -1,5 +1,5 @@
 /**
- * Cobranças: fechamento do mês por paciente (com mensagem pronta para enviar) e
+ * A receber: fechamento do mês por paciente (com mensagem pronta para enviar) e
  * controle dos recibos emitidos no Receita Saúde.
  */
 import { useMemo, useState } from "react";
@@ -31,7 +31,7 @@ function somarMes(mes: string, delta: number): string {
 
 const nomeMes = (mes: string) => capitalizar(fmt(new Date(`${mes}-15T12:00:00`), "MMMM 'de' yyyy"));
 
-export function PaginaCobrancas() {
+export function PaginaAReceber() {
   const { sessoes, pagamentos, carregando, paciente, nomeExibicao, mensagens } = useDados();
   const { fusoPrincipal } = usePreferencias();
   const hoje = chaveDia(new Date(), fusoPrincipal);
@@ -54,7 +54,7 @@ export function PaginaCobrancas() {
   return (
     <>
       <CabecalhoPagina
-        titulo="Cobranças"
+        titulo="A receber"
         descricao="Fechamento do mês por paciente e recibos do Receita Saúde."
         acoes={
           <div className="flex items-center gap-1">

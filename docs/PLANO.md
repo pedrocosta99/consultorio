@@ -395,7 +395,7 @@ Cinco fases de core, cada uma termina num app que você já usa de verdade. A Fa
 - [x] Nota da sessão direto do Painel e do painel da agenda (sem abrir a ficha)
 - [x] "Sem registro": sessões passadas que continuam "agendadas", com ações rápidas
 - [x] "Para relembrar" antes da sessão: pontos fixos + nota anterior
-- [x] Cobranças: fechamento do mês por paciente, mensagem pronta (WhatsApp/copiar) com chave Pix
+- [x] A receber (antes "Cobranças"): fechamento do mês por paciente, mensagem pronta (WhatsApp/copiar) com chave Pix
 - [x] Recibos do Receita Saúde: a emitir / emitidos (pagamentos em real), marcar todos
 - [x] Sessão avulsa (menu Novo e ficha)
 - [x] Editor de notas com barra de formatação e modelo de registro documental (CFP 001/2009)

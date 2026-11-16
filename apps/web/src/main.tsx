@@ -1,6 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { createBrowserRouter, RouterProvider } from "react-router";
+import { createBrowserRouter, Navigate, RouterProvider } from "react-router";
 import "./index.css";
 import { AvisosProvider } from "@/app/avisos";
 import { DadosProvider } from "@/app/dados";
@@ -16,7 +16,7 @@ import { PaginaAgenda } from "@/pages/Agenda";
 import { PaginaFinancas } from "@/pages/financas/Financas";
 import { PaginaConfiguracoes } from "@/pages/Configuracoes";
 import { PaginaSupervisao } from "@/pages/Supervisao";
-import { PaginaCobrancas } from "@/pages/Cobrancas";
+import { PaginaAReceber } from "@/pages/AReceber";
 
 const router = createBrowserRouter([
   {
@@ -28,7 +28,9 @@ const router = createBrowserRouter([
       { path: "pacientes/:id", element: <PaginaPacienteFicha /> },
       { path: "financas", element: <PaginaFinancas /> },
       { path: "supervisao", element: <PaginaSupervisao /> },
-      { path: "cobrancas", element: <PaginaCobrancas /> },
+      { path: "a-receber", element: <PaginaAReceber /> },
+      // Endereço antigo da mesma tela.
+      { path: "cobrancas", element: <Navigate to="/a-receber" replace /> },
       { path: "configuracoes", element: <PaginaConfiguracoes /> },
       { path: "lab", element: <PaginaLab /> },
       { path: "*", element: <PaginaEmConstrucao titulo="Página não encontrada" /> },

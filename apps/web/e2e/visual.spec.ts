@@ -13,7 +13,7 @@ const TELAS: Array<[nome: string, rota: string]> = [
   ["divulgacao", "/financas?aba=divulgacao"],
   ["ficha-notas", "/pacientes/p07?aba=notas"],
   ["supervisao", "/supervisao"],
-  ["cobrancas", "/cobrancas"],
+  ["a-receber", "/a-receber"],
   ["configuracoes", "/configuracoes"],
   ["lab", "/lab"],
   ["painel-vazio", "/?mock=vazio"],
