@@ -49,3 +49,18 @@ describe("arrastar", () => {
     expect(novoHorario(600, 30, 50)).toBe(630);
   });
 });
+
+describe("duração e seleção", () => {
+  it("novaDuracao encaixa no passo, tem mínimo e não passa da meia-noite", async () => {
+    const { novaDuracao } = await import("./layout");
+    expect(novaDuracao(600, 50, 15)).toBe(60); // 65 → 60
+    expect(novaDuracao(600, 50, -60)).toBe(15);
+    expect(novaDuracao(23 * 60, 50, 120)).toBe(60);
+  });
+  it("intervaloSelecionado funciona nos dois sentidos e tem ao menos um passo", async () => {
+    const { intervaloSelecionado } = await import("./layout");
+    expect(intervaloSelecionado(610, 700)).toEqual({ inicio: 600, duracao: 105 });
+    expect(intervaloSelecionado(700, 610)).toEqual({ inicio: 600, duracao: 105 });
+    expect(intervaloSelecionado(605, 605)).toEqual({ inicio: 600, duracao: 15 });
+  });
+});

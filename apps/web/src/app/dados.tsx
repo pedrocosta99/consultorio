@@ -52,7 +52,7 @@ interface Ctx extends Mocks {
   /** Chama a API e recarrega os dados. Erros sobem para quem chamou. */
   mutar: <T = { ok: true; id?: string }>(metodo: Metodo, rota: string, corpo?: unknown) => Promise<T>;
   /** Atualização otimista de sessão (estado, horário, pago). Erros viram aviso. */
-  atualizarSessao: (id: string, patch: Partial<Pick<Sessao, "estado" | "inicio" | "pago">>) => void;
+  atualizarSessao: (id: string, patch: Partial<Pick<Sessao, "estado" | "inicio" | "duracaoMin" | "pago">>) => void;
   paciente: (id: string) => Paciente | undefined;
   nomeExibicao: (p: Paciente | undefined, forma?: "curto" | "completo") => string;
   /** Saldo por moeda: cobráveis − pagamentos. Positivo = deve; negativo = crédito. */

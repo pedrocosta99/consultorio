@@ -28,10 +28,12 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useDados } from "@/app/dados";
 import { usePreferencias } from "@/app/preferencias";
 import { ESTILO_ESTADO } from "@/components/comuns";
-import { GradeHorario } from "@/components/calendar/GradeHorario";
+import { DialogoRecorrencia } from "@/components/calendar/DialogoRecorrencia";
+import { GradeHorario, type Fantasma } from "@/components/calendar/GradeHorario";
+import { DialogoSessao, type SessaoInicial } from "@/components/formularios/DialogoSessao";
 import { PainelSessao } from "@/components/calendar/PainelSessao";
 import { VisaoMes } from "@/components/calendar/VisaoMes";
-import { capitalizar, chaveDia, FUSOS_DISPONIVEIS, fmt, hora, instanteEm, nomeFuso, noFuso, offsetFuso, SEMANA } from "@/lib/datas";
+import { capitalizar, chaveDia, FUSOS_DISPONIVEIS, fmt, hora, instanteEm, minutosDoDia, nomeFuso, noFuso, offsetFuso, SEMANA } from "@/lib/datas";
 import { cn } from "@/lib/utils";
 
 type Visao = "dia" | "semana" | "mes";
@@ -60,16 +62,31 @@ const LEGENDA = [
 
 interface Aviso {
   texto: string;
-  desfazer: () => void;
+  desfazer?: () => void;
+}
+
+/** Mudança de horário/duração esperando a resposta "só esta / esta e as seguintes". */
+interface Pendente {
+  sessao: Sessao;
+  inicio: string;
+  duracaoMin: number;
+}
+
+type Alcance = "so_esta" | "seguintes";
+
+function hhmm(m: number): string {
+  return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 }
 
 export function PaginaAgenda() {
-  const { sessoes, carregando, atualizarSessao, paciente } = useDados();
+  const { sessoes, carregando, atualizarSessao, paciente, mutar } = useDados();
   const { fusoPrincipal, fusoSecundario, atualizar } = usePreferencias();
   const [params, setParams] = useSearchParams();
   const [agora, setAgora] = useState(() => new Date());
   const [aberta, setAberta] = useState<string | null>(null);
   const [aviso, setAviso] = useState<Aviso | null>(null);
+  const [pendente, setPendente] = useState<Pendente | null>(null);
+  const [criando, setCriando] = useState<Fantasma | null>(null);
 
   useEffect(() => {
     const t = setInterval(() => setAgora(new Date()), 60_000);
@@ -78,7 +95,7 @@ export function PaginaAgenda() {
 
   useEffect(() => {
     if (!aviso) return;
-    const t = setTimeout(() => setAviso(null), 6000);
+    const t = setTimeout(() => setAviso(null), aviso.desfazer ? 6000 : 8000);
     return () => clearTimeout(t);
   }, [aviso]);
 
@@ -117,10 +134,18 @@ export function PaginaAgenda() {
       else if (k === "d") ir("dia", ref);
       else if (k === "s") ir("semana", ref);
       else if (k === "m") ir("mes", ref);
+      else if (k === "c") {
+        e.preventDefault();
+        // Próxima hora cheia de hoje, ou 09:00 em outro dia.
+        const chave = format(ref, "yyyy-MM-dd");
+        const ehHoje = chave === format(hojeParede, "yyyy-MM-dd");
+        const inicio = ehHoje ? Math.min(23 * 60, (Math.floor(minutosDoDia(agora, fusoPrincipal) / 60) + 1) * 60) : 9 * 60;
+        setCriando({ chave, inicio, duracao: 50 });
+      }
     };
     window.addEventListener("keydown", tecla);
     return () => window.removeEventListener("keydown", tecla);
-  }, [passo, ir, visao, ref, hojeParede]);
+  }, [passo, ir, visao, ref, hojeParede, agora, fusoPrincipal]);
 
   const dias = useMemo(() => {
     if (visao === "dia") return [ref];
@@ -134,22 +159,68 @@ export function PaginaAgenda() {
     [sessoes, chavesVisiveis, fusoPrincipal],
   );
 
-  const mover = useCallback(
-    (id: string, diaChave: string, minutos: number) => {
-      const s = sessoes.find((x) => x.id === id);
-      if (!s) return;
-      const novo = instanteEm(new Date(diaChave + "T00:00:00"), minutos, fusoPrincipal).toISOString();
-      if (novo === s.inicio) return;
-      const anterior = s.inicio;
-      atualizarSessao(id, { inicio: novo });
+  /** "Só esta": muda a sessão; se veio da grade, ela passa a ser uma exceção (remarcada). */
+  const aplicarSoEsta = useCallback(
+    (s: Sessao, inicio: string, duracaoMin: number) => {
+      const antes = { inicio: s.inicio, duracaoMin: s.duracaoMin, estado: s.estado };
+      const virouExcecao = !!s.contratoId && s.estado === "agendada";
+      atualizarSessao(s.id, { inicio, duracaoMin, ...(virouExcecao ? { estado: "remarcada" as const } : {}) });
       const p = paciente(s.pacienteId);
+      const quando = `${fmt(noFuso(inicio, fusoPrincipal), "EEE, d MMM")} às ${hora(inicio, fusoPrincipal)}`;
       setAviso({
-        texto: `${p?.apelido ?? "Sessão"} movida para ${fmt(noFuso(novo, fusoPrincipal), "EEE, d MMM")} às ${hora(novo, fusoPrincipal)}`,
-        desfazer: () => atualizarSessao(id, { inicio: anterior }),
+        texto: inicio === s.inicio ? `${p?.apelido ?? "Sessão"}: agora com ${duracaoMin} min` : `${p?.apelido ?? "Sessão"} movida para ${quando}`,
+        desfazer: () => atualizarSessao(s.id, antes),
       });
     },
-    [sessoes, atualizarSessao, paciente, fusoPrincipal],
+    [atualizarSessao, paciente, fusoPrincipal],
   );
+
+  /** Ponto único para mover e redimensionar: pergunta o alcance quando a sessão vem da grade. */
+  const alterar = useCallback(
+    (id: string, mudanca: { inicio?: string; duracaoMin?: number }) => {
+      const s = sessoes.find((x) => x.id === id);
+      if (!s) return;
+      const inicio = mudanca.inicio ?? s.inicio;
+      const duracaoMin = mudanca.duracaoMin ?? s.duracaoMin;
+      if (inicio === s.inicio && duracaoMin === s.duracaoMin) return;
+      if (s.contratoId && s.estado === "agendada") setPendente({ sessao: s, inicio, duracaoMin });
+      else aplicarSoEsta(s, inicio, duracaoMin);
+    },
+    [sessoes, aplicarSoEsta],
+  );
+
+  const mover = useCallback(
+    (id: string, diaChave: string, minutos: number) =>
+      alterar(id, { inicio: instanteEm(new Date(diaChave + "T00:00:00"), minutos, fusoPrincipal).toISOString() }),
+    [alterar, fusoPrincipal],
+  );
+  const redimensionar = useCallback((id: string, duracaoMin: number) => alterar(id, { duracaoMin }), [alterar]);
+
+  const responderAlcance = async (alcance: Alcance) => {
+    if (!pendente) return;
+    const { sessao: s, inicio, duracaoMin } = pendente;
+    if (alcance === "so_esta") {
+      aplicarSoEsta(s, inicio, duracaoMin);
+      setPendente(null);
+      return;
+    }
+    try {
+      const r = await mutar<{ ok: true; mantidas: number }>("POST", `/sessoes/${s.id}/seguintes`, { inicio, duracaoMin });
+      const p = paciente(s.pacienteId);
+      const desde = fmt(noFuso(inicio < s.inicio ? inicio : s.inicio, fusoPrincipal), "d 'de' MMM");
+      setAviso({
+        texto:
+          `Horário fixo de ${p?.apelido ?? "paciente"} alterado a partir de ${desde}.` +
+          (r.mantidas ? ` ${r.mantidas === 1 ? "1 sessão com registro ficou" : `${r.mantidas} sessões com registro ficaram`} como estava${r.mantidas === 1 ? "" : "m"}.` : ""),
+      });
+      setPendente(null);
+    } catch (e) {
+      setAviso({ texto: e instanceof Error ? e.message : "Não foi possível alterar o horário fixo." });
+      setPendente(null);
+    }
+  };
+
+  const inicialCriacao: SessaoInicial | null = criando ? { data: criando.chave, horario: hhmm(criando.inicio), duracaoMin: criando.duracao } : null;
 
   const abrir = useCallback((s: Sessao) => setAberta(s.id), []);
   const abrirDia = useCallback((d: Date) => ir("dia", d), [ir]);
@@ -230,7 +301,7 @@ export function PaginaAgenda() {
         <span className="flex items-center gap-1">
           <CircleDollarSign className="size-3.5" aria-hidden /> pago
         </span>
-        <span className="ml-auto hidden lg:inline">Arraste para remarcar · ← → navegam · T hoje</span>
+        <span className="ml-auto hidden lg:inline">Clique num horário para criar · arraste para remarcar · puxe a borda para a duração · C cria · T hoje</span>
       </div>
 
       {!carregando && visiveis.length === 0 && (
@@ -270,9 +341,30 @@ export function PaginaAgenda() {
             aoAbrir={abrir}
             aoAbrirDia={abrirDia}
             aoMover={mover}
+            aoRedimensionar={redimensionar}
+            aoCriar={setCriando}
+            fantasma={criando}
           />
         )}
       </div>
+
+      <DialogoRecorrencia<Alcance>
+        aberto={pendente !== null}
+        titulo="Alterar sessão do horário fixo"
+        descricao={pendente ? `${paciente(pendente.sessao.pacienteId)?.apelido ?? "Paciente"}: ${fmt(noFuso(pendente.inicio, fusoPrincipal), "EEE, d MMM")}, ${hora(pendente.inicio, fusoPrincipal)} · ${pendente.duracaoMin} min` : undefined}
+        opcoes={[
+          { valor: "so_esta", rotulo: "Só esta sessão", descricao: "As outras continuam no horário fixo." },
+          {
+            valor: "seguintes",
+            rotulo: "Esta e as seguintes",
+            descricao: "O horário fixo muda a partir desta. Sessões com nota ou pagamento não mudam.",
+          },
+        ]}
+        aoEscolher={responderAlcance}
+        aoFechar={() => setPendente(null)}
+      />
+
+      <DialogoSessao aberto={criando !== null} inicial={inicialCriacao} aoFechar={() => setCriando(null)} />
 
       <PainelSessao
         sessaoId={aberta}
@@ -282,22 +374,24 @@ export function PaginaAgenda() {
         aoRemarcar={mover}
       />
 
-      {aviso && (
+      {aviso && !pendente && (
         <div
           role="status"
           className="fixed inset-x-4 bottom-[calc(1rem+env(safe-area-inset-bottom,0px))] z-50 mx-auto flex max-w-md items-center gap-3 rounded-xl border bg-popover px-4 py-3 text-sm shadow-lg"
         >
           <span className="min-w-0 flex-1">{aviso.texto}</span>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              aviso.desfazer();
-              setAviso(null);
-            }}
-          >
-            <Undo2 aria-hidden /> Desfazer
-          </Button>
+          {aviso.desfazer && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                aviso.desfazer?.();
+                setAviso(null);
+              }}
+            >
+              <Undo2 aria-hidden /> Desfazer
+            </Button>
+          )}
           <Button size="icon-sm" variant="ghost" aria-label="Fechar aviso" onClick={() => setAviso(null)}>
             <X aria-hidden />
           </Button>

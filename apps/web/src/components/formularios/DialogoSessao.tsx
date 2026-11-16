@@ -14,7 +14,26 @@ import { Campo, CampoDinheiro, SeletorSimples, textoDeDinheiro } from "./campos"
  * Sessão fora da grade fixa: primeira entrevista, sessão extra, reposição.
  * Valor e duração vêm do contrato vigente, se houver.
  */
-export function DialogoSessao({ aberto, aoFechar, pacienteId: fixo }: { aberto: boolean; aoFechar: () => void; pacienteId?: string }) {
+export interface SessaoInicial {
+  /** "yyyy-MM-dd" */
+  data: string;
+  /** "HH:mm" no fuso principal */
+  horario: string;
+  /** Duração escolhida ao arrastar na agenda; sem ela, vale a do contrato. */
+  duracaoMin?: number;
+}
+
+export function DialogoSessao({
+  aberto,
+  aoFechar,
+  pacienteId: fixo,
+  inicial,
+}: {
+  aberto: boolean;
+  aoFechar: () => void;
+  pacienteId?: string;
+  inicial?: SessaoInicial | null;
+}) {
   const { pacientes, contratos, mutar, nomeExibicao } = useDados();
   const { fusoPrincipal } = usePreferencias();
   const { avisar } = useAvisos();
@@ -29,19 +48,19 @@ export function DialogoSessao({ aberto, aoFechar, pacienteId: fixo }: { aberto: 
   const prepararPara = (id: string) => {
     const k = contratoVigente(contratos, id);
     setValor(textoDeDinheiro(k?.valor));
-    setDuracao(String(k?.duracaoMin ?? 50));
+    setDuracao(String(inicial?.duracaoMin ?? k?.duracaoMin ?? 50));
   };
 
   useEffect(() => {
     if (!aberto) return;
     setPacienteId(fixo ?? "");
-    setData(chaveDia(new Date(), fusoPrincipal));
-    setHorario("");
+    setData(inicial?.data ?? chaveDia(new Date(), fusoPrincipal));
+    setHorario(inicial?.horario ?? "");
     setErro(null);
     if (fixo) prepararPara(fixo);
     else {
       setValor({ texto: "", moeda: "BRL" });
-      setDuracao("50");
+      setDuracao(String(inicial?.duracaoMin ?? 50));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aberto, fixo]);

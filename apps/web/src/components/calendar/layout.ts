@@ -59,3 +59,16 @@ export function pixelsParaMinutos(dy: number, pxPorMin: number, passo = PASSO_MI
 export function novoHorario(inicioMin: number, deltaMin: number, duracaoMin: number): number {
   return Math.min(Math.max(0, inicioMin + deltaMin), 24 * 60 - duracaoMin);
 }
+
+/** Duração depois de puxar a borda de baixo: múltiplo do passo, mínimo de um passo, sem passar da meia-noite. */
+export function novaDuracao(inicioMin: number, duracaoMin: number, deltaMin: number, passo = PASSO_MIN): number {
+  const d = Math.round((duracaoMin + deltaMin) / passo) * passo;
+  return Math.min(Math.max(passo, d), 24 * 60 - inicioMin);
+}
+
+/** Intervalo selecionado arrastando num horário vazio: de onde apertou até onde soltou (qualquer sentido). */
+export function intervaloSelecionado(aMin: number, bMin: number, passo = PASSO_MIN): { inicio: number; duracao: number } {
+  const ini = Math.floor(Math.min(aMin, bMin) / passo) * passo;
+  const fim = Math.max(ini + passo, Math.ceil(Math.max(aMin, bMin) / passo) * passo);
+  return { inicio: ini, duracao: Math.min(fim, 24 * 60) - ini };
+}
