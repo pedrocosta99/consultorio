@@ -55,6 +55,13 @@ docs/PLANO.md      plano do produto
 - **Sem tela de acesso** (decisão do usuário, 6 nov 2026): o app abre direto e o banco em disco fica em claro. A proteção do disco é a do sistema (FileVault). Não reintroduza PIN/login sem pedido.
 - Toda chamada à API exige o cabeçalho `x-consultorio: 1` e Host loopback (barra outros sites e DNS rebinding).
 
+## Google Agenda (simulado até a Fase 6.6)
+
+- Mudanças em `sessoes`, `compromissos`, `compromissos_excecoes` e no `apelido` de pacientes entram na `fila_saida` por **trigger** (migração 0013), só se houver agenda conectada. Não enfileire à mão.
+- `apps/api/src/agendaGoogle.ts` esvazia a fila com um `AdaptadorGoogle` (local: simulado, nada sai da máquina).
+- O evento leva só "Sessão" e, se escolhido, o `apelido`. Nunca nome, contato, valor, estado ou nota (`packages/shared/src/google.ts`).
+- Nos testes de tela, simule as rotas `/api/integracoes/google*` (ver `e2e/google.spec.ts`): o banco é compartilhado entre testes em paralelo.
+
 ## Visual: direção "Sálvia"
 
 - Tokens em CSS variables em `apps/web/src/index.css` (`:root` claro, `.dark` escuro). Use as classes de token (`bg-card`, `text-muted-foreground`…), nunca cores soltas.

@@ -10,3 +10,4 @@ export * from "./recorrencia";
 export * from "./agenda";
 export * from "./cambio";
 export * from "./acesso";
+export * from "./google";

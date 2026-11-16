@@ -9,6 +9,7 @@ import { useDados } from "@/app/dados";
 import { CabecalhoPagina } from "@/components/comuns";
 import { SeletorPaleta } from "@/components/SeletorPaleta";
 import { SecaoMensagens } from "@/components/formularios/SecaoMensagens";
+import { SecaoGoogleAgenda } from "@/components/formularios/SecaoGoogleAgenda";
 import { SecaoBackup, SecaoContas, SecaoFeriados, SecaoFicticios, SecaoHorarioAtendimento, SecaoConta, SecaoMoedas, SecaoRegistroAcesso } from "@/components/formularios/SecoesConfiguracao";
 import { FUSOS_DISPONIVEIS, hora, nomeFuso, offsetFuso } from "@/lib/datas";
 
@@ -162,6 +163,7 @@ export function PaginaConfiguracoes() {
         <SecaoRegistroAcesso />
         <SecaoMensagens />
         <SecaoHorarioAtendimento />
+        <SecaoGoogleAgenda />
         <SecaoFeriados />
         <SecaoMoedas />
         <SecaoContas />

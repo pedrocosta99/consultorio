@@ -21,6 +21,7 @@ import {
   sessaoPatchSchema,
   sessaoSeguintesSchema,
   TIPOS_CONTA,
+  TITULOS_SESSAO,
   podeLerClinico,
   type Contexto,
 } from "@consultorio/shared";
@@ -30,6 +31,7 @@ import { agora } from "./infra/relogio";
 import * as srv from "./servico";
 import * as backup from "./backup";
 import { gerarProntuario } from "./prontuario";
+import * as google from "./agendaGoogle";
 import { SenhaOuArquivoInvalido } from "./infra/cofre";
 
 type Env = { Variables: { banco: Banco; ctx: Contexto } };
@@ -318,6 +320,28 @@ app.patch("/compromissos/:id", async (c) =>
 app.post("/compromissos/:id/excluir", async (c) => {
   srv.excluirCompromisso(db(c), c.req.param("id"), compromissoExclusaoSchema.parse(await c.req.json()));
   return ok(c);
+});
+
+// ── Google Agenda (simulado na versão local) ────────────────
+
+/** Adaptador do Google: simulado aqui; a 6.6 troca pelo da Calendar API. */
+export const adaptadorGoogle = google.adaptadorSimulado();
+
+app.get("/integracoes/google", (c) => c.json(google.estadoIntegracao(db(c), ctx(c))));
+app.get("/integracoes/google/calendarios", (c) => c.json(google.CALENDARIOS_SIMULADOS));
+app.post("/integracoes/google/conectar", (c) => {
+  google.conectar(db(c), ctx(c), agora());
+  return ok(c);
+});
+app.put("/integracoes/google", async (c) => {
+  const e = z.object({ tituloSessao: z.enum(TITULOS_SESSAO).optional(), calendarioId: z.string().min(1).optional() }).parse(await c.req.json());
+  google.configurar(db(c), ctx(c), e, agora());
+  return ok(c);
+});
+app.post("/integracoes/google/sincronizar", async (c) => ok(c, await google.processarFila(db(c), ctx(c), adaptadorGoogle, agora())));
+app.post("/integracoes/google/desconectar", async (c) => {
+  const { apagarEventos } = z.object({ apagarEventos: z.boolean().default(false) }).parse(await c.req.json());
+  return ok(c, await google.desconectar(db(c), ctx(c), adaptadorGoogle, apagarEventos));
 });
 
 // ── Backup cifrado ───────────────────────────────────────────

@@ -459,10 +459,10 @@ Cinco fases de core, cada uma termina num app que você já usa de verdade. A Fa
 
 *Google Agenda mockado*
 
-- [ ] Configurações → Integrações → Google Agenda: estados desconectado, conectando, conectado (e-mail e calendário escolhido), sincronizando e erro
-- [ ] Prévia de como a sessão aparece no Google (iniciais/pseudônimo, horário, sem nada clínico)
-- [ ] Função pura `eventoDaSessao` em `packages/shared`, com testes: título, início/fim, fuso, evento privado, id da sessão nas propriedades privadas
-- [ ] Tabelas `integracoes_google`, `eventos_agenda` e `fila_saida`; criar, remarcar, cancelar ou excluir sessão grava na fila; um worker local só marca como processado
+- [x] Configurações → Google Agenda: desconectado, conectando, conectado (conta, agenda, título da sessão), sincronizando, erro e desconectar (com opção de apagar os eventos criados)
+- [x] Prévia de como a próxima sessão aparece no Google (iniciais/pseudônimo ou só "Sessão", horário, privado)
+- [x] Funções puras `eventoDaSessao` e `eventoDoCompromisso` (RRULE + EXDATE) em `packages/shared/google.ts`, com testes (inclusive que nada clínico vai no evento)
+- [x] Tabelas `integracoes_google`, `eventos_agenda` e `fila_saida`; **triggers** enfileiram toda mudança de sessão, compromisso e apelido (só com agenda conectada); worker local a cada 15 s com adaptador simulado (a 6.6 troca pelo da Calendar API)
 
 **Fase 6.2 — API em Postgres** (local)
 

@@ -92,6 +92,13 @@
       "when": 1794865378316,
       "tag": "0012_sem_transacao_id",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1794866698065,
+      "tag": "0013_google_agenda",
+      "breakpoints": true
     }
   ]
 }

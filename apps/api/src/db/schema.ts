@@ -16,6 +16,7 @@ import {
   TIPOS_LANCAMENTO,
   PAPEIS,
   TIPOS_COMPROMISSO,
+  TITULOS_SESSAO,
   TIPOS_NOTA,
 } from "@consultorio/shared";
 
@@ -314,4 +315,62 @@ export const acessos = sqliteTable(
     em: text("em").notNull(),
   },
   (t) => [index("acessos_em").on(t.consultorioId, t.em)],
+);
+
+// ── Google Agenda ────────────────────────────────────────────
+// Uma conexão por pessoa e consultório. Na versão local a conexão é SIMULADA (nada sai
+// da máquina); na Fase 6.6 o refresh token (cifrado com Cloud KMS) faz a chamada real.
+
+export const integracoesGoogle = sqliteTable(
+  "integracoes_google",
+  {
+    id: text("id").primaryKey(),
+    consultorioId: text("consultorio_id").notNull(),
+    usuarioId: text("usuario_id").notNull(),
+    emailGoogle: text("email_google").notNull(),
+    calendarioId: text("calendario_id").notNull(),
+    calendarioNome: text("calendario_nome").notNull(),
+    /** Cifrado (KMS) na 6.6; null na simulação. */
+    refreshTokenCifrado: text("refresh_token_cifrado"),
+    /** Como a sessão aparece no Google. */
+    tituloSessao: text("titulo_sessao", { enum: TITULOS_SESSAO }).notNull().default("iniciais"),
+    simulada: integer("simulada", { mode: "boolean" }).notNull().default(true),
+    ultimoSyncEm: text("ultimo_sync_em"),
+    erro: text("erro"),
+    criadoEm: criadoEm(),
+  },
+  (t) => [uniqueIndex("integracoes_google_pessoa").on(t.consultorioId, t.usuarioId)],
+);
+
+/** Sessão/compromisso do app ↔ evento no Google. */
+export const eventosAgenda = sqliteTable(
+  "eventos_agenda",
+  {
+    integracaoId: text("integracao_id").notNull().references(() => integracoesGoogle.id, { onDelete: "cascade" }),
+    origem: text("origem", { enum: ["sessao", "compromisso"] }).notNull(),
+    origemId: text("origem_id").notNull(),
+    googleEventoId: text("google_evento_id").notNull(),
+    etag: text("etag"),
+    sincronizadoEm: text("sincronizado_em").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.integracaoId, t.origem, t.origemId] })],
+);
+
+/**
+ * Fila de saída (outbox): toda mudança em sessão ou compromisso entra aqui por trigger
+ * (migração 0013), na mesma transação, e só se houver agenda conectada. Um worker repassa
+ * ao Google (local: no processo; nuvem: Cloud Tasks).
+ */
+export const filaSaida = sqliteTable(
+  "fila_saida",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    origem: text("origem", { enum: ["sessao", "compromisso"] }).notNull(),
+    origemId: text("origem_id").notNull(),
+    criadoEm: criadoEm(),
+    processadoEm: text("processado_em"),
+    tentativas: integer("tentativas").notNull().default(0),
+    erro: text("erro"),
+  },
+  (t) => [index("fila_saida_pendentes").on(t.processadoEm, t.id)],
 );
