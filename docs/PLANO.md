@@ -431,9 +431,12 @@ Cinco fases de core, cada uma termina num app que você já usa de verdade. A Fa
 
 *Dados e API*
 
-- [ ] Contexto da requisição: um middleware define usuário, consultório e papel, e todo serviço recebe esse contexto. Local: `dono` fixo, sem login de verdade
-- [ ] Novas tabelas: `consultorios`, `usuarios`, `membros`, `convites`, `configuracoes` (sai do `meta_sistema`), `preferencias` (sai do `localStorage`), `acessos`
-- [ ] `consultorio_id` e `atualizado_em` em todas as tabelas; `criado_por`/`atualizado_por` nas clínicas; sai `pagamentos.transacao_id`
+- [x] Contexto da requisição: um middleware define usuário, consultório e papel (local: `dono` fixo); `GET /sessao`; o papel `suporte` não lê notas, busca nem prontuário
+- [x] Novas tabelas `consultorios`, `usuarios`, `membros` e `configuracoes` (moedas, mensagens e horário de atendimento saíram do `meta_sistema`)
+- [ ] `acessos` (registro de acesso)
+- `convites` vai para a 6.3 (com o login); `preferencias` no servidor também, para cada usuário ter as suas (antes do login, os testes compartilhariam um usuário só)
+- [ ] `atualizado_em` e `criado_por`/`atualizado_por` nas tabelas clínicas; sai `pagamentos.transacao_id`
+- `consultorio_id` em todas as tabelas foi para a 6.2, junto com o RLS: filtrar à mão cada consulta do SQLite agora seria refeito no Postgres
 - [ ] Conflito de edição (409) com `atualizado_em`, começando por notas e sessões
 - [ ] Registro de acesso: abrir ficha, nota e PDF grava em `acessos`
 - [ ] API por recurso (pacientes, sessões por intervalo, notas por paciente, com paginação) no lugar do pacote único `GET /consultorio`
@@ -465,6 +468,7 @@ Cinco fases de core, cada uma termina num app que você já usa de verdade. A Fa
 
 - [ ] Postgres em Docker no desenvolvimento; PGlite nos testes
 - [ ] Schema Drizzle em PostgreSQL (com tudo da 6.1) e migrações novas
+- [ ] `consultorio_id` em todas as tabelas (vindo do contexto da 6.1), com índice
 - [ ] Serviço async
 - [ ] Row-Level Security por `consultorio_id`
 - [ ] Busca com `tsvector` + `unaccent` (substitui FTS5 e triggers)
@@ -475,6 +479,7 @@ Cinco fases de core, cada uma termina num app que você já usa de verdade. A Fa
 - [ ] Trocar o mock pelo Identity Platform: e-mail/senha e Google, uma conta por e-mail
 - [ ] API valida o ID token e busca o papel em `membros`; quem não é membro vê "sem acesso"
 - [ ] MFA (TOTP) obrigatório para o `dono`; bloqueio por inatividade
+- [ ] Preferências por usuário no servidor (tema, paleta, fusos, modo discreto, moeda de exibição), valendo no web e no celular
 - [ ] Convites por e-mail
 - [ ] Sai a guarda de loopback + `x-consultorio`; entram token obrigatório e limite de tentativas
 - [ ] Atualizar `CLAUDE.md` (regras de loopback e de acesso)

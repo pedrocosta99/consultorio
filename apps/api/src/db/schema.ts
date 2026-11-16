@@ -14,6 +14,7 @@ import {
   STATUS_PACIENTE,
   TIPOS_CONTA,
   TIPOS_LANCAMENTO,
+  PAPEIS,
   TIPOS_COMPROMISSO,
   TIPOS_NOTA,
 } from "@consultorio/shared";
@@ -239,3 +240,47 @@ export const cotacoes = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.data, t.moeda] })],
 );
+
+// ── Consultórios, usuários e papéis ──────────────────────────
+// Local: um consultório e um usuário fixos (migração 0010). Com o login (Fase 6.3),
+// `uid_externo` guarda o id do Identity Platform.
+
+export const consultorios = sqliteTable("consultorios", {
+  id: text("id").primaryKey(),
+  nome: text("nome").notNull(),
+  fuso: text("fuso").notNull(),
+  moedaPrincipal: text("moeda_principal", { enum: MOEDAS }).notNull().default("BRL"),
+  criadoEm: criadoEm(),
+});
+
+export const usuarios = sqliteTable(
+  "usuarios",
+  {
+    id: text("id").primaryKey(),
+    uidExterno: text("uid_externo"),
+    nome: text("nome").notNull(),
+    email: text("email").notNull(),
+    criadoEm: criadoEm(),
+  },
+  (t) => [uniqueIndex("usuarios_email").on(t.email), uniqueIndex("usuarios_uid").on(t.uidExterno)],
+);
+
+export const membros = sqliteTable(
+  "membros",
+  {
+    consultorioId: text("consultorio_id").notNull().references(() => consultorios.id, { onDelete: "cascade" }),
+    usuarioId: text("usuario_id").notNull().references(() => usuarios.id, { onDelete: "cascade" }),
+    papel: text("papel", { enum: PAPEIS }).notNull(),
+    criadoEm: criadoEm(),
+  },
+  (t) => [primaryKey({ columns: [t.consultorioId, t.usuarioId] })],
+);
+
+/** Configurações do consultório (antes no meta_sistema). JSON validado na leitura. */
+export const configuracoes = sqliteTable("configuracoes", {
+  consultorioId: text("consultorio_id").primaryKey().references(() => consultorios.id, { onDelete: "cascade" }),
+  moedas: text("moedas", { mode: "json" }).$type<string[]>().notNull().default(sql`'[]'`),
+  mensagens: text("mensagens", { mode: "json" }).$type<Record<string, string>>(),
+  horarioAtendimento: text("horario_atendimento", { mode: "json" }).$type<unknown[]>(),
+  atualizadoEm: text("atualizado_em").notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ','now'))`),
+});

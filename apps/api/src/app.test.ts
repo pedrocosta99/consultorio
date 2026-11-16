@@ -113,4 +113,25 @@ describe("API", () => {
     const c = await req("GET", "/consultorio");
     expect(c.json.lancamentos.some((l: any) => l.data === "2099-01-08" && l.serieId === r.json.id)).toBe(true);
   });
+
+  it("sessão: usuário local é dono do consultório local", async () => {
+    const r = await req("GET", "/sessao");
+    expect(r.status).toBe(200);
+    expect(r.json).toMatchObject({ usuario: { id: "u_local" }, consultorio: { id: "cons_local" }, papel: "dono" });
+  });
+
+  it("papel suporte: sem notas, sem busca e sem prontuário", async () => {
+    const { bancoAtual } = await import("./estado");
+    const { sqlite } = bancoAtual();
+    sqlite.prepare("update membros set papel = 'suporte' where usuario_id = 'u_local'").run();
+    try {
+      expect((await req("GET", "/busca?q=sonho")).status).toBe(403);
+      expect((await req("POST", "/notas", { pacienteId: "x", texto: "y" })).status).toBe(403);
+      const c = await req("GET", "/consultorio");
+      expect(c.status).toBe(200);
+      expect(c.json.notas).toEqual([]);
+    } finally {
+      sqlite.prepare("update membros set papel = 'dono' where usuario_id = 'u_local'").run();
+    }
+  });
 });

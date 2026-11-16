@@ -21,6 +21,8 @@ import {
   sessaoPatchSchema,
   sessaoSeguintesSchema,
   TIPOS_CONTA,
+  podeLerClinico,
+  type Contexto,
 } from "@consultorio/shared";
 import type { Banco } from "./db/conexao";
 import { bancoAtual, carregarFicticio, trocarBanco } from "./estado";
@@ -30,7 +32,7 @@ import * as backup from "./backup";
 import { gerarProntuario } from "./prontuario";
 import { SenhaOuArquivoInvalido } from "./infra/cofre";
 
-type Env = { Variables: { banco: Banco } };
+type Env = { Variables: { banco: Banco; ctx: Contexto } };
 
 export const app = new Hono<Env>().basePath("/api");
 
@@ -61,10 +63,37 @@ app.get("/health", (c) => c.json({ ok: true, moedaPrincipal: MOEDA_PRINCIPAL }))
 // Daqui para baixo, todas as rotas usam o banco (aberto na primeira chamada).
 app.use("*", async (c, next) => {
   c.set("banco", bancoAtual());
+  // Quem está usando e em qual consultório. Local: usuário fixo; com login (6.3), o token.
+  c.set("ctx", srv.contextoLocal(c.get("banco").db));
   await next();
 });
 
 const db = (c: Context<Env>) => c.get("banco").db;
+const ctx = (c: Context<Env>) => c.get("ctx");
+
+/** Notas, prontuário e busca são só para quem atende (o suporte não lê). */
+function exigirClinico(c: Context<Env>) {
+  if (!podeLerClinico(ctx(c).papel)) throw new srv.ErroDominio(403, "Seu papel não dá acesso a dados clínicos.");
+}
+app.use("/notas/*", async (c, next) => {
+  exigirClinico(c);
+  await next();
+});
+app.use("/notas", async (c, next) => {
+  exigirClinico(c);
+  await next();
+});
+app.use("/busca", async (c, next) => {
+  exigirClinico(c);
+  await next();
+});
+app.use("/pacientes/:id/prontuario.pdf", async (c, next) => {
+  exigirClinico(c);
+  await next();
+});
+
+/** Quem está usando, em qual consultório e com que papel. */
+app.get("/sessao", (c) => c.json(srv.sessaoDoUsuario(db(c), ctx(c))));
 
 app.post("/dados-ficticios", (c) => {
   carregarFicticio();
@@ -76,7 +105,10 @@ const ok = (c: Context, extra: object = {}) => c.json({ ok: true, ...extra });
 
 app.get("/consultorio", (c) => {
   srv.garantirSessoes(db(c), agora());
-  return c.json(srv.carregarConsultorio(db(c), agora()));
+  const pacote = srv.carregarConsultorio(db(c), agora(), ctx(c).consultorioId);
+  // Sem papel clínico, o pacote vai sem notas e sem pontos fixos.
+  if (!podeLerClinico(ctx(c).papel)) return c.json({ ...pacote, notas: [], pacientes: pacote.pacientes.map((p) => ({ ...p, pontosFixos: "" })) });
+  return c.json(pacote);
 });
 
 app.patch("/sessoes/:id", async (c) => {
@@ -161,7 +193,7 @@ app.get("/busca", (c) => c.json(srv.buscar(c.get("banco").sqlite, c.req.query("q
 
 app.put("/configuracoes/moedas", async (c) => {
   const { moedas } = z.object({ moedas: z.array(z.enum(MOEDAS)) }).parse(await c.req.json());
-  srv.definirMoedas(db(c), moedas);
+  srv.definirMoedas(db(c), moedas, ctx(c).consultorioId);
   return ok(c);
 });
 
@@ -184,7 +216,7 @@ app.post("/cotacoes/atualizar", async (c) => {
   const banco = db(c);
   const hoje = srv.hojeCivil(agora());
   let novas = 0;
-  for (const moeda of srv.moedasAtivas(banco).filter((m): m is "USD" | "EUR" => m !== "BRL")) {
+  for (const moeda of srv.moedasAtivas(banco, ctx(c).consultorioId).filter((m): m is "USD" | "EUR" => m !== "BRL")) {
     const umAno = `${Number(hoje.slice(0, 4)) - 1}${hoje.slice(4)}`;
     const desde = srv.primeiraDataNaMoeda(banco, moeda) ?? umAno;
     novas += srv.gravarCotacoesBcb(banco, await srv.buscarPtax(moeda, desde < umAno ? desde : umAno, hoje));
@@ -193,12 +225,12 @@ app.post("/cotacoes/atualizar", async (c) => {
 });
 
 app.put("/configuracoes/horario-atendimento", async (c) => {
-  srv.definirHorarioAtendimento(db(c), horarioAtendimentoSchema.parse(await c.req.json()));
+  srv.definirHorarioAtendimento(db(c), horarioAtendimentoSchema.parse(await c.req.json()), ctx(c).consultorioId);
   return ok(c);
 });
 
 app.put("/configuracoes/mensagens", async (c) => {
-  srv.definirMensagens(db(c), mensagensSchema.parse(await c.req.json()));
+  srv.definirMensagens(db(c), mensagensSchema.parse(await c.req.json()), ctx(c).consultorioId);
   return ok(c);
 });
 

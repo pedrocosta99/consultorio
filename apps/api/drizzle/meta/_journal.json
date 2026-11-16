@@ -71,6 +71,13 @@
       "when": 1794849924042,
       "tag": "0009_cotacoes",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1794865191227,
+      "tag": "0010_consultorios_e_usuarios",
+      "breakpoints": true
     }
   ]
 }

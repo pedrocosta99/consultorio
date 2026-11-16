@@ -38,6 +38,8 @@ import {
   type SessaoAvulsa,
   type SessaoPatch,
   type SessaoSeguintes,
+  type Contexto,
+  type SessaoUsuario,
   type Cotacao,
   lerPtax,
   type Compromisso,
@@ -58,7 +60,7 @@ import { diaDaSemanaIso, gerarVagas, moverVagaDaGrade, somarDias } from "./domin
 
 export class ErroDominio extends Error {
   constructor(
-    public status: 400 | 404 | 409,
+    public status: 400 | 403 | 404 | 409,
     mensagem: string,
   ) {
     super(mensagem);
@@ -111,7 +113,7 @@ function paraContrato(r: typeof t.contratos.$inferSelect): Contrato {
   };
 }
 
-export function carregarConsultorio(db: Db, agora: Date): PacoteConsultorio {
+export function carregarConsultorio(db: Db, agora: Date, consultorioId = CONSULTORIO_LOCAL): PacoteConsultorio {
   const pagos = new Map(db.select().from(t.pagamentoSessoes).all().map((v) => [v.sessaoId, v.pagamentoId]));
   const sessoes: Sessao[] = db
     .select()
@@ -154,7 +156,7 @@ export function carregarConsultorio(db: Db, agora: Date): PacoteConsultorio {
     pagamentos,
     contas: db.select().from(t.contas).all() as Conta[],
     feriados: db.select().from(t.feriados).orderBy(asc(t.feriados.data)).all(),
-    moedas: moedasAtivas(db),
+    moedas: moedasAtivas(db, consultorioId),
     notas: db
       .select()
       .from(t.notas)
@@ -163,46 +165,87 @@ export function carregarConsultorio(db: Db, agora: Date): PacoteConsultorio {
       .map(({ supervisaoTexto, ...n }) => ({ ...n, sessaoId: n.sessaoId ?? null, ...(supervisaoTexto ? { supervisaoTexto } : {}) })),
     lancamentos: listarLancamentos(db),
     compromissos: listarCompromissos(db),
-    mensagens: lerMensagens(db),
-    horarioAtendimento: lerHorarioAtendimento(db),
+    mensagens: lerMensagens(db, consultorioId),
+    horarioAtendimento: lerHorarioAtendimento(db, consultorioId),
     cotacoes: listarCotacoes(db),
   };
 }
 
-// ── Mensagens e modelos (Configurações) ──────────────────────
+// ── Consultório, usuário e contexto ──────────────────────────
 
-export function lerMensagens(db: Db): Mensagens {
-  const v = db.select().from(t.metaSistema).where(eq(t.metaSistema.chave, "mensagens")).get()?.valor;
-  return { ...MENSAGENS_PADRAO, ...(v ? (JSON.parse(v) as Partial<Mensagens>) : {}) };
+/** Consultório e usuário da versão local (criados pela migração 0010). */
+export const CONSULTORIO_LOCAL = "cons_local";
+export const USUARIO_LOCAL = "u_local";
+
+/**
+ * Contexto da versão local: o usuário fixo, no seu consultório, com o papel que ele
+ * tem lá. Com o login (Fase 6.3), o usuário vem do token.
+ */
+export function contextoLocal(db: Db): Contexto {
+  const m = db.select().from(t.membros).where(eq(t.membros.usuarioId, USUARIO_LOCAL)).get();
+  if (!m) throw new ErroDominio(409, "Banco sem o usuário local. Rode as migrações.");
+  return { usuarioId: m.usuarioId, consultorioId: m.consultorioId, papel: m.papel };
 }
 
-export function definirMensagens(db: Db, m: Mensagens) {
-  const valor = JSON.stringify(m);
-  db.insert(t.metaSistema).values({ chave: "mensagens", valor }).onConflictDoUpdate({ target: t.metaSistema.chave, set: { valor } }).run();
+/** Quem está usando, em qual consultório e com que papel (para a tela). */
+export function sessaoDoUsuario(db: Db, ctx: Contexto): SessaoUsuario {
+  const u = existe(db.select().from(t.usuarios).where(eq(t.usuarios.id, ctx.usuarioId)).get(), "Usuário não encontrado");
+  const c = existe(db.select().from(t.consultorios).where(eq(t.consultorios.id, ctx.consultorioId)).get(), "Consultório não encontrado");
+  return { usuario: { id: u.id, nome: u.nome, email: u.email }, consultorio: { id: c.id, nome: c.nome }, papel: ctx.papel };
+}
+
+type LinhaConfig = typeof t.configuracoes.$inferSelect;
+
+function lerConfig(db: Db, consultorioId: string): LinhaConfig {
+  return (
+    db.select().from(t.configuracoes).where(eq(t.configuracoes.consultorioId, consultorioId)).get() ?? {
+      consultorioId,
+      moedas: [],
+      mensagens: null,
+      horarioAtendimento: null,
+      atualizadoEm: "",
+    }
+  );
+}
+
+function gravarConfig(db: Db, consultorioId: string, mudanca: Partial<Omit<LinhaConfig, "consultorioId" | "atualizadoEm">>) {
+  const set = { ...mudanca, atualizadoEm: new Date().toISOString() };
+  db.insert(t.configuracoes)
+    .values({ consultorioId, ...set })
+    .onConflictDoUpdate({ target: t.configuracoes.consultorioId, set })
+    .run();
+}
+
+// ── Mensagens e modelos (Configurações) ──────────────────────
+
+export function lerMensagens(db: Db, consultorioId = CONSULTORIO_LOCAL): Mensagens {
+  return { ...MENSAGENS_PADRAO, ...((lerConfig(db, consultorioId).mensagens ?? {}) as Partial<Mensagens>) };
+}
+
+export function definirMensagens(db: Db, m: Mensagens, consultorioId = CONSULTORIO_LOCAL) {
+  gravarConfig(db, consultorioId, { mensagens: m });
 }
 
 // ── Horário de atendimento ───────────────────────────────────
 
-export function lerHorarioAtendimento(db: Db): HorarioAtendimento {
-  const v = db.select().from(t.metaSistema).where(eq(t.metaSistema.chave, "horario_atendimento")).get()?.valor;
-  const r = v ? horarioAtendimentoSchema.safeParse(JSON.parse(v)) : null;
+export function lerHorarioAtendimento(db: Db, consultorioId = CONSULTORIO_LOCAL): HorarioAtendimento {
+  const v = lerConfig(db, consultorioId).horarioAtendimento;
+  const r = v ? horarioAtendimentoSchema.safeParse(v) : null;
   return r?.success ? r.data : HORARIO_ATENDIMENTO_PADRAO;
 }
 
-export function definirHorarioAtendimento(db: Db, h: HorarioAtendimento) {
-  const valor = JSON.stringify(h);
-  db.insert(t.metaSistema).values({ chave: "horario_atendimento", valor }).onConflictDoUpdate({ target: t.metaSistema.chave, set: { valor } }).run();
+export function definirHorarioAtendimento(db: Db, h: HorarioAtendimento, consultorioId = CONSULTORIO_LOCAL) {
+  gravarConfig(db, consultorioId, { horarioAtendimento: h });
 }
 
 // ── Moedas ───────────────────────────────────────────────────
 
-export function moedasAtivas(db: Db): Moeda[] {
-  const v = db.select().from(t.metaSistema).where(eq(t.metaSistema.chave, "moedas_ativas")).get()?.valor;
-  const lista = v ? (JSON.parse(v) as Moeda[]) : [];
+export function moedasAtivas(db: Db, consultorioId = CONSULTORIO_LOCAL): Moeda[] {
+  const lista = lerConfig(db, consultorioId).moedas;
   return MOEDAS.filter((m) => m === "BRL" || lista.includes(m));
 }
 
-export function definirMoedas(db: Db, moedas: Moeda[]) {
+export function definirMoedas(db: Db, moedas: Moeda[], consultorioId = CONSULTORIO_LOCAL) {
   const novas = MOEDAS.filter((m) => m === "BRL" || moedas.includes(m));
   const desligadas = MOEDAS.filter((m) => !novas.includes(m));
   if (desligadas.length) {
@@ -213,8 +256,7 @@ export function definirMoedas(db: Db, moedas: Moeda[]) {
       .get();
     if (emUso) throw new ErroDominio(409, `Há contrato vigente em ${emUso.moeda}. Altere o contrato antes de desligar a moeda.`);
   }
-  const valor = JSON.stringify(novas);
-  db.insert(t.metaSistema).values({ chave: "moedas_ativas", valor }).onConflictDoUpdate({ target: t.metaSistema.chave, set: { valor } }).run();
+  gravarConfig(db, consultorioId, { moedas: novas });
 }
 
 // ── Grade → sessões ─────────────────────────────────────────
