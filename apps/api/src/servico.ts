@@ -34,10 +34,11 @@ import {
   type Sessao,
   type SessaoAvulsa,
   type SessaoPatch,
+  type SessaoSeguintes,
 } from "@consultorio/shared";
 import type { Db } from "./db/conexao";
 import * as t from "./db/schema";
-import { gerarVagas, somarDias } from "./dominio/grade";
+import { diaDaSemanaIso, gerarVagas, moverVagaDaGrade, somarDias } from "./dominio/grade";
 
 export class ErroDominio extends Error {
   constructor(
@@ -84,6 +85,7 @@ function paraContrato(r: typeof t.contratos.$inferSelect): Contrato {
     frequencia: r.diasSemana.length,
     diasSemana: r.diasSemana,
     horario: r.horario,
+    ...(r.horariosDia ? { horariosDia: r.horariosDia } : {}),
     duracaoMin: r.duracaoMin,
     valor: dinheiro(r.valorCentavos, r.moeda),
     cobranca: r.cobranca,
@@ -103,6 +105,7 @@ export function carregarConsultorio(db: Db, agora: Date): PacoteConsultorio {
     .map((s) => ({
       id: s.id,
       pacienteId: s.pacienteId,
+      contratoId: s.contratoId,
       inicio: s.inicio,
       duracaoMin: s.duracaoMin,
       estado: s.estado,
@@ -228,12 +231,16 @@ export function garantirSessoes(db: Db, agora: Date): number {
   return criadas;
 }
 
-/** Sessões geradas pela grade, ainda agendadas e não pagas, que podem ser descartadas. */
+/**
+ * Sessões geradas pela grade, ainda agendadas, sem pagamento e sem nota, que podem
+ * ser descartadas (e refeitas) quando a grade muda.
+ */
 function descartaveis() {
   return and(
     eq(t.sessoes.estado, "agendada"),
     isNotNull(t.sessoes.contratoId),
     notInArray(t.sessoes.id, sql`(select ${t.pagamentoSessoes.sessaoId} from ${t.pagamentoSessoes})`),
+    notInArray(t.sessoes.id, sql`(select ${t.notas.sessaoId} from ${t.notas} where ${t.notas.sessaoId} is not null)`),
   );
 }
 
@@ -272,6 +279,7 @@ export function atualizarSessao(db: Db, id: string, patch: SessaoPatch, agora: D
     const mudancas: Partial<typeof t.sessoes.$inferInsert> = {};
     if (patch.estado) mudancas.estado = patch.estado;
     if (patch.inicio) mudancas.inicio = new Date(patch.inicio).toISOString();
+    if (patch.duracaoMin) mudancas.duracaoMin = patch.duracaoMin;
     if (Object.keys(mudancas).length) tx.update(t.sessoes).set(mudancas).where(eq(t.sessoes.id, id)).run();
 
     const vinculada = !!tx.select().from(t.pagamentoSessoes).where(eq(t.pagamentoSessoes.sessaoId, id)).get();
@@ -396,6 +404,7 @@ export function salvarContrato(db: Db, pacienteId: string, e: ContratoEntrada, a
         pacienteId,
         diasSemana: [...new Set(e.diasSemana)].sort((a, b) => a - b),
         horario: e.horario,
+        horariosDia: e.horariosDia && Object.keys(e.horariosDia).length ? e.horariosDia : null,
         duracaoMin: e.duracaoMin,
         valorCentavos: e.valor.centavos,
         moeda: e.valor.moeda,
@@ -418,6 +427,82 @@ export function encerrarContrato(db: Db, id: string, ate: string) {
       .where(and(eq(t.sessoes.contratoId, id), sql`substr(${t.sessoes.vaga}, 1, 10) > ${ate}`, descartaveis()))
       .run();
   });
+}
+
+/**
+ * "Esta e as seguintes": a sessão `id` (da grade) vai para `e.inicio` com `e.duracaoMin`,
+ * e a grade passa a valer assim a partir dela. O contrato atual termina na véspera e
+ * começa uma nova versão (ou, se esta é a primeira vaga, o contrato muda no lugar).
+ * Sessões já realizadas, pagas, com nota ou remarcadas à mão não mudam: o retorno diz
+ * quantas ficaram como estavam.
+ */
+export function alterarDaquiEmDiante(db: Db, id: string, e: SessaoSeguintes, agora: Date): { mantidas: number } {
+  let mantidas = 0;
+  db.transaction((tx) => {
+    const s = existe(tx.select().from(t.sessoes).where(eq(t.sessoes.id, id)).get(), "Sessão não encontrada");
+    if (!s.contratoId || !s.vaga) throw new ErroDominio(400, "Sessão avulsa não faz parte de uma grade fixa.");
+    const k = existe(tx.select().from(t.contratos).where(eq(t.contratos.id, s.contratoId)).get(), "Contrato não encontrado");
+    const dataVaga = s.vaga.slice(0, 10);
+    const diaAntigo = Number(s.vaga.split("#")[1]);
+    const novoInicio = new Date(e.inicio);
+    const dataNova = chaveDiaNoFuso(novoInicio.getTime(), FUSO_CONSULTORIO);
+    const horaNova = new Intl.DateTimeFormat("en-GB", { timeZone: FUSO_CONSULTORIO, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(novoInicio);
+    const grade = moverVagaDaGrade({ diasSemana: k.diasSemana, horario: k.horario, horariosDia: k.horariosDia }, diaAntigo, diaDaSemanaIso(dataNova), horaNova);
+    const vigenteDe = dataNova < dataVaga ? dataNova : dataVaga;
+    if (k.vigenteAte && k.vigenteAte < vigenteDe) throw new ErroDominio(409, "O contrato desta sessão já terminou.");
+    const depois = tx
+      .select({ id: t.contratos.id })
+      .from(t.contratos)
+      .where(and(eq(t.contratos.pacienteId, k.pacienteId), gt(t.contratos.vigenteDe, k.vigenteDe)))
+      .get();
+    if (depois) throw new ErroDominio(409, "Já existe uma mudança de horário marcada para depois. Ajuste pela ficha do paciente.");
+
+    // Sessões da grade a partir daqui: as que podem ser refeitas saem; as outras ficam.
+    const daqui = and(eq(t.sessoes.contratoId, k.id), sql`substr(${t.sessoes.vaga}, 1, 10) >= ${vigenteDe}`);
+    const total = tx.select({ n: sql<number>`count(*)` }).from(t.sessoes).where(daqui).get()!.n;
+    const removidas = tx.delete(t.sessoes).where(and(daqui, descartaveis())).run().changes;
+    mantidas = total - removidas;
+
+    const valores = {
+      diasSemana: grade.diasSemana,
+      horario: grade.horario,
+      horariosDia: grade.horariosDia,
+      duracaoMin: e.duracaoMin,
+    };
+    let contratoId = k.id;
+    if (k.vigenteDe >= vigenteDe) {
+      tx.update(t.contratos).set(valores).where(eq(t.contratos.id, k.id)).run();
+    } else {
+      contratoId = novoId("k");
+      tx.update(t.contratos).set({ vigenteAte: somarDias(vigenteDe, -1) }).where(eq(t.contratos.id, k.id)).run();
+      tx.insert(t.contratos)
+        .values({
+          ...valores,
+          id: contratoId,
+          pacienteId: k.pacienteId,
+          valorCentavos: k.valorCentavos,
+          moeda: k.moeda,
+          cobranca: k.cobranca,
+          politicaFaltas: k.politicaFaltas,
+          vigenteDe,
+          vigenteAte: k.vigenteAte,
+        })
+        .run();
+      // As que ficaram passam para a nova versão, para a grade não gerar a mesma vaga de novo.
+      tx.update(t.sessoes).set({ contratoId }).where(daqui).run();
+    }
+
+    // A própria sessão, se não pôde ser refeita (ex.: tem nota), muda de horário e de vaga.
+    if (tx.select().from(t.sessoes).where(eq(t.sessoes.id, id)).get()) {
+      tx.update(t.sessoes)
+        .set({ inicio: novoInicio.toISOString(), duracaoMin: e.duracaoMin, contratoId, vaga: `${dataNova}#${diaDaSemanaIso(dataNova)}` })
+        .where(eq(t.sessoes.id, id))
+        .run();
+      mantidas -= 1;
+    }
+  });
+  garantirSessoes(db, agora);
+  return { mantidas };
 }
 
 // ── Pagamentos ───────────────────────────────────────────────

@@ -54,6 +54,8 @@ export const contratos = sqliteTable(
     diasSemana: text("dias_semana", { mode: "json" }).$type<number[]>().notNull(),
     /** "HH:mm" no fuso do consultório. */
     horario: text("horario").notNull(),
+    /** JSON { "1".."7": "HH:mm" }: horário próprio de alguns dias. null = todos em `horario`. */
+    horariosDia: text("horarios_dia", { mode: "json" }).$type<Record<string, string>>(),
     duracaoMin: integer("duracao_min").notNull(),
     valorCentavos: integer("valor_centavos").notNull(),
     moeda: text("moeda", { enum: MOEDAS }).notNull(),

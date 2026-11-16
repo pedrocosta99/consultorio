@@ -1,0 +1,1 @@
+ALTER TABLE `contratos` ADD `horarios_dia` text;

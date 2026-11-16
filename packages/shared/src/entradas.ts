@@ -24,6 +24,8 @@ export type PacienteEntrada = z.infer<typeof pacienteEntradaSchema>;
 export const contratoEntradaSchema = z.object({
   diasSemana: z.array(z.number().int().min(1).max(7)).min(1, "Escolha ao menos um dia").max(6),
   horario: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Horário inválido"),
+  /** Horário próprio de alguns dias ("1".."7" → "HH:mm"). */
+  horariosDia: z.record(z.string().regex(/^[1-7]$/), z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Horário inválido")).optional(),
   duracaoMin: z.number().int().min(5).max(240),
   valor: dinheiroSchema.refine((v) => v.centavos > 0, "Valor deve ser maior que zero"),
   cobranca: z.enum(COBRANCAS),
@@ -37,10 +39,18 @@ export const sessaoPatchSchema = z
   .object({
     estado: z.enum(ESTADOS_SESSAO).optional(),
     inicio: z.iso.datetime().optional(),
+    duracaoMin: z.number().int().min(5).max(240).optional(),
     pago: z.boolean().optional(),
   })
   .refine((v) => Object.keys(v).length > 0, "Nada para atualizar");
 export type SessaoPatch = z.infer<typeof sessaoPatchSchema>;
+
+/** "Esta e as seguintes": muda a grade fixa a partir desta sessão. */
+export const sessaoSeguintesSchema = z.object({
+  inicio: z.iso.datetime(),
+  duracaoMin: z.number().int().min(5).max(240),
+});
+export type SessaoSeguintes = z.infer<typeof sessaoSeguintesSchema>;
 
 export const sessaoAvulsaSchema = z.object({
   pacienteId: z.string().min(1),

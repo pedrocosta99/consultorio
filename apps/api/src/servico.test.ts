@@ -270,3 +270,57 @@ describe("supervisão: o que foi discutido", () => {
     expect(buscar(banco.sqlite, "escadas").map((r) => r.refId)).toEqual([id]);
   });
 });
+
+describe("agenda: esta e as seguintes", () => {
+  const brt = (dia: string, hora: string) => new Date(`${dia}T${hora}:00-03:00`).toISOString();
+  const doDia = (dia: string) => sessoes().filter((s) => s.inicio.startsWith(dia));
+
+  it("move a vaga e as seguintes; antes dela nada muda e os outros dias ficam no horário", async () => {
+    const { alterarDaquiEmDiante } = await import("./servico");
+    salvarContrato(db, pid, { ...contrato, diasSemana: [...contrato.diasSemana] }, AGORA);
+    const qui12 = doDia("2026-11-12")[0]!;
+    expect(alterarDaquiEmDiante(db, qui12.id, { inicio: brt("2026-11-13", "10:00"), duracaoMin: 50 }, AGORA)).toEqual({ mantidas: 0 });
+
+    expect(doDia("2026-11-05")[0]!.inicio).toBe(brt("2026-11-05", "08:00")); // antes: intacta
+    expect(doDia("2026-11-12")).toHaveLength(0);
+    expect(doDia("2026-11-13")[0]!.inicio).toBe(brt("2026-11-13", "10:00"));
+    expect(doDia("2026-11-16")[0]!.inicio).toBe(brt("2026-11-16", "08:00")); // segunda continua às 8
+    expect(doDia("2026-11-20")[0]!.inicio).toBe(brt("2026-11-20", "10:00"));
+
+    const ks = carregarConsultorio(db, AGORA).contratos.sort((a, b) => a.vigenteDe.localeCompare(b.vigenteDe));
+    expect(ks.map((k) => [k.vigenteDe, k.vigenteAte, k.diasSemana])).toEqual([
+      ["2026-11-01", "2026-11-11", [1, 4]],
+      ["2026-11-12", null, [1, 5]],
+    ]);
+    expect(ks[1]!.horariosDia).toEqual({ "5": "10:00" });
+  });
+
+  it("sessão com nota fica como está e não é duplicada", async () => {
+    const { alterarDaquiEmDiante, criarNota } = await import("./servico");
+    salvarContrato(db, pid, { ...contrato, diasSemana: [...contrato.diasSemana] }, AGORA);
+    criarNota(db, { pacienteId: pid, sessaoId: doDia("2026-11-16")[0]!.id, texto: "preparo" });
+    const r = alterarDaquiEmDiante(db, doDia("2026-11-12")[0]!.id, { inicio: brt("2026-11-12", "09:00"), duracaoMin: 45 }, AGORA);
+    expect(r.mantidas).toBe(1);
+    expect(doDia("2026-11-16")).toHaveLength(1);
+    expect(doDia("2026-11-16")[0]!.inicio).toBe(brt("2026-11-16", "08:00"));
+    expect(doDia("2026-11-19")[0]).toMatchObject({ inicio: brt("2026-11-19", "09:00"), duracaoMin: 45 });
+  });
+
+  it("na primeira vaga do contrato, muda o contrato no lugar", async () => {
+    const { alterarDaquiEmDiante } = await import("./servico");
+    salvarContrato(db, pid, { ...contrato, diasSemana: [4], vigenteDe: "2026-11-05" }, AGORA);
+    alterarDaquiEmDiante(db, doDia("2026-11-05")[0]!.id, { inicio: brt("2026-11-05", "18:00"), duracaoMin: 50 }, AGORA);
+    const ks = carregarConsultorio(db, AGORA).contratos;
+    expect(ks).toHaveLength(1);
+    expect(ks[0]).toMatchObject({ horario: "18:00", vigenteDe: "2026-11-05" });
+    expect(sessoes().every((s) => s.inicio.endsWith("T21:00:00.000Z"))).toBe(true);
+  });
+
+  it("sessão avulsa não tem seguintes; duração muda só na sessão", async () => {
+    const { alterarDaquiEmDiante, criarSessaoAvulsa } = await import("./servico");
+    const id = criarSessaoAvulsa(db, { pacienteId: pid, inicio: brt("2026-11-10", "15:00"), duracaoMin: 50, valor: dinheiro(20000) });
+    expect(() => alterarDaquiEmDiante(db, id, { inicio: brt("2026-11-10", "16:00"), duracaoMin: 50 }, AGORA)).toThrow(ErroDominio);
+    atualizarSessao(db, id, { duracaoMin: 80 }, AGORA);
+    expect(sessoes().find((s) => s.id === id)).toMatchObject({ duracaoMin: 80, contratoId: null });
+  });
+});

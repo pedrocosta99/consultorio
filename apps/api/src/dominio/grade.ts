@@ -10,6 +10,7 @@ export interface ContratoGrade {
   pacienteId: string;
   diasSemana: number[];
   horario: string;
+  horariosDia?: Record<string, string> | null;
   duracaoMin: number;
   valor: Dinheiro;
   vigenteDe: string;
@@ -44,13 +45,13 @@ export function gerarVagas(
 ): VagaGerada[] {
   const inicio = contrato.vigenteDe > opcoes.de ? contrato.vigenteDe : opcoes.de;
   const fim = contrato.vigenteAte && contrato.vigenteAte < opcoes.ate ? contrato.vigenteAte : opcoes.ate;
-  const [hh, mm] = contrato.horario.split(":").map(Number) as [number, number];
   const dias = new Set(contrato.diasSemana);
   const vagas: VagaGerada[] = [];
   for (let data = inicio; data <= fim; data = somarDias(data, 1)) {
     const dia = diaDaSemanaIso(data);
     if (!dias.has(dia) || opcoes.feriados.has(data)) continue;
     const [a, m, d] = data.split("-").map(Number) as [number, number, number];
+    const [hh, mm] = horarioDoDia(contrato, dia).split(":").map(Number) as [number, number];
     vagas.push({
       contratoId: contrato.id,
       pacienteId: contrato.pacienteId,
@@ -61,4 +62,38 @@ export function gerarVagas(
     });
   }
   return vagas;
+}
+
+/** Horário de um dia da grade: o próprio do dia, se houver, ou o geral. */
+export function horarioDoDia(c: Pick<ContratoGrade, "horario" | "horariosDia">, dia: number): string {
+  return c.horariosDia?.[String(dia)] ?? c.horario;
+}
+
+export interface GradeSemanal {
+  diasSemana: number[];
+  horario: string;
+  horariosDia: Record<string, string> | null;
+}
+
+/**
+ * "Esta e as seguintes": a vaga do dia `diaAntigo` passa para `diaNovo` às `horarioNovo`.
+ * Os outros dias mantêm o horário que tinham. Se todos ficarem no mesmo horário, some o
+ * `horariosDia`. Se o novo dia já existia na grade, ele passa a valer no novo horário.
+ */
+export function moverVagaDaGrade(
+  c: Pick<ContratoGrade, "diasSemana" | "horario" | "horariosDia">,
+  diaAntigo: number,
+  diaNovo: number,
+  horarioNovo: string,
+): GradeSemanal {
+  const porDia = new Map<number, string>();
+  for (const d of c.diasSemana) if (d !== diaAntigo) porDia.set(d, horarioDoDia(c, d));
+  porDia.set(diaNovo, horarioNovo);
+  const diasSemana = [...porDia.keys()].sort((a, b) => a - b);
+  const contagem = new Map<string, number>();
+  for (const h of porDia.values()) contagem.set(h, (contagem.get(h) ?? 0) + 1);
+  // O horário geral é o mais comum (empate: o do primeiro dia).
+  const horario = [...contagem.entries()].sort((a, b) => b[1] - a[1] || (a[0] === porDia.get(diasSemana[0]!) ? -1 : 1))[0]![0];
+  const proprios = Object.fromEntries([...porDia.entries()].filter(([, h]) => h !== horario).map(([d, h]) => [String(d), h]));
+  return { diasSemana, horario, horariosDia: Object.keys(proprios).length ? proprios : null };
 }

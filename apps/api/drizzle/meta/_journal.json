@@ -50,6 +50,13 @@
       "when": 1794260663284,
       "tag": "0006_supervisao_discutida",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1794847510576,
+      "tag": "0007_horarios_por_dia",
+      "breakpoints": true
     }
   ]
 }

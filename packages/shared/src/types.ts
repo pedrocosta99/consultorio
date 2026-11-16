@@ -42,6 +42,8 @@ export const contratoSchema = z.object({
   diasSemana: z.array(z.number().int().min(1).max(7)).min(1),
   /** "HH:mm" no fuso do consultório. */
   horario: z.string().regex(/^\d{2}:\d{2}$/),
+  /** Horário próprio de alguns dias ("1".."7" → "HH:mm"); os outros usam `horario`. */
+  horariosDia: z.record(z.string(), z.string().regex(/^\d{2}:\d{2}$/)).optional(),
   duracaoMin: z.number().int().positive(),
   valor: dinheiroSchema,
   cobranca: z.enum(COBRANCAS),
@@ -64,6 +66,8 @@ export type EstadoSessao = (typeof ESTADOS_SESSAO)[number];
 export const sessaoSchema = z.object({
   id,
   pacienteId: id,
+  /** Contrato (grade fixa) que gerou a sessão; null/ausente = avulsa. */
+  contratoId: id.nullable().optional(),
   inicio: instante,
   duracaoMin: z.number().int().positive(),
   estado: z.enum(ESTADOS_SESSAO),

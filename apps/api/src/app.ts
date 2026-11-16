@@ -15,6 +15,7 @@ import {
   reciboEntradaSchema,
   sessaoAvulsaSchema,
   sessaoPatchSchema,
+  sessaoSeguintesSchema,
   TIPOS_CONTA,
 } from "@consultorio/shared";
 import type { Banco } from "./db/conexao";
@@ -78,6 +79,9 @@ app.patch("/sessoes/:id", async (c) => {
   srv.atualizarSessao(db(c), c.req.param("id"), sessaoPatchSchema.parse(await c.req.json()), agora());
   return ok(c);
 });
+app.post("/sessoes/:id/seguintes", async (c) =>
+  ok(c, srv.alterarDaquiEmDiante(db(c), c.req.param("id"), sessaoSeguintesSchema.parse(await c.req.json()), agora())),
+);
 app.post("/sessoes", async (c) => ok(c, { id: srv.criarSessaoAvulsa(db(c), sessaoAvulsaSchema.parse(await c.req.json())) }));
 
 app.post("/pacientes", async (c) => {

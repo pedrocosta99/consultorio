@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { dinheiro } from "@consultorio/shared";
-import { diaDaSemanaIso, gerarVagas, somarDias, type ContratoGrade } from "./grade";
+import { diaDaSemanaIso, gerarVagas, moverVagaDaGrade, somarDias, type ContratoGrade } from "./grade";
 
 const FUSO = "America/Sao_Paulo";
 const base: ContratoGrade = {
@@ -62,5 +62,31 @@ describe("gerarVagas", () => {
   it("paciente em outro fuso: o horário da grade continua no fuso do consultório", () => {
     const v = gerarVagas({ ...base, diasSemana: [3], horario: "07:00" }, { ...sem, de: "2026-11-04", ate: "2026-11-04" });
     expect(v[0]!.inicio).toBe("2026-11-04T10:00:00.000Z");
+  });
+});
+
+describe("horários por dia", () => {
+  const sem = { feriados: new Set<string>(), fuso: FUSO };
+
+  it("usa o horário próprio do dia quando há", () => {
+    const v = gerarVagas({ ...base, horariosDia: { "4": "19:30" } }, { ...sem, de: "2026-11-02", ate: "2026-11-08" });
+    expect(v.map((x) => x.inicio)).toEqual(["2026-11-02T11:00:00.000Z", "2026-11-05T22:30:00.000Z"]);
+  });
+
+  it("mover a vaga de um dia mantém o horário dos outros", () => {
+    expect(moverVagaDaGrade(base, 4, 5, "10:00")).toEqual({ diasSemana: [1, 5], horario: "08:00", horariosDia: { "5": "10:00" } });
+  });
+
+  it("mover a única vaga troca o horário geral", () => {
+    expect(moverVagaDaGrade({ ...base, diasSemana: [3] }, 3, 4, "10:00")).toEqual({ diasSemana: [4], horario: "10:00", horariosDia: null });
+  });
+
+  it("voltar todos ao mesmo horário limpa os horários próprios", () => {
+    const g = { ...base, horariosDia: { "4": "10:00" } };
+    expect(moverVagaDaGrade(g, 4, 4, "08:00")).toEqual({ diasSemana: [1, 4], horario: "08:00", horariosDia: null });
+  });
+
+  it("mover para um dia que já está na grade junta as vagas", () => {
+    expect(moverVagaDaGrade(base, 4, 1, "09:00").diasSemana).toEqual([1]);
   });
 });
