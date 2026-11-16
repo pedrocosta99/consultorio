@@ -5,6 +5,8 @@ import "./index.css";
 import { AvisosProvider } from "@/app/avisos";
 import { DadosProvider } from "@/app/dados";
 import { PreferenciasProvider } from "@/app/preferencias";
+import { SessaoProvider } from "@/app/sessao";
+import { PaginaCodigo, PaginaConvite, PaginaEntrar, PaginaEsqueci, PaginaSemAcesso } from "@/pages/Acesso";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppShell } from "@/components/layout/AppShell";
 import { PaginaPainel } from "@/pages/Painel";
@@ -19,6 +21,12 @@ import { PaginaSupervisao } from "@/pages/Supervisao";
 import { PaginaAReceber } from "@/pages/AReceber";
 
 const router = createBrowserRouter([
+  // Telas de acesso (fora do shell).
+  { path: "entrar", element: <PaginaEntrar /> },
+  { path: "entrar/codigo", element: <PaginaCodigo /> },
+  { path: "entrar/esqueci", element: <PaginaEsqueci /> },
+  { path: "convite/:token", element: <PaginaConvite /> },
+  { path: "sem-acesso", element: <PaginaSemAcesso /> },
   {
     element: <AppShell />,
     children: [
@@ -42,11 +50,13 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <PreferenciasProvider>
       <AvisosProvider>
-        <DadosProvider>
-          <TooltipProvider delayDuration={300}>
-            <RouterProvider router={router} />
-          </TooltipProvider>
-        </DadosProvider>
+        <SessaoProvider>
+          <DadosProvider>
+            <TooltipProvider delayDuration={300}>
+              <RouterProvider router={router} />
+            </TooltipProvider>
+          </DadosProvider>
+        </SessaoProvider>
       </AvisosProvider>
     </PreferenciasProvider>
   </StrictMode>,

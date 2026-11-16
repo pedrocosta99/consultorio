@@ -9,7 +9,7 @@ import { useDados } from "@/app/dados";
 import { CabecalhoPagina } from "@/components/comuns";
 import { SeletorPaleta } from "@/components/SeletorPaleta";
 import { SecaoMensagens } from "@/components/formularios/SecaoMensagens";
-import { SecaoBackup, SecaoContas, SecaoFeriados, SecaoFicticios, SecaoHorarioAtendimento, SecaoMoedas, SecaoRegistroAcesso } from "@/components/formularios/SecoesConfiguracao";
+import { SecaoBackup, SecaoContas, SecaoFeriados, SecaoFicticios, SecaoHorarioAtendimento, SecaoConta, SecaoMoedas, SecaoRegistroAcesso } from "@/components/formularios/SecoesConfiguracao";
 import { FUSOS_DISPONIVEIS, hora, nomeFuso, offsetFuso } from "@/lib/datas";
 
 const TAMANHOS: Array<[TamanhoTexto, string, string]> = [
@@ -50,6 +50,7 @@ export function PaginaConfiguracoes() {
 
       <div className="grid max-w-3xl grid-cols-1 gap-4">
         <SecaoFicticios />
+        <SecaoConta />
         <Card>
           <CardHeader className="border-b">
             <CardTitle className="font-serif text-lg font-medium">Aparência</CardTitle>

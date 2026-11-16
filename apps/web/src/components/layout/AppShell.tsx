@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
-import { NavLink, Outlet, useLocation } from "react-router";
-import { Leaf, Menu, Moon, Search, Sun } from "lucide-react";
+import { Link, Navigate, NavLink, Outlet, useLocation, useNavigate } from "react-router";
+import { Leaf, LogOut, Menu, Moon, Search, Settings, Sun } from "lucide-react";
+import { ROTULO_PAPEL } from "@consultorio/shared";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { useSessao } from "@/app/sessao";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { usePreferencias } from "@/app/preferencias";
@@ -60,7 +63,49 @@ function BotaoTema() {
   );
 }
 
+function iniciaisDe(nome: string): string {
+  const partes = nome.trim().split(/\s+/);
+  return ((partes[0]?.[0] ?? "") + (partes.length > 1 ? (partes.at(-1)?.[0] ?? "") : "")).toUpperCase() || "?";
+}
+
+/** Quem está usando: nome, consultório, papel; atalho para a conta e sair. */
+function MenuConta() {
+  const { sessao, sair } = useSessao();
+  const navegar = useNavigate();
+  if (!sessao) return null;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" className="rounded-full" aria-label={`Conta de ${sessao.usuario.nome}`}>
+          <span className="flex size-7 items-center justify-center rounded-full bg-secondary text-[11px] font-semibold text-secondary-foreground">{iniciaisDe(sessao.usuario.nome)}</span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-60">
+        <DropdownMenuLabel className="flex flex-col gap-0.5 font-normal">
+          <span className="truncate text-sm font-medium">{sessao.usuario.nome}</span>
+          <span className="truncate text-xs text-muted-foreground">{sessao.consultorio.nome} · {ROTULO_PAPEL[sessao.papel]}</span>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link to="/configuracoes#conta">
+            <Settings aria-hidden /> Minha conta
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={async () => {
+            await sair();
+            navegar("/entrar", { replace: true });
+          }}
+        >
+          <LogOut aria-hidden /> Sair
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 export function AppShell() {
+  const { estado } = useSessao();
   const [menuAberto, setMenuAberto] = useState(false);
   const [buscaAberta, setBuscaAberta] = useState(false);
   const local = useLocation();
@@ -77,6 +122,9 @@ export function AppShell() {
   }, []);
 
   useEffect(() => setMenuAberto(false), [local.pathname]);
+
+  // Quem saiu (ou abriu com ?mock=deslogado) vai para a tela de entrar.
+  if (estado === "saiu") return <Navigate to="/entrar" replace />;
 
   return (
     <div className="flex min-h-dvh">
@@ -124,6 +172,7 @@ export function AppShell() {
           <div className="ml-auto flex items-center gap-1">
             <BotaoTema />
             <MenuNovo />
+            <MenuConta />
           </div>
         </header>
 

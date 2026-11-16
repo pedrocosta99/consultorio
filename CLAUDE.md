@@ -66,6 +66,7 @@ docs/PLANO.md      plano do produto
 
 - Playwright fixa o relógio em **2026-11-04 14:30 (Brasília)** e `timezoneId: America/Sao_Paulo`. Os mocks são determinísticos a partir dessa data.
 - `?mock=vazio` e `?mock=carregando` na URL forçam os estados vazio/carregando.
+- `?mock=deslogado` abre na tela de entrar (login simulado; ver `apps/web/src/app/sessao.tsx`). A simulação usa `setTimeout`: nos testes de fluxo, chame `page.clock.resume()`.
 
 ## Supply chain
 

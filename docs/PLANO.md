@@ -446,10 +446,10 @@ Cinco fases de core, cada uma termina num app que você já usa de verdade. A Fa
 
 *Login mockado*
 
-- [ ] Provedor de sessão (`useSessao`) com implementação mock, pronto para trocar pelo Firebase Auth
-- [ ] Telas: Entrar (Google + e-mail/senha), Criar senha a partir do convite, Esqueci a senha, Código do MFA, Sem acesso, Sair
-- [ ] Configurações → Conta: nome, e-mail, métodos de login (Google ligado, senha, MFA)
-- [ ] Local continua abrindo direto, logado como `dono` (regra do `CLAUDE.md`); `?mock=deslogado` mostra o login. Testes visuais das telas novas
+- [x] Provedor de sessão (`useSessao`) com interface `ProvedorAcesso` e implementação simulada, pronto para trocar pelo Firebase Auth
+- [x] Telas: Entrar (Google + e-mail/senha), Criar senha a partir do convite, Esqueci a senha, Código do MFA, Sem acesso, Sair (menu da conta no topo)
+- [x] Configurações → Conta: nome, consultório, papel e métodos de login (ativam na 6.3)
+- [x] Local continua abrindo direto, logado como `dono` (regra do `CLAUDE.md`); `?mock=deslogado` mostra o login. Testes visuais e de fluxo das telas novas
 
 *Ícones*
 

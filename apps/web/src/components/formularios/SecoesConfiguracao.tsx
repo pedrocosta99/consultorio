@@ -1,6 +1,6 @@
-import { useEffect, useState, type FormEvent } from "react";
-import { ArrowLeftRight, CalendarOff, Clock, Coins, Eye, RefreshCw, FlaskConical, HardDriveDownload, Landmark, Plus, RotateCcw, Trash2 } from "lucide-react";
-import { formatarTaxa, lerTaxa, feriadoEntradaSchema, horarioAtendimentoSchema, HORARIO_ATENDIMENTO_PADRAO, TIPOS_CONTA, type Conta, type HorarioAtendimento, type Moeda } from "@consultorio/shared";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { ArrowLeftRight, CalendarOff, Clock, Coins, Eye, KeyRound, RefreshCw, ShieldCheck, UserRound, FlaskConical, HardDriveDownload, Landmark, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { formatarTaxa, lerTaxa, ROTULO_PAPEL, feriadoEntradaSchema, horarioAtendimentoSchema, HORARIO_ATENDIMENTO_PADRAO, TIPOS_CONTA, type Conta, type HorarioAtendimento, type Moeda } from "@consultorio/shared";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { useAvisos } from "@/app/avisos";
 import { useDados } from "@/app/dados";
 import { usePreferencias } from "@/app/preferencias";
+import { useSessao } from "@/app/sessao";
 import { api } from "@/lib/api";
 import { fmt, noFuso } from "@/lib/datas";
 import { Campo, DialogoConfirmacao, SeletorSimples } from "./campos";
@@ -84,6 +85,48 @@ export function SecaoFeriados() {
               </li>
             ))}
           </ul>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Quem está usando e como entra. Os métodos de login chegam de verdade na Fase 6.3. */
+export function SecaoConta() {
+  const { sessao, simulado } = useSessao();
+  if (!sessao) return null;
+  const metodos: Array<[ReactNode, string, string]> = [
+    [<UserRound key="g" className="size-4" aria-hidden />, "Conta Google", "Entrar com o Google"],
+    [<KeyRound key="s" className="size-4" aria-hidden />, "Senha", "E-mail e senha, com recuperação por e-mail"],
+    [<ShieldCheck key="m" className="size-4" aria-hidden />, "Verificação em duas etapas", sessao.papel === "dono" ? "App autenticador: obrigatório para o dono" : "App autenticador"],
+  ];
+  return (
+    <Card id="conta">
+      <CardHeader className="border-b">
+        <CardTitle className="flex items-center gap-2 font-serif text-lg font-medium">
+          <UserRound className="size-4 text-muted-foreground" aria-hidden /> Conta
+        </CardTitle>
+        <CardDescription>
+          {sessao.usuario.nome} · {sessao.consultorio.nome} · {ROTULO_PAPEL[sessao.papel]}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3">
+        <ul className="divide-y rounded-lg border text-sm">
+          {metodos.map(([icone, titulo, ajuda]) => (
+            <li key={titulo} className="flex items-center gap-3 px-3 py-2.5">
+              <span className="text-muted-foreground">{icone}</span>
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="font-medium">{titulo}</span>
+                <span className="text-xs text-muted-foreground">{ajuda}</span>
+              </span>
+              <span className="text-xs text-muted-foreground">{simulado ? "com o login" : ""}</span>
+            </li>
+          ))}
+        </ul>
+        {simulado && (
+          <p className="text-xs text-muted-foreground">
+            Versão local: o app abre direto, sem login. Conectar a conta Google, criar senha e ligar a verificação em duas etapas chegam com o login de verdade.
+          </p>
         )}
       </CardContent>
     </Card>
