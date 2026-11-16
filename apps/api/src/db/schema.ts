@@ -226,3 +226,16 @@ export const compromissosExcecoes = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.compromissoId, t.data] })],
 );
+
+/** Cotações para exibir valores convertidos (PTAX do Banco Central ou manual). */
+export const cotacoes = sqliteTable(
+  "cotacoes",
+  {
+    data: text("data").notNull(),
+    moeda: text("moeda", { enum: MOEDAS }).notNull(),
+    /** Reais por 1 unidade × 10.000 (5,4618 → 54618). */
+    taxa: integer("taxa").notNull(),
+    fonte: text("fonte", { enum: ["bcb", "manual"] }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.data, t.moeda] })],
+);

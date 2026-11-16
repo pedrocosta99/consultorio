@@ -31,7 +31,8 @@ docs/PLANO.md      plano do produto
 
 - Valor monetário é **sempre** `{ centavos: inteiro, moeda: "BRL" | "USD" | "EUR" }` (`Dinheiro` em `packages/shared/src/money.ts`). Nunca float, nunca string formatada no estado.
 - **BRL é a moeda principal** (moeda de relatório padrão). USD e EUR são aceitas.
-- Não some moedas diferentes: `somar()` lança erro. Para totais, agrupe por moeda (`somarPorMoeda`). A conversão (Etapa 4) só acontece na exibição, com a cotação registrada.
+- Não some moedas diferentes: `somar()` lança erro. Para totais, agrupe por moeda (`somarPorMoeda`).
+- Conversão só na exibição: se a preferência `moedaExibicao` não for "separada", Finanças e os cards financeiros do Painel convertem com `converter()` (`packages/shared/src/cambio.ts`) pela cotação do dia de cada movimento (tabela `cotacoes`: PTAX do Banco Central ou manual). Nada é gravado convertido; cobranças ficam sempre na moeda do paciente.
 - Formatação só na borda, com `formatarDinheiro` / `<Valor>` (pt-BR, números tabulares).
 
 ## Datas e fusos

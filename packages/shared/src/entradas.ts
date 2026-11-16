@@ -111,6 +111,8 @@ export interface PacoteConsultorio {
   compromissos: import("./recorrencia").Compromisso[];
   /** Horário de atendimento (seg … dom); fora dele a agenda fica sombreada. */
   horarioAtendimento: import("./agenda").HorarioAtendimento;
+  /** Cotações registradas (só para exibir valores convertidos). */
+  cotacoes: import("./cambio").Cotacao[];
   /** Moedas em uso. BRL sempre; USD/EUR só se ligadas em Configurações. */
   moedas: import("./money").Moeda[];
   /** Chave Pix e modelos de mensagem/nota (Configurações). */

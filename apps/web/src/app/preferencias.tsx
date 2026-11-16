@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { FUSO_CONSULTORIO } from "@consultorio/shared";
+import { FUSO_CONSULTORIO, type Moeda } from "@consultorio/shared";
 import { gravarPreferencia, lerPreferencia } from "@/lib/storage";
 import { PALETA_PADRAO, PALETAS } from "@/lib/paletas";
 
@@ -22,6 +22,11 @@ export interface Preferencias {
   /** Usado quando `paleta` é "personalizada". */
   corPersonalizada: { matiz: number; croma: number };
   tamanhoTexto: TamanhoTexto;
+  /**
+   * Finanças: "separada" mostra cada moeda à parte (sem somar); uma moeda converte
+   * tudo para ela na exibição, pela cotação do dia de cada movimento.
+   */
+  moedaExibicao: "separada" | Moeda;
 }
 
 const PADRAO: Preferencias = {
@@ -32,6 +37,7 @@ const PADRAO: Preferencias = {
   paleta: PALETA_PADRAO.id,
   corPersonalizada: { matiz: PALETA_PADRAO.matiz, croma: PALETA_PADRAO.croma },
   tamanhoTexto: "normal",
+  moedaExibicao: "separada",
 };
 
 /** Matiz e intensidade efetivos da paleta escolhida. */

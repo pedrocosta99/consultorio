@@ -94,7 +94,7 @@ A agenda deve se comportar como a do Google, porque as duas vão conversar e voc
 - Relatórios: receita por mês, por paciente, por origem (clínica-escola × particular), ticket médio e taxa de faltas.
 - Visão fiscal mensal: total recebido de pessoas físicas, útil para o carnê-leão (ou para a PJ).
 - Orçamento mensal por categoria e metas.
-- Câmbio: cotações registradas; todo valor guardado na moeda original e convertido só na exibição.
+- ~~Câmbio~~ feito em 16 nov 2026: em Configurações → Moedas, "Em Finanças, mostrar" cada moeda separada ou tudo numa moeda; cotações PTAX do Banco Central (botão) ou manuais; valor sempre gravado na moeda original.
 - ~~Investimentos e patrimônio~~ (fora do escopo, decisão de 9 nov 2026).
 
 ## Módulo Divulgação (anúncios)
@@ -379,7 +379,7 @@ Cinco fases de core, cada uma termina num app que você já usa de verdade. A Fa
 **Fase 4 — Investimentos e patrimônio** (fora do escopo por ora)
 
 - ~~Ativos, aportes, resgates e posições~~
-- [ ] Talvez: tabela de câmbio e moeda de relatório (totais convertidos)
+- [x] Câmbio e moeda de exibição (totais e gráficos convertidos, opcional) — 16 nov 2026
 
 **Fase 5 — Refinamentos**
 
@@ -407,14 +407,14 @@ Cinco fases de core, cada uma termina num app que você já usa de verdade. A Fa
 
 **Agenda no estilo do Google** (pode começar a qualquer momento; precisa estar pronta antes da 6.6)
 
-- [ ] Clicar num horário vazio abre o cartão rápido; arrastar seleciona o intervalo; atalho `c`
-- [ ] Compromissos e bloqueios (tabelas `compromissos`, `compromissos_excecoes`), com recorrência RRULE
-- [ ] Redimensionar pela borda muda a duração
-- [ ] Pergunta "só esta / esta e as seguintes" ao mover, redimensionar, cancelar ou excluir algo recorrente (sessão: nova versão do contrato; compromisso: exceção ou nova série). Testes cobrindo sessões com nota, pagamento e remarcação manual
-- [ ] Desfazer; aviso de conflito
-- [ ] Visões semana de trabalho e lista; mini calendário; atalhos de teclado
-- [ ] Horário de atendimento (`horarios_atendimento`) sombreado na grade
-- [ ] Testes visuais das telas novas
+- [x] Clicar num horário vazio abre o cartão rápido; arrastar seleciona o intervalo; atalho `c`
+- [x] Compromissos e bloqueios (tabelas `compromissos`, `compromissos_excecoes`), com recorrência RRULE
+- [x] Redimensionar pela borda muda a duração
+- [x] Pergunta "só esta / esta e as seguintes" ao mover, redimensionar, cancelar ou excluir algo recorrente (sessão: nova versão do contrato; compromisso: exceção ou nova série). Testes cobrindo sessões com nota, pagamento e remarcação manual
+- [x] Desfazer; aviso de conflito
+- [x] Visões semana de trabalho e lista; mini calendário; atalhos de teclado
+- [x] Horário de atendimento sombreado na grade (guardado em `meta_sistema`; vira tabela na 6.1)
+- [x] Testes visuais das telas novas
 
 **Fase 6 — Nuvem.** A ordem tira o risco primeiro: a 6.1 prepara o app sem mudar nada de infraestrutura, a 6.2 e a 6.3 trocam banco e login localmente, e só a 6.4 começa a gastar com nuvem. A 6.0 corre em paralelo, porque a verificação do Google demora.
 

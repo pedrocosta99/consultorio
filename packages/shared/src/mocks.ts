@@ -9,6 +9,7 @@ import { addDays, addWeeks, format, startOfWeek } from "date-fns";
 import { chaveDiaNoFuso, instanteDeParede, paraParede } from "./fuso";
 import { dinheiro, type Moeda } from "./money";
 import type { Compromisso } from "./recorrencia";
+import type { Cotacao } from "./cambio";
 import {
   sessaoCobravel,
   type Campanha,
@@ -35,6 +36,7 @@ export interface Mocks {
   lancamentos: Lancamento[];
   campanhas: Campanha[];
   compromissos: Compromisso[];
+  cotacoes: Cotacao[];
 }
 
 // PRNG determinístico (mulberry32) semeado por string.
@@ -387,5 +389,15 @@ export function gerarMocks(referencia: Date = new Date()): Mocks {
     { id: "c-supervisao", tipo: "compromisso", titulo: "Supervisão", categoria: "Supervisão", inicio: parede(4, 9), duracaoMin: 60, fuso: FUSO_CONSULTORIO, recorrencia: "FREQ=WEEKLY;INTERVAL=2;BYDAY=FR", excecoes: [] },
   ];
 
-  return { referencia, pacientes, contratos, sessoes, pagamentos, notas, contas: CONTAS, lancamentos, campanhas: CAMPANHAS, compromissos };
+  // Cotações fictícias (dias úteis das últimas 20 semanas), com uma oscilação suave.
+  const cotacoes: Cotacao[] = [];
+  for (let d = 0; d < 140; d++) {
+    const dia = addDays(addWeeks(semanaAtual, -20), d);
+    if (dia.getDay() === 0 || dia.getDay() === 6 || dia.getTime() > ref.getTime()) continue;
+    const onda = Math.round(Math.sin(d / 9) * 900);
+    const data = format(dia, "yyyy-MM-dd");
+    cotacoes.push({ data, moeda: "USD", taxa: 54_200 + onda, fonte: "bcb" }, { data, moeda: "EUR", taxa: 62_800 + onda, fonte: "bcb" });
+  }
+
+  return { referencia, pacientes, contratos, sessoes, pagamentos, notas, contas: CONTAS, lancamentos, campanhas: CAMPANHAS, compromissos, cotacoes };
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { CalendarOff, Clock, Coins, FlaskConical, HardDriveDownload, Landmark, Plus, RotateCcw, Trash2 } from "lucide-react";
-import { feriadoEntradaSchema, horarioAtendimentoSchema, HORARIO_ATENDIMENTO_PADRAO, TIPOS_CONTA, type Conta, type HorarioAtendimento, type Moeda } from "@consultorio/shared";
+import { ArrowLeftRight, CalendarOff, Clock, Coins, RefreshCw, FlaskConical, HardDriveDownload, Landmark, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { formatarTaxa, lerTaxa, feriadoEntradaSchema, horarioAtendimentoSchema, HORARIO_ATENDIMENTO_PADRAO, TIPOS_CONTA, type Conta, type HorarioAtendimento, type Moeda } from "@consultorio/shared";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { useAvisos } from "@/app/avisos";
 import { useDados } from "@/app/dados";
+import { usePreferencias } from "@/app/preferencias";
 import { api } from "@/lib/api";
 import { fmt } from "@/lib/datas";
 import { Campo, DialogoConfirmacao, SeletorSimples } from "./campos";
@@ -167,6 +168,104 @@ export function SecaoHorarioAtendimento() {
   );
 }
 
+const NOME_MOEDA: Record<Moeda, string> = { BRL: "Real (R$)", USD: "Dólar (US$)", EUR: "Euro (€)" };
+
+/** Finanças numa moeda só (convertida) ou cada moeda à parte; e as cotações usadas. */
+function ExibicaoECotacoes() {
+  const { moedas, cotacoes, mutar } = useDados();
+  const { moedaExibicao, atualizar } = usePreferencias();
+  const { avisar, avisarErro } = useAvisos();
+  const estrangeiras = moedas.filter((m): m is "USD" | "EUR" => m !== "BRL");
+  const [buscando, setBuscando] = useState(false);
+  const [moeda, setMoeda] = useState<"USD" | "EUR">(estrangeiras[0] ?? "USD");
+  const [data, setData] = useState("");
+  const [taxa, setTaxa] = useState("");
+  const [erro, setErro] = useState<string | null>(null);
+  if (estrangeiras.length === 0) return null;
+
+  const ultima = (m: Moeda) => [...cotacoes].reverse().find((c) => c.moeda === m);
+  const buscar = async () => {
+    setBuscando(true);
+    try {
+      const r = await mutar<{ ok: true; novas: number }>("POST", "/cotacoes/atualizar");
+      avisar(r.novas ? `${r.novas} cotações novas do Banco Central.` : "As cotações já estavam em dia.");
+    } catch (e) {
+      avisarErro(e);
+    } finally {
+      setBuscando(false);
+    }
+  };
+  const adicionar = async (e: FormEvent) => {
+    e.preventDefault();
+    setErro(null);
+    const t = lerTaxa(taxa);
+    if (!data) return setErro("Informe a data.");
+    if (t === null) return setErro("Cotação inválida. Ex.: 5,4618");
+    try {
+      await mutar("POST", "/cotacoes", { data, moeda, taxa: t });
+      avisar(`Cotação de ${moeda} em ${fmt(new Date(data + "T12:00:00"), "dd/MM/yyyy")} salva.`);
+      setTaxa("");
+    } catch (err) {
+      setErro(err instanceof Error ? err.message : "Não foi possível salvar.");
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-4 pt-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <Label htmlFor="moeda-exibicao" className="flex items-center gap-1.5 text-sm font-medium">
+            <ArrowLeftRight className="size-3.5 text-muted-foreground" aria-hidden /> Em Finanças, mostrar
+          </Label>
+          <p className="mt-0.5 text-xs text-muted-foreground">Converter simplifica totais e gráficos. Cada lançamento continua gravado na moeda original.</p>
+        </div>
+        <SeletorSimples
+          id="moeda-exibicao"
+          className="w-56"
+          valor={moedaExibicao}
+          aoMudar={(v) => atualizar({ moedaExibicao: v })}
+          opcoes={[["separada", "Cada moeda separada"], ...moedas.map((m) => [m, `Tudo em ${NOME_MOEDA[m]}`] as const)]}
+        />
+      </div>
+      <div className="rounded-lg border p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm font-medium">Cotações</p>
+          <Button type="button" variant="outline" size="sm" onClick={buscar} disabled={buscando}>
+            <RefreshCw aria-hidden className={buscando ? "animate-spin" : undefined} /> {buscando ? "Buscando…" : "Atualizar do Banco Central"}
+          </Button>
+        </div>
+        <ul className="mt-2 flex flex-col gap-1 text-sm">
+          {estrangeiras.map((m) => {
+            const c = ultima(m);
+            return (
+              <li key={m} className="flex flex-wrap justify-between gap-2">
+                <span>{NOME_MOEDA[m]}</span>
+                <span className="text-muted-foreground tabular">
+                  {c ? `R$ ${formatarTaxa(c.taxa)} · ${fmt(new Date(c.data + "T12:00:00"), "dd/MM/yyyy")} · ${c.fonte === "bcb" ? "PTAX" : "manual"}` : "sem cotação"}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+        <p className="mt-2 text-xs text-muted-foreground">PTAX de fechamento. Só a moeda e o período saem do computador; nada do consultório.</p>
+        <form onSubmit={adicionar} className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-[6rem_1fr_1fr_auto] sm:items-end" noValidate>
+          <Campo rotulo="Moeda">{(id) => <SeletorSimples id={id} valor={moeda} aoMudar={setMoeda} opcoes={estrangeiras.map((m) => [m, m] as const)} />}</Campo>
+          <Campo rotulo="Data">{(id) => <Input id={id} type="date" value={data} onChange={(e) => setData(e.target.value)} />}</Campo>
+          <Campo rotulo="R$ por unidade">{(id) => <Input id={id} inputMode="decimal" placeholder="5,4618" value={taxa} onChange={(e) => setTaxa(e.target.value)} />}</Campo>
+          <Button type="submit" variant="secondary">
+            <Plus aria-hidden /> Manual
+          </Button>
+        </form>
+        {erro && (
+          <p className="mt-2 text-sm text-destructive" role="alert">
+            {erro}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function SecaoMoedas() {
   const { moedas, mutar } = useDados();
   const { avisar, avisarErro } = useAvisos();
@@ -175,7 +274,7 @@ export function SecaoMoedas() {
       .then(() => avisar(ligar ? `${m} ligado. Já dá para criar contas e contratos em ${m}.` : `${m} desligado.`))
       .catch(avisarErro);
   return (
-    <Card>
+    <Card id="moedas">
       <CardHeader className="border-b">
         <CardTitle className="flex items-center gap-2 font-serif text-lg font-medium">
           <Coins className="size-4 text-muted-foreground" aria-hidden /> Moedas
@@ -200,6 +299,7 @@ export function SecaoMoedas() {
             <Switch id={`moeda-${m}`} checked={moedas.includes(m)} disabled={m === "BRL"} onCheckedChange={(v) => alternar(m, v)} />
           </div>
         ))}
+        <ExibicaoECotacoes />
       </CardContent>
     </Card>
   );

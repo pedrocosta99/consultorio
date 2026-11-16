@@ -380,3 +380,26 @@ describe("compromissos", () => {
     expect(lista()).toEqual([]);
   });
 });
+
+describe("cotações", () => {
+  it("manual substitui a do Banco Central; o Banco Central não passa por cima da manual", async () => {
+    const { definirCotacao, gravarCotacoesBcb, excluirCotacao } = await import("./servico");
+    expect(gravarCotacoesBcb(db, [{ data: "2026-11-03", moeda: "USD", taxa: 54000, fonte: "bcb" }])).toBe(1);
+    definirCotacao(db, { data: "2026-11-03", moeda: "USD", taxa: 55000 });
+    expect(gravarCotacoesBcb(db, [{ data: "2026-11-03", moeda: "USD", taxa: 53000, fonte: "bcb" }])).toBe(0);
+    expect(carregarConsultorio(db, AGORA).cotacoes).toEqual([{ data: "2026-11-03", moeda: "USD", taxa: 55000, fonte: "manual" }]);
+    excluirCotacao(db, "USD", "2026-11-03");
+    expect(carregarConsultorio(db, AGORA).cotacoes).toEqual([]);
+  });
+
+  it("buscarPtax monta a consulta do Banco Central e lê o fechamento", async () => {
+    const { buscarPtax } = await import("./servico");
+    let url = "";
+    const falso = (async (u: string) => {
+      url = u;
+      return new Response(JSON.stringify({ value: [{ cotacaoVenda: 6.2, dataHoraCotacao: "2026-11-03 13:00:00", tipoBoletim: "Fechamento PTAX" }] }));
+    }) as unknown as typeof fetch;
+    expect(await buscarPtax("EUR", "2026-11-01", "2026-11-04", falso)).toEqual([{ data: "2026-11-03", moeda: "EUR", taxa: 62000, fonte: "bcb" }]);
+    expect(url).toContain("@moeda='EUR'&@dataInicial='11-01-2026'&@dataFinalCotacao='11-04-2026'");
+  });
+});

@@ -12,6 +12,7 @@ import { AcoesSessao } from "@/components/AcoesSessao";
 import { BotaoMensagem } from "@/components/BotaoMensagem";
 import { SheetNota } from "@/components/notas/SheetNota";
 import { mensagemLembrete } from "@/lib/mensagens";
+import { somarNaExibicao, useMoedaExibicao } from "@/lib/financas";
 import { CabecalhoPagina, EstadoBadge, EstadoVazio, PacienteAvatar, Valor, Valores } from "@/components/comuns";
 import { capitalizar, chaveDia, fmt, hora, noFuso, SEMANA } from "@/lib/datas";
 
@@ -49,7 +50,8 @@ function Indicador({
 }
 
 export function PaginaPainel() {
-  const { sessoes, pagamentos, notas, carregando, paciente, nomeExibicao, saldoPaciente, pacientes, mensagens } = useDados();
+  const { sessoes, pagamentos, notas, carregando, paciente, nomeExibicao, saldoPaciente, pacientes, mensagens, cotacoes } = useDados();
+  const alvo = useMoedaExibicao();
   const [notaDe, setNotaDe] = useState<Sessao | null>(null);
   const comNota = useMemo(() => new Set(notas.map((n) => n.sessaoId).filter(Boolean)), [notas]);
   const { fusoPrincipal } = usePreferencias();
@@ -69,7 +71,8 @@ export function PaginaPainel() {
     const doMes = sessoes.filter((s) => chaveDia(s.inicio, fusoPrincipal).startsWith(mes));
     const passadasMes = doMes.filter((s) => s.estado !== "agendada");
     const faltasMes = doMes.filter((s) => s.estado === "falta_cobrada" || s.estado === "falta_nao_cobrada");
-    const receitaMes = somarPorMoeda(pagamentos.filter((p) => p.data.startsWith(mes)).map((p) => p.valor));
+    // Cards financeiros seguem a moeda de exibição (Configurações); as listas ficam na moeda original.
+    const receitaMes = somarNaExibicao(pagamentos.filter((p) => p.data.startsWith(mes)), alvo, cotacoes);
 
     const porPaciente = new Map<string, Dinheiro[]>();
     for (const p of pagamentos.filter((x) => x.data.startsWith(mes))) {
@@ -96,7 +99,7 @@ export function PaginaPainel() {
       realizadasHoje: deHoje.filter((s) => s.estado === "realizada").length,
       semana: daSemana.length,
       ativos: pacientes.filter((p) => p.status === "ativo").length,
-      aReceber: somarPorMoeda(devedores.flatMap((d) => d.saldo)),
+      aReceber: somarNaExibicao(devedores.flatMap((d) => d.saldo.map((valor) => ({ valor, data: hoje }))), alvo, cotacoes),
       qtdDevedores: devedores.length,
       receitaMes,
       faltasMes: faltasMes.length,
@@ -105,7 +108,7 @@ export function PaginaPainel() {
       devedores,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessoes, pagamentos, pacientes, fusoPrincipal, hoje, mes]);
+  }, [sessoes, pagamentos, pacientes, fusoPrincipal, hoje, mes, alvo, cotacoes]);
 
   const maxReceita = Math.max(1, ...dados.receitaPorPaciente.filter((r) => r.valores[0]?.moeda === "BRL").map((r) => r.valores[0]!.centavos));
 

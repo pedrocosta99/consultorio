@@ -64,6 +64,13 @@
       "when": 1794848192090,
       "tag": "0008_compromissos",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1794849924042,
+      "tag": "0009_cotacoes",
+      "breakpoints": true
     }
   ]
 }

@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDados } from "@/app/dados";
 import { CabecalhoPagina } from "@/components/comuns";
 import { DialogoLancamento } from "@/components/formularios/DialogoLancamento";
+import { useMoedaExibicao } from "@/lib/financas";
 import type { AbrirLancamento } from "./AvisoFixos";
 import { Divulgacao } from "./Divulgacao";
 import { Lancamentos } from "./Lancamentos";
@@ -18,6 +19,7 @@ type Aba = (typeof ABAS)[number];
 
 export function PaginaFinancas() {
   const { carregando } = useDados();
+  const alvo = useMoedaExibicao();
   const [params, setParams] = useSearchParams();
   const aba = (ABAS as readonly string[]).includes(params.get("aba") ?? "") ? (params.get("aba") as Aba) : "visao";
   const [dialogo, setDialogo] = useState<{ aberto: boolean; atual?: Lancamento }>({ aberto: false });
@@ -27,7 +29,11 @@ export function PaginaFinancas() {
     <>
       <CabecalhoPagina
         titulo="Finanças"
-        descricao="O que entra (pacientes e outros) e o que sai. Valores sempre na moeda original."
+        descricao={
+          alvo
+            ? `O que entra (pacientes e outros) e o que sai. Totais em ${{ BRL: "R$", USD: "US$", EUR: "€" }[alvo]}, convertidos.`
+            : "O que entra (pacientes e outros) e o que sai. Valores sempre na moeda original."
+        }
         acoes={
           !carregando && (
             <Button onClick={() => abrir(null)}>

@@ -53,3 +53,13 @@ test("finanças: diálogo de novo lançamento", async ({ page }) => {
   await expect(page).toHaveScreenshot("lancamento-dialogo.png");
   await semViolacoesA11y(page);
 });
+
+test("finanças: tudo em reais (convertido)", async ({ page }) => {
+  await abrir(page, "/configuracoes");
+  await page.getByLabel("Em Finanças, mostrar").click();
+  await page.getByRole("option", { name: "Tudo em Real (R$)" }).click();
+  await abrir(page, "/financas");
+  await expect(page.getByText(/convertidos para reais/)).toBeVisible();
+  await expect(page).toHaveScreenshot("financas-convertido.png", { fullPage: true });
+  await semViolacoesA11y(page);
+});

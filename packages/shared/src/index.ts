@@ -8,3 +8,4 @@ export * from "./lancamentos";
 export * from "./cobranca";
 export * from "./recorrencia";
 export * from "./agenda";
+export * from "./cambio";

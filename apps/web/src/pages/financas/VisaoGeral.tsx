@@ -8,7 +8,8 @@ import { useDados } from "@/app/dados";
 import { usePreferencias } from "@/app/preferencias";
 import { EstadoVazio, Valores } from "@/components/comuns";
 import { capitalizar, fmt, noFuso } from "@/lib/datas";
-import { agrupar, emMoeda, resumir, rotuloOrigem, somarMeses, useMovimentos } from "@/lib/financas";
+import { agrupar, emMoeda, resumir, rotuloOrigem, somarMeses, useMovimentosNaExibicao } from "@/lib/financas";
+import { AvisoConversao } from "./AvisoConversao";
 import { cn } from "@/lib/utils";
 import { AvisoFixos, type AbrirLancamento } from "./AvisoFixos";
 
@@ -21,7 +22,8 @@ const rotuloMes = (mes: string, padrao: string) => capitalizar(fmt(new Date(mes 
 export function VisaoGeral({ abrir }: { abrir: AbrirLancamento }) {
   const { paciente } = useDados();
   const { fusoPrincipal } = usePreferencias();
-  const movimentos = useMovimentos();
+  const { movimentos, alvo, base, semCotacao } = useMovimentosNaExibicao();
+  const simbolo = { BRL: "R$", USD: "US$", EUR: "€" }[base];
   const mesAtual = fmt(noFuso(new Date(), fusoPrincipal), "yyyy-MM");
 
   const atual = useMemo(() => resumir(movimentos, mesAtual), [movimentos, mesAtual]);
@@ -37,13 +39,13 @@ export function VisaoGeral({ abrir }: { abrir: AbrirLancamento }) {
     mes: r.mes,
     rotulo: rotuloMes(r.mes, "MMM"),
     rotuloLongo: rotuloMes(r.mes, "MMMM 'de' yyyy"),
-    entradas: emMoeda(r.entradas) / 100,
-    saidas: emMoeda(r.saidas) / 100,
+    entradas: emMoeda(r.entradas, base) / 100,
+    saidas: emMoeda(r.saidas, base) / 100,
   }));
 
   const doMes = movimentos.filter((m) => m.data.startsWith(mesAtual));
-  const saidasPorCategoria = agrupar(doMes.filter((m) => m.tipo === "saida"), (m) => m.categoria);
-  const entradasPorOrigem = agrupar(doMes.filter((m) => m.tipo === "entrada"), (m) => (m.pacienteId ? rotuloOrigem(paciente(m.pacienteId)?.origem) : m.categoria));
+  const saidasPorCategoria = agrupar(doMes.filter((m) => m.tipo === "saida"), (m) => m.categoria, base);
+  const entradasPorOrigem = agrupar(doMes.filter((m) => m.tipo === "entrada"), (m) => (m.pacienteId ? rotuloOrigem(paciente(m.pacienteId)?.origem) : m.categoria), base);
 
   if (movimentos.length === 0) {
     return (
@@ -63,6 +65,7 @@ export function VisaoGeral({ abrir }: { abrir: AbrirLancamento }) {
   return (
     <div className="flex flex-col gap-6">
       <AvisoFixos mes={mesAtual} />
+      <AvisoConversao alvo={alvo} semCotacao={semCotacao} />
 
       {/* Mês atual */}
       <div className="grid gap-3 sm:grid-cols-3">
@@ -79,16 +82,16 @@ export function VisaoGeral({ abrir }: { abrir: AbrirLancamento }) {
             <div className="flex items-center gap-4 text-xs text-muted-foreground" aria-hidden>
               <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-[3px] bg-chart-entrada" />Entradas</span>
               <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-[3px] bg-chart-saida" />Saídas</span>
-              <span>em R$</span>
+              <span>em {simbolo}</span>
             </div>
           </CardHeader>
           <CardContent className="px-2 pt-4 pb-2 sm:px-4">
-            <div className="h-56" role="img" aria-label="Gráfico de entradas e saídas por mês em reais; os valores estão na tabela abaixo">
+            <div className="h-56" role="img" aria-label={`Gráfico de entradas e saídas por mês em ${simbolo}; os valores estão na tabela abaixo`}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={grafico} barGap={2} barCategoryGap="28%" margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
                   <CartesianGrid vertical={false} stroke="var(--border)" />
                   <XAxis dataKey="rotulo" tickLine={false} axisLine={false} tick={{ fill: "var(--muted-foreground)", fontSize: 12 }} />
-                  <YAxis width={44} tickLine={false} axisLine={false} tick={{ fill: "var(--muted-foreground)", fontSize: 12 }} tickFormatter={(v: number) => compacto.format(v)} />
+                  <YAxis width={56} tickLine={false} axisLine={false} tick={{ fill: "var(--muted-foreground)", fontSize: 12 }} tickFormatter={(v: number) => compacto.format(v)} />
                   <Tooltip
                     cursor={{ fill: "var(--muted)", opacity: 0.6 }}
                     content={({ active, payload }) => {
@@ -97,8 +100,8 @@ export function VisaoGeral({ abrir }: { abrir: AbrirLancamento }) {
                       return (
                         <div className="rounded-lg border bg-popover px-3 py-2 text-xs shadow-md">
                           <p className="mb-1 font-medium">{d.rotuloLongo}{d.mes === mesAtual && " (parcial)"}</p>
-                          <p className="flex items-center gap-1.5"><span className="size-2 rounded-[2px] bg-chart-entrada" />Entradas <span className="ml-auto pl-3 tabular">{formatarDinheiro({ centavos: Math.round(d.entradas * 100), moeda: "BRL" })}</span></p>
-                          <p className="flex items-center gap-1.5"><span className="size-2 rounded-[2px] bg-chart-saida" />Saídas <span className="ml-auto pl-3 tabular">{formatarDinheiro({ centavos: Math.round(d.saidas * 100), moeda: "BRL" })}</span></p>
+                          <p className="flex items-center gap-1.5"><span className="size-2 rounded-[2px] bg-chart-entrada" />Entradas <span className="ml-auto pl-3 tabular">{formatarDinheiro({ centavos: Math.round(d.entradas * 100), moeda: base })}</span></p>
+                          <p className="flex items-center gap-1.5"><span className="size-2 rounded-[2px] bg-chart-saida" />Saídas <span className="ml-auto pl-3 tabular">{formatarDinheiro({ centavos: Math.round(d.saidas * 100), moeda: base })}</span></p>
                         </div>
                       );
                     }}

@@ -18,6 +18,7 @@ import {
   saldoPorMoeda,
   sessaoCobravel,
   type Compromisso,
+  type Cotacao,
   type Dinheiro,
   type Feriado,
   type Mensagens,
@@ -38,7 +39,7 @@ function lerModoMock(): ModoMock {
   return m === "vazio" || m === "carregando" ? m : "normal";
 }
 
-const PACOTE_VAZIO: Omit<PacoteConsultorio, "agora"> = { pacientes: [], contratos: [], sessoes: [], pagamentos: [], contas: [], feriados: [], moedas: ["BRL"], notas: [], lancamentos: [], compromissos: [], mensagens: MENSAGENS_PADRAO, horarioAtendimento: HORARIO_ATENDIMENTO_PADRAO };
+const PACOTE_VAZIO: Omit<PacoteConsultorio, "agora"> = { pacientes: [], contratos: [], sessoes: [], pagamentos: [], contas: [], feriados: [], moedas: ["BRL"], notas: [], lancamentos: [], compromissos: [], mensagens: MENSAGENS_PADRAO, horarioAtendimento: HORARIO_ATENDIMENTO_PADRAO, cotacoes: [] };
 
 type Metodo = "POST" | "PATCH" | "PUT" | "DELETE";
 
@@ -54,6 +55,8 @@ interface Ctx extends Mocks {
   /** Compromissos e bloqueios da agenda (com recorrência e exceções). */
   compromissos: Compromisso[];
   horarioAtendimento: HorarioAtendimento;
+  /** Cotações registradas, só para exibir valores convertidos. */
+  cotacoes: Cotacao[];
   recarregar: () => Promise<void>;
   /** Chama a API e recarrega os dados. Erros sobem para quem chamou. */
   mutar: <T = { ok: true; id?: string }>(metodo: Metodo, rota: string, corpo?: unknown) => Promise<T>;
@@ -148,6 +151,7 @@ export function DadosProvider({ children }: { children: ReactNode }) {
       lancamentos: base.lancamentos.filter((l) => base.moedas.includes(l.valor.moeda)),
       compromissos: base.compromissos ?? [],
       horarioAtendimento: base.horarioAtendimento ?? HORARIO_ATENDIMENTO_PADRAO,
+      cotacoes: base.cotacoes ?? [],
       campanhas,
       carregando: modo === "carregando" || pacote === null,
       recarregar,

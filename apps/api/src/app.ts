@@ -165,6 +165,33 @@ app.put("/configuracoes/moedas", async (c) => {
   return ok(c);
 });
 
+// ── Cotações ────────────────────────────────────────────────
+
+app.post("/cotacoes", async (c) => {
+  const e = z
+    .object({ data: z.iso.date(), moeda: z.enum(["USD", "EUR"]), taxa: z.number().int().positive("Cotação inválida") })
+    .parse(await c.req.json());
+  srv.definirCotacao(db(c), e);
+  return ok(c);
+});
+app.delete("/cotacoes/:moeda/:data", (c) => {
+  const moeda = z.enum(["USD", "EUR"]).parse(c.req.param("moeda"));
+  srv.excluirCotacao(db(c), moeda, z.iso.date().parse(c.req.param("data")));
+  return ok(c);
+});
+/** Atualiza do Banco Central as moedas ligadas, desde o primeiro movimento (ou 1 ano). */
+app.post("/cotacoes/atualizar", async (c) => {
+  const banco = db(c);
+  const hoje = srv.hojeCivil(agora());
+  let novas = 0;
+  for (const moeda of srv.moedasAtivas(banco).filter((m): m is "USD" | "EUR" => m !== "BRL")) {
+    const umAno = `${Number(hoje.slice(0, 4)) - 1}${hoje.slice(4)}`;
+    const desde = srv.primeiraDataNaMoeda(banco, moeda) ?? umAno;
+    novas += srv.gravarCotacoesBcb(banco, await srv.buscarPtax(moeda, desde < umAno ? desde : umAno, hoje));
+  }
+  return ok(c, { novas });
+});
+
 app.put("/configuracoes/horario-atendimento", async (c) => {
   srv.definirHorarioAtendimento(db(c), horarioAtendimentoSchema.parse(await c.req.json()));
   return ok(c);

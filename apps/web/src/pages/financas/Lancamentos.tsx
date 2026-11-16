@@ -8,7 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { usePreferencias } from "@/app/preferencias";
 import { EstadoVazio, Valor, Valores } from "@/components/comuns";
 import { capitalizar, fmt, noFuso } from "@/lib/datas";
-import { resumir, somarMeses, useMovimentos, type Movimento } from "@/lib/financas";
+import { converterItens, resumir, somarMeses, useMoedaExibicao, useMovimentos, type Movimento } from "@/lib/financas";
+import { useDados } from "@/app/dados";
+import { AvisoConversao } from "./AvisoConversao";
 import { cn } from "@/lib/utils";
 import { AvisoFixos, type AbrirLancamento } from "./AvisoFixos";
 
@@ -17,6 +19,8 @@ type FiltroTipo = "todos" | "entrada" | "saida";
 export function Lancamentos({ abrir }: { abrir: AbrirLancamento }) {
   const { fusoPrincipal } = usePreferencias();
   const movimentos = useMovimentos();
+  const alvo = useMoedaExibicao();
+  const { cotacoes } = useDados();
   const mesAtual = fmt(noFuso(new Date(), fusoPrincipal), "yyyy-MM");
   const [mes, setMes] = useState(mesAtual);
   const [tipo, setTipo] = useState<FiltroTipo>("todos");
@@ -42,11 +46,14 @@ export function Lancamentos({ abrir }: { abrir: AbrirLancamento }) {
     return [...grupos.entries()];
   }, [filtrados]);
 
-  const totais = resumir(filtrados, mes);
+  // A lista mostra a moeda original; os totais seguem a moeda de exibição.
+  const convertidos = converterItens(filtrados, alvo, cotacoes);
+  const totais = resumir(convertidos.itens, mes);
   const nomeMes = capitalizar(fmt(new Date(mes + "-15T12:00:00"), "MMMM yyyy"));
 
   return (
     <div className="flex flex-col gap-4">
+      <AvisoConversao alvo={alvo} semCotacao={convertidos.semCotacao} />
       <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
         <div className="flex items-center gap-1">
           <Button variant="outline" size="icon" className="bg-card" aria-label="Mês anterior" onClick={() => setMes((m) => somarMeses(m, -1))}>

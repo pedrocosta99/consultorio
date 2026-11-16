@@ -38,6 +38,8 @@ import {
   type SessaoAvulsa,
   type SessaoPatch,
   type SessaoSeguintes,
+  type Cotacao,
+  lerPtax,
   type Compromisso,
   type CompromissoAlteracao,
   type CompromissoEntrada,
@@ -163,6 +165,7 @@ export function carregarConsultorio(db: Db, agora: Date): PacoteConsultorio {
     compromissos: listarCompromissos(db),
     mensagens: lerMensagens(db),
     horarioAtendimento: lerHorarioAtendimento(db),
+    cotacoes: listarCotacoes(db),
   };
 }
 
@@ -928,4 +931,58 @@ export function excluirCompromisso(db: Db, id: string, e: CompromissoExclusao) {
         .run();
     }
   });
+}
+
+// ── Cotações (câmbio só para exibição) ───────────────────────
+
+function listarCotacoes(db: Db): Cotacao[] {
+  return db
+    .select()
+    .from(t.cotacoes)
+    .orderBy(asc(t.cotacoes.data))
+    .all()
+    .filter((c): c is Cotacao => c.moeda !== "BRL");
+}
+
+/** Cotação digitada à mão: substitui a do Banco Central naquele dia. */
+export function definirCotacao(db: Db, c: Omit<Cotacao, "fonte">) {
+  const valores = { taxa: c.taxa, fonte: "manual" as const };
+  db.insert(t.cotacoes).values({ ...c, ...valores }).onConflictDoUpdate({ target: [t.cotacoes.data, t.cotacoes.moeda], set: valores }).run();
+}
+
+export function excluirCotacao(db: Db, moeda: Moeda, data: string) {
+  const r = db.delete(t.cotacoes).where(and(eq(t.cotacoes.moeda, moeda), eq(t.cotacoes.data, data))).run();
+  if (!r.changes) throw new ErroDominio(404, "Cotação não encontrada");
+}
+
+/** Grava as cotações do Banco Central sem passar por cima das manuais. Devolve quantas entraram. */
+export function gravarCotacoesBcb(db: Db, lista: Cotacao[]): number {
+  let n = 0;
+  db.transaction((tx) => {
+    for (const c of lista) {
+      n += tx.insert(t.cotacoes).values({ ...c, fonte: "bcb" }).onConflictDoNothing().run().changes;
+    }
+  });
+  return n;
+}
+
+/** Data mais antiga com dinheiro numa moeda (pagamento ou lançamento), para saber desde quando buscar. */
+export function primeiraDataNaMoeda(db: Db, moeda: Moeda): string | null {
+  const a = db.select({ d: sql<string | null>`min(${t.pagamentos.data})` }).from(t.pagamentos).where(eq(t.pagamentos.moeda, moeda)).get()?.d ?? null;
+  const b = db.select({ d: sql<string | null>`min(${t.lancamentos.data})` }).from(t.lancamentos).where(eq(t.lancamentos.moeda, moeda)).get()?.d ?? null;
+  return [a, b].filter((x): x is string => !!x).sort()[0] ?? null;
+}
+
+/**
+ * Busca o PTAX (fechamento) no Banco Central. Só sai da máquina a moeda e o período;
+ * nada do consultório. `buscar` é injetável para testes.
+ */
+export async function buscarPtax(moeda: Exclude<Moeda, "BRL">, de: string, ate: string, buscar: typeof fetch = fetch): Promise<Cotacao[]> {
+  const mdY = (d: string) => `${d.slice(5, 7)}-${d.slice(8, 10)}-${d.slice(0, 4)}`;
+  const url =
+    "https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoMoedaPeriodo(moeda=@moeda,dataInicial=@dataInicial,dataFinalCotacao=@dataFinalCotacao)" +
+    `?@moeda='${moeda}'&@dataInicial='${mdY(de)}'&@dataFinalCotacao='${mdY(ate)}'&$format=json&$select=cotacaoVenda,dataHoraCotacao,tipoBoletim`;
+  const r = await buscar(url, { signal: AbortSignal.timeout(20_000) });
+  if (!r.ok) throw new ErroDominio(409, `O Banco Central não respondeu (${r.status}). Tente de novo mais tarde ou digite a cotação.`);
+  return lerPtax(await r.json(), moeda);
 }
