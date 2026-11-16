@@ -56,3 +56,13 @@ for (const [nome, rota] of [
     await semViolacoesA11y(page);
   });
 }
+
+test("ícones e manifest servidos", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop-claro", "Basta um projeto.");
+  const m = await (await page.request.get("/manifest.webmanifest")).json();
+  expect(m).toMatchObject({ name: "Consultório", display: "standalone", lang: "pt-BR" });
+  for (const arq of ["/favicon.ico", "/favicon.svg", "/apple-touch-icon.png", "/logo-120.png", ...m.icons.map((i: { src: string }) => i.src)]) {
+    const r = await page.request.get(arq);
+    expect(r.status(), arq).toBe(200);
+  }
+});

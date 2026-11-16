@@ -453,9 +453,9 @@ Cinco fases de core, cada uma termina num app que você já usa de verdade. A Fa
 
 *Ícones*
 
-- [ ] Ícone do app na direção "Sálvia": favicon (SVG + ICO), `apple-touch-icon`, ícones maskable 192/512
-- [ ] `manifest.webmanifest` com nome, cores e `theme-color` claro/escuro (base para um PWA). Sem service worker que guarde dados clínicos
-- [ ] Logo 120×120 para a tela de consentimento do Google; os mesmos arquivos servem depois para o Expo
+- [x] Ícone do app na direção "Sálvia": favicon (SVG + ICO), `apple-touch-icon`, ícones 192/512 e maskable (gerados por `apps/web/scripts/gerar-icones.mjs`)
+- [x] `manifest.webmanifest` com nome, cores e `theme-color` claro/escuro (base para um PWA). Sem service worker que guarde dados clínicos
+- [x] Logo 120×120 para a tela de consentimento do Google (`public/logo-120.png`); o mesmo gerador serve depois para o Expo
 
 *Google Agenda mockado*
 
