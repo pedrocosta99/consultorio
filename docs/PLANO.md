@@ -17,7 +17,7 @@ Princípios que guiam as decisões:
 - **Sigilo por padrão:** login com MFA, isolamento por consultório no banco, registro de quem abriu o quê, dados no Brasil, e nada clínico sai do app (nem para o Google Agenda).
 - **Pronto para mais de um consultório:** `consultorio_id` desde já, para poder vender sem refazer.
 
-Fora do escopo: agenda online para pacientes, emissão fiscal automática e integração direta com bancos.
+Fora do escopo por ora: integração direta com bancos (extratos). A emissão de nota fiscal e uma área do paciente entraram no plano em 16 nov 2026 (ver [App completo](#app-completo-fase-8)).
 
 ## Módulo Consultório
 
@@ -36,6 +36,24 @@ O centro do módulo é a ficha do paciente: dali você vê sessões, pagamentos 
 - Cada sessão recebe um estado: realizada, falta cobrada, falta não cobrada, cancelada, remarcada.
 - Visão semanal da agenda e lista "hoje" para marcar tudo rápido ao fim do dia.
 - **Google Agenda** (Fase 6.6): as sessões aparecem na sua agenda do Google, só com iniciais/pseudônimo. Depois, opcionalmente, os horários ocupados do Google aparecem na agenda do app, para evitar conflito.
+
+**Agenda no estilo do Google Agenda** (decidido em 16 nov 2026)
+
+A agenda deve se comportar como a do Google, porque as duas vão conversar e você já tem esse hábito na mão.
+
+- **Criar clicando:** clicar num horário vazio abre um cartão rápido no lugar (paciente ou compromisso, início, duração: a do contrato ou 50 min). Arrastar na grade seleciona o intervalo. "Mais opções" abre o diálogo completo. Atalho `c` cria.
+- **Tipos de evento:** *sessão* (de um paciente, avulsa ou da grade), *compromisso do consultório* (supervisão, análise pessoal, grupo de estudo, reunião) e *bloqueio* (folga, férias, horário pessoal: aparece só como "ocupado"). Compromissos têm categoria e cor própria; sessões continuam coloridas por estado.
+- **Arrastar e redimensionar:** arrastar move; puxar a borda de baixo muda a duração. Em algo recorrente, aparece a mesma pergunta do Google:
+  - **Só esta sessão:** vira uma exceção (a sessão fica *remarcada* e a vaga da grade é preservada, como hoje).
+  - **Esta e as seguintes:** o contrato atual termina na véspera (`vigente_ate`) e começa uma nova versão (`vigente_de`) com o novo dia, horário ou duração. As sessões futuras ainda *agendadas* são refeitas; as que já têm nota, pagamento ou foram remarcadas à mão ficam como estão e são listadas no aviso.
+  - **Todas** não existe para sessões: as passadas são histórico clínico e financeiro e não mudam. Para compromissos, existe.
+- **A mesma pergunta vale para cancelar ou excluir:** só esta (fica *cancelada*) ou esta e as seguintes (encerra o contrato ou a série).
+- **Desfazer:** depois de mover, criar ou excluir, um aviso com "Desfazer" por alguns segundos.
+- **Conflitos:** aviso ao sobrepor sessão, compromisso, bloqueio ou horário ocupado do Google (sem impedir).
+- **Visões:** dia, semana e mês (já existem), mais *semana de trabalho* (sem fim de semana) e *lista* (próximos eventos). Mini calendário para pular de data e atalhos de teclado (`t` hoje, `d`/`s`/`m` para a visão, setas para navegar).
+- **Horário de atendimento:** configurável por dia da semana; fora dele a grade fica sombreada.
+- **Sessão online:** opção de gerar um link do Google Meet no evento (6.6). O link vai para o paciente pela mensagem pronta (WhatsApp/copiar), **sem convidar o paciente pelo Google**, para não expor o e-mail dele nem o vínculo terapêutico.
+- **Como vai para o Google:** cada sessão vira um evento individual (exceções, estados e remarcações ficam simples e robustas). Compromissos recorrentes viram um evento recorrente com a mesma regra (RRULE, o formato do Google). No começo o sentido é só app → Google. Depois, se você mover no Google um evento criado pelo app, o app pergunta se aplica a mudança, em vez de aplicar sozinho.
 
 **Cobranças e pagamentos**
 
@@ -95,6 +113,82 @@ Ajuda a controlar quanto se gasta com anúncios (Instagram, Google, outros) e se
 - Retorno por campanha: receita gerada pelos pacientes captados × gasto.
 - Funil simples (contato → primeira sessão → paciente ativo) e orçamento mensal de divulgação com alerta.
 - Talvez importar relatórios CSV do Meta/Google Ads.
+
+## App completo (Fase 8)
+
+Sugestões de 16 nov 2026 para o app cobrir o dia a dia inteiro de quem atende, não só agenda e prontuário. A ordem e o escopo de cada bloco serão decididos depois; alguns (nota fiscal, documentos) são bons diferenciais para a venda.
+
+**Documentos e arquivos**
+
+- **Anexos ao prontuário:** encaminhamentos, exames, laudos de outros profissionais, documentos do paciente. Cada anexo tem natureza (documental/pessoal), como as notas, e entra na exportação do prontuário.
+- **Documentos emitidos pela psicóloga** com modelos que seguem a **Resolução CFP 06/2019** (declaração, atestado psicológico, relatório, laudo, parecer): editor com modelo, numeração, PDF e assinatura digital (certificado ICP-Brasil ou assinatura gov.br).
+- **Contrato terapêutico e termo de consentimento:** gerados a partir do contrato do paciente e enviados para assinatura eletrônica por link (ex.: Clicksign, ZapSign), com registro de quando foi aceito. Serve também como registro de consentimento da LGPD.
+- **Comprovantes:** comprovante de Pix enviado pelo paciente anexado ao pagamento; notas e recibos de despesas anexados aos lançamentos (útil no imposto de renda).
+- **Gestão:** pré-visualização, busca por nome e tag, versões, lixeira por 30 dias, limite de tamanho e lista de tipos permitidos. Guarda mínima de 5 anos para o que é prontuário.
+- **Armazenamento:** bucket privado do Cloud Storage por ambiente, uma pasta por consultório, acesso só por link assinado de curta duração gerado pela API (o arquivo nunca fica público), registro em `acessos` a cada download.
+
+**Nota fiscal e impostos**
+
+- **NFS-e facilitada** (para quem atende como PJ ou MEI): a partir de um pagamento, ou em lote no fechamento do mês, a nota já vem preenchida (tomador com nome e CPF do paciente, serviço "psicologia e psicanálise", descrição **sem nada clínico**, como "Atendimento psicológico — sessões de novembro", valor e ISS). O app guarda o XML e o PDF, mostra o status e permite cancelar ou substituir.
+- **Como emitir:** começar por um intermediário de NFS-e com API (ex.: Focus NFe, NFE.io, PlugNotas), que cuida das diferenças entre prefeituras e do padrão nacional. Avaliar depois a emissão direta pelo Emissor Nacional. O certificado digital A1 fica no Secret Manager, cifrado, nunca no navegador.
+- **Reforma tributária:** acompanhar os campos novos de IBS/CBS na NFS-e, que entram em fase de testes a partir de 2026.
+- **Receita Saúde** (para quem atende como pessoa física): continua manual, porque não há API pública conhecida; o app prepara os dados de cada recibo para copiar e marca o que foi emitido (já existe).
+- **Carnê-leão:** relatório mensal do que foi recebido de pessoas físicas, pronto para lançar; despesas dedutíveis (sala, supervisão…) vindas dos lançamentos.
+
+**Pagamentos**
+
+- **Cobrança por Pix com QR Code e baixa automática:** integração com um provedor de pagamento (ex.: Asaas, Efí, Mercado Pago). O app gera a cobrança do fechamento do mês; quando o paciente paga, um webhook marca o pagamento sozinho.
+- Link de pagamento por cartão, para quem pedir.
+- Lembrete de cobrança em aberto, com a mensagem pronta de hoje.
+
+**Comunicação com pacientes**
+
+- Lembrete de sessão e de cobrança enviados automaticamente por WhatsApp (API oficial do WhatsApp Business, mensagens com modelo aprovado e custo por envio) ou por e-mail, além do envio manual de hoje.
+- Confirmação de presença por um link na mensagem (confirmo / preciso remarcar).
+- Nenhum conteúdo clínico nas mensagens; o texto segue os modelos de Configurações.
+
+**Área do paciente** (a decidir: muda o escopo original)
+
+- Link seguro (sem senha, com código por e-mail ou WhatsApp) para o paciente ver as próximas sessões, confirmar presença, pagar, baixar recibos e notas fiscais, assinar contrato e termo, e preencher uma ficha antes da primeira sessão.
+- Depois, talvez: pedido de horário dentro dos horários livres da agenda.
+
+**Atendimento online**
+
+- Link do Google Meet na sessão (ver Agenda) e checklist do cadastro no **e-Psi**, que o CFP exige de quem atende online.
+
+**Lista de espera e primeiros contatos**
+
+- Quem pediu atendimento, de onde veio, quando foi a entrevista inicial e se virou paciente. Alimenta o funil da Divulgação.
+
+**Clínica com vários profissionais**
+
+- Agenda compartilhada, salas (reserva de sala e conflito), repasse por profissional (percentual ou valor fixo) e relatórios por profissional.
+- **Clínica-escola e estágio:** supervisor com acesso de leitura às notas dos estagiários que supervisiona, com registro de acesso.
+
+**Formação (o tripé)**
+
+- Registro de análise pessoal, supervisão e estudo teórico (horas, datas, com quem), ligado aos compromissos da agenda e aos lançamentos fixos de Finanças. Útil para formação em instituições psicanalíticas e para comprovar horas.
+
+**Relatórios e indicadores**
+
+- Frequência e faltas por paciente, receita por mês e por origem, tempo médio de tratamento, pacientes novos e altas, inadimplência.
+
+**LGPD na prática**
+
+- Atender o pedido de um paciente (exportar ou corrigir os dados dele) em poucos cliques, com registro do pedido.
+- Importação de pacientes de planilha ou de outro sistema (ajuda a vender: a pessoa chega com dados).
+
+**A avaliar com cuidado**
+
+- Assistente com IA (resumo de notas, transcrição): mexe com o dado mais sensível do app. Só com consentimento explícito, processamento no Brasil ou sem retenção pelo fornecedor, e desligado por padrão.
+- Mobile offline (rascunho de nota sem rede): só depois do mobile básico, e sem guardar notas no aparelho sem cifra.
+
+**Fórum entre profissionais** (registrado em 16 nov 2026; a expandir)
+
+- Espaço de diálogo clínico entre profissionais, no modelo do Reddit: comunidades por tema ou abordagem (psicanálise, TCC, infância, supervisão de casos, ética…), posts, comentários em árvore, votos, salvos e sinalização.
+- Perfis de profissionais verificados (CRP), com opção de postar anonimamente para os outros membros.
+- **Sigilo:** casos só desidentificados. O fórum fica separado dos dados clínicos (banco ou schema próprio, sem acesso ao prontuário) e não tem botão de "compartilhar nota". Antes de publicar, um aviso lembra o Código de Ética e, se possível, uma checagem procura nomes, datas e lugares.
+- Moderação (regras da comunidade, moderadores, denúncias) e termos de uso próprios.
 
 ## Arquitetura e stack
 
@@ -158,6 +252,9 @@ Valores sempre em centavos (inteiro) + código da moeda. Instantes em ISO UTC; d
 | integracoes\_google | usuario\_id, consultorio\_id, e-mail Google, calendário, refresh token cifrado, sync token, estado, último sync, erro | A conexão com o Google Agenda de cada pessoa |
 | eventos\_agenda | sessao\_id, integracao\_id, id do evento no Google, etag, sincronizado\_em | Liga sessão ↔ evento sem poluir `sessoes` |
 | fila\_saida | tipo (ex.: `sessao.alterada`), ids envolvidos, criado\_em, processado\_em, tentativas | Gravada na mesma transação da mudança; um worker repassa (local: no processo; nuvem: Cloud Tasks). Garante que nenhuma mudança se perde a caminho do Google |
+| compromissos | consultorio\_id, tipo (compromisso/bloqueio), categoria, título, início, duração, fuso, regra de recorrência (RRULE), até quando | Supervisão, análise, folgas: o que não é sessão de paciente. A RRULE é a mesma do Google |
+| compromissos\_excecoes | compromisso\_id, data original, novo início/duração ou cancelado | "Só este evento" num compromisso recorrente |
+| horarios\_atendimento | consultorio\_id, usuario\_id, dia da semana, início, fim | Sombrear fora do horário e, depois, oferecer horários livres |
 
 **Mudanças nas tabelas existentes**
 
@@ -219,7 +316,9 @@ Os dois projetos ficam numa só conta de cobrança. Quem refina o app só recebe
 | Banco | **Cloud SQL PostgreSQL** em `southamerica-east1`, conectado pelo conector do Cloud Run com autenticação IAM | Sem VPC e sem NAT. O IP público fica sem redes autorizadas, então só o conector entra. Backup automático + PITR, proteção contra exclusão |
 | Login | **Identity Platform**: e-mail/senha + Google, uma conta por e-mail, MFA (TOTP) para o `dono` | Google nativo, SDK para web e mobile. Grátis até 50 mil usuários ativos por mês. A API valida o ID token; o papel vem da tabela `membros` |
 | Google Agenda | "Conectar agenda" em Configurações, OAuth separado do login, no mesmo projeto. Refresh token cifrado com **Cloud KMS** | O token do login não serve para chamar a agenda. A `fila_saida` alimenta o **Cloud Tasks**, que tenta de novo sozinho se o Google falhar |
-| Segredos | Secret Manager | Nada de segredo em variável fixa nem no repositório |
+| Segredos | Secret Manager | Nada de segredo em variável fixa nem no repositório. Inclui, na Fase 8, o certificado A1 da NFS-e |
+| Arquivos (Fase 8) | Cloud Storage privado, uma pasta por consultório, links assinados de curta duração | Anexos, documentos emitidos, XML/PDF de notas fiscais, comprovantes |
+| Webhooks (Fase 8) | Rotas da própria API no Cloud Run, com assinatura conferida | Pix pago, NFS-e emitida, documento assinado |
 | Mobile | Expo; push pelo **Firebase Cloud Messaging** | Login, push e API no mesmo projeto |
 | Infra como código | **Pulumi em TypeScript** (`@pulumi/gcp`), estado num bucket do Cloud Storage, segredos do Pulumi cifrados com Cloud KMS | O projeto fica numa linguagem só, e o estado não depende de outro serviço |
 | CI/CD | GitHub Actions com **Workload Identity Federation** (sem chave de conta de serviço). Imagem no Artifact Registry | Deploy automático na homologação a cada push |
@@ -307,6 +406,17 @@ Cinco fases de core, cada uma termina num app que você já usa de verdade. A Fa
 - [x] Configurações: cor principal (paletas + personalizada), tamanho do texto, mensagens e modelos
 - [x] Painel: real primeiro nos cards; sem selo duplicado na lista "Hoje"
 
+**Agenda no estilo do Google** (pode começar a qualquer momento; precisa estar pronta antes da 6.6)
+
+- [ ] Clicar num horário vazio abre o cartão rápido; arrastar seleciona o intervalo; atalho `c`
+- [ ] Compromissos e bloqueios (tabelas `compromissos`, `compromissos_excecoes`), com recorrência RRULE
+- [ ] Redimensionar pela borda muda a duração
+- [ ] Pergunta "só esta / esta e as seguintes" ao mover, redimensionar, cancelar ou excluir algo recorrente (sessão: nova versão do contrato; compromisso: exceção ou nova série). Testes cobrindo sessões com nota, pagamento e remarcação manual
+- [ ] Desfazer; aviso de conflito
+- [ ] Visões semana de trabalho e lista; mini calendário; atalhos de teclado
+- [ ] Horário de atendimento (`horarios_atendimento`) sombreado na grade
+- [ ] Testes visuais das telas novas
+
 **Fase 6 — Nuvem.** A ordem tira o risco primeiro: a 6.1 prepara o app sem mudar nada de infraestrutura, a 6.2 e a 6.3 trocam banco e login localmente, e só a 6.4 começa a gastar com nuvem. A 6.0 corre em paralelo, porque a verificação do Google demora.
 
 **Fase 6.0 — Fundação** (sem gasto, em paralelo)
@@ -388,6 +498,8 @@ Cinco fases de core, cada uma termina num app que você já usa de verdade. A Fa
 **Fase 6.6 — Google Agenda de verdade**
 
 - [ ] OAuth "Conectar agenda" (escopo de eventos), refresh token cifrado com Cloud KMS
+- [ ] Sessões como eventos individuais; compromissos recorrentes como eventos com RRULE
+- [ ] Link do Google Meet opcional nas sessões online, enviado ao paciente pela mensagem pronta
 - [ ] Cloud Tasks consumindo a `fila_saida`: sessão → evento no Google, com novas tentativas
 - [ ] Desconectar apaga o token e, se você quiser, os eventos criados pelo app
 - [ ] Depois, opcional: mostrar na agenda do app os horários ocupados do Google (só leitura)
@@ -404,5 +516,18 @@ Cinco fases de core, cada uma termina num app que você já usa de verdade. A Fa
 - [ ] Escalar: Cloud SQL dedicado com alta disponibilidade, réplicas de leitura e chave própria (CMEK); Cloud Run já escala sozinho
 - [ ] Termos de uso, política de privacidade e contrato de tratamento de dados (DPA)
 - [ ] Exportação completa e exclusão dos dados do cliente (portabilidade LGPD)
+
+**Fase 8 — App completo** (a priorizar; detalhes em [App completo](#app-completo-fase-8))
+
+- [ ] Documentos e arquivos: anexos ao prontuário, documentos CFP 06/2019, contrato e termo com assinatura eletrônica, comprovantes
+- [ ] NFS-e facilitada por um intermediário com API; carnê-leão mensal
+- [ ] Pix com QR Code e baixa automática por webhook
+- [ ] Lembretes automáticos (WhatsApp/e-mail) e confirmação de presença
+- [ ] Área do paciente (a decidir)
+- [ ] Lista de espera e primeiros contatos
+- [ ] Clínica com vários profissionais: agenda compartilhada, salas, repasses, supervisão de estagiários
+- [ ] Formação: registro do tripé (análise, supervisão, estudo)
+- [ ] Relatórios e indicadores; ferramentas de LGPD; importação de pacientes
+- [ ] Fórum entre profissionais (modelo Reddit): só registrado, a expandir
 
 Os prompts usados nas Fases 1–3 estão em [`docs/historico/prompts-fases-1-3.md`](historico/prompts-fases-1-3.md).
