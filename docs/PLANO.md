@@ -300,7 +300,7 @@ Notas clínicas são dado pessoal sensível pela LGPD, então o sistema trata si
 
 | Ambiente | Projeto GCP | Quem usa | Dados |
 |---|---|---|---|
-| Produção (`app.<domínio>`) | `consultorio-prod` | Só você (depois, clientes) | Reais |
+| Produção (`app.<domínio>`) | `consultorio-prd` | Só você (depois, clientes) | Reais |
 | Homologação (`teste.<domínio>`) | `consultorio-stg` | Você + refinadores | Mocks fictícios, recriados a cada deploy |
 
 Os dois projetos ficam numa só conta de cobrança. Quem refina o app só recebe acesso ao projeto de homologação e **nunca** acessa a produção: notas clínicas reais não são vistas por quem desenvolve. Quando o domínio existir, os projetos entram numa **organização** (Cloud Identity Free, grátis), o que libera políticas para a organização toda.
@@ -339,7 +339,7 @@ Os dois projetos ficam numa só conta de cobrança. Quem refina o app só recebe
 
 **Google (começar cedo)**
 
-O login com Google e, principalmente, o escopo da agenda exigem domínio verificado, uma página de política de privacidade nele, o logo do app e uma verificação do app pelo Google. O escopo da agenda é "sensível" e a verificação pode levar semanas. Por isso a tela de consentimento OAuth do projeto `consultorio-prod` e o pedido de verificação entram na Fase 6.0, em paralelo com o resto. Na homologação, a tela de consentimento fica em modo de teste, com os refinadores como usuários de teste.
+O login com Google e, principalmente, o escopo da agenda exigem domínio verificado, uma página de política de privacidade nele, o logo do app e uma verificação do app pelo Google. O escopo da agenda é "sensível" e a verificação pode levar semanas. Por isso a tela de consentimento OAuth do projeto `consultorio-prd` e o pedido de verificação entram na Fase 6.0, em paralelo com o resto. Na homologação, a tela de consentimento fica em modo de teste, com os refinadores como usuários de teste.
 
 **Por que Postgres (e não SQLite por conta)**
 
@@ -421,13 +421,14 @@ Cinco fases de core, cada uma termina num app que você já usa de verdade. A Fa
 **Fase 6.0 — Fundação** (sem gasto, em paralelo)
 
 - [x] `.gitignore` com `*.cofre` e `.env*`
-- [x] Repositório privado no GitHub (`pedrocosta99/consultorio`, 18 nov 2026), Dependabot desligado. Histórico conferido antes do push: sem chaves nem bancos
-- [ ] Secret scanning, push protection e `master` protegida: no plano gratuito, a conta pessoal não tem esses recursos em repositório privado. Opções: GitHub Pro (US$ 4/mês) ou `gitleaks` no pre-commit e no Actions
+- [x] Repositório **público** no GitHub (`pedrocosta99/consultorio`, 18 nov 2026): secret scanning com push protection, `master` sem force push nem exclusão, Dependabot desligado. Antes de abrir, o histórico foi varrido (gitleaks, sem achados) e os autores dos commits passaram para o e-mail noreply do GitHub
+- [x] `gitleaks` no pre-commit (`.githooks/`) e no CI (`.github/workflows/segredos.yml`)
 - [ ] Domínio `.com.br` no Registro.br (+ `.com` se livre), nameservers na Cloudflare (junto com a landing page)
 - [ ] Página de política de privacidade no domínio. Rascunho pronto em `apps/web/public/privacidade/index.html` (servida em `/privacidade`, sem login), com os trechos do Google (Uso Limitado). Faltam responsável, CPF/CNPJ, e-mail e domínio (`{{…}}`)
 - [x] Conta de cobrança no GCP e organização (`costaph97-org`), projeto de homologação `consultorio-stg` com cobrança ligada
-- [ ] Projeto `consultorio-prod` e verificação em duas etapas na conta Google
-- [ ] Tela de consentimento OAuth no `consultorio-prod` (com o logo da 6.1), domínio verificado e pedido de verificação do escopo da agenda
+- [x] Projeto de produção `consultorio-prd` (o ID `consultorio-prd` já era de outra pessoa), com cobrança ligada
+- [ ] Verificação em duas etapas (chave de segurança ou passkey) na conta Google
+- [ ] Tela de consentimento OAuth no `consultorio-prd` (com o logo da 6.1), domínio verificado e pedido de verificação do escopo da agenda
 
 **Fase 6.1 — Preparar o app** (local, no SQLite de hoje; já dá para começar)
 
@@ -498,7 +499,7 @@ Cinco fases de core, cada uma termina num app que você já usa de verdade. A Fa
 
 **Fase 6.5 — Produção**
 
-- [ ] Deploy no `consultorio-prod`; PITR ligado, proteção contra exclusão e um teste de restauração feito
+- [ ] Deploy no `consultorio-prd`; PITR ligado, proteção contra exclusão e um teste de restauração feito
 - [ ] Migrar seus dados da versão local (`.cofre`/SQLite → Postgres) por um canal cifrado, e apagar as cópias temporárias
 - [ ] Teste final: login, paciente fictício, sessão, pagamento, nota, PDF, restauração
 
