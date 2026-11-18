@@ -301,7 +301,7 @@ Notas clínicas são dado pessoal sensível pela LGPD, então o sistema trata si
 | Ambiente | Projeto GCP | Quem usa | Dados |
 |---|---|---|---|
 | Produção (`app.<domínio>`) | `consultorio-prod` | Só você (depois, clientes) | Reais |
-| Homologação (`teste.<domínio>`) | `consultorio-staging` | Você + refinadores | Mocks fictícios, recriados a cada deploy |
+| Homologação (`teste.<domínio>`) | `consultorio-stg` | Você + refinadores | Mocks fictícios, recriados a cada deploy |
 
 Os dois projetos ficam numa só conta de cobrança. Quem refina o app só recebe acesso ao projeto de homologação e **nunca** acessa a produção: notas clínicas reais não são vistas por quem desenvolve. Quando o domínio existir, os projetos entram numa **organização** (Cloud Identity Free, grátis), o que libera políticas para a organização toda.
 
@@ -421,10 +421,12 @@ Cinco fases de core, cada uma termina num app que você já usa de verdade. A Fa
 **Fase 6.0 — Fundação** (sem gasto, em paralelo)
 
 - [x] `.gitignore` com `*.cofre` e `.env*`
-- [ ] Repositório privado no GitHub: secret scanning com push protection, `master` protegida, Dependabot desligado ou respeitando os 14 dias
+- [x] Repositório privado no GitHub (`pedrocosta99/consultorio`, 18 nov 2026), Dependabot desligado. Histórico conferido antes do push: sem chaves nem bancos
+- [ ] Secret scanning, push protection e `master` protegida: no plano gratuito, a conta pessoal não tem esses recursos em repositório privado. Opções: GitHub Pro (US$ 4/mês) ou `gitleaks` no pre-commit e no Actions
 - [ ] Domínio `.com.br` no Registro.br (+ `.com` se livre), nameservers na Cloudflare (junto com a landing page)
-- [ ] Página de política de privacidade no domínio
-- [ ] Conta de cobrança no GCP + projetos `consultorio-staging` e `consultorio-prod`, verificação em duas etapas na conta Google
+- [ ] Página de política de privacidade no domínio. Rascunho pronto em `apps/web/public/privacidade/index.html` (servida em `/privacidade`, sem login), com os trechos do Google (Uso Limitado). Faltam responsável, CPF/CNPJ, e-mail e domínio (`{{…}}`)
+- [x] Conta de cobrança no GCP e organização (`costaph97-org`), projeto de homologação `consultorio-stg` com cobrança ligada
+- [ ] Projeto `consultorio-prod` e verificação em duas etapas na conta Google
 - [ ] Tela de consentimento OAuth no `consultorio-prod` (com o logo da 6.1), domínio verificado e pedido de verificação do escopo da agenda
 
 **Fase 6.1 — Preparar o app** (local, no SQLite de hoje; já dá para começar)
