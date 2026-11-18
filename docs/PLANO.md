@@ -426,7 +426,7 @@ Cinco fases de core, cada uma termina num app que você já usa de verdade. A Fa
 - [ ] Domínio `.com.br` no Registro.br (+ `.com` se livre), nameservers na Cloudflare (junto com a landing page)
 - [ ] Página de política de privacidade no domínio. Rascunho pronto em `apps/web/public/privacidade/index.html` (servida em `/privacidade`, sem login), com os trechos do Google (Uso Limitado). Faltam responsável, CPF/CNPJ, e-mail e domínio (`{{…}}`)
 - [x] Conta de cobrança no GCP e organização (`costaph97-org`), projeto de homologação `consultorio-stg` com cobrança ligada
-- [x] Projeto de produção `consultorio-prd` (o ID `consultorio-prd` já era de outra pessoa), com cobrança ligada
+- [x] Projeto de produção `consultorio-prd` (o ID `consultorio-prod` já era de outra pessoa), com cobrança ligada
 - [ ] Verificação em duas etapas (chave de segurança ou passkey) na conta Google
 - [ ] Tela de consentimento OAuth no `consultorio-prd` (com o logo da 6.1), domínio verificado e pedido de verificação do escopo da agenda
 
