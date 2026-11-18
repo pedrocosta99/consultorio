@@ -1,0 +1,7 @@
+#!/bin/sh
+# Barra commits com segredos (chaves, tokens). Ative com: git config core.hooksPath .githooks
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "pre-commit: gitleaks não instalado (brew install gitleaks). Commit sem verificação de segredos." >&2
+  exit 0
+fi
+exec gitleaks git --pre-commit --staged --redact --no-banner

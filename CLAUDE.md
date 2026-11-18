@@ -81,3 +81,8 @@ docs/PLANO.md      plano do produto
 ## Supply chain
 
 - `pnpm-workspace.yaml` tem `minimumReleaseAge: 14 dias`: o pnpm só instala versões publicadas há pelo menos duas semanas.
+
+## Segredos
+
+- O repositório é público no GitHub. **Nada de segredo, dado real ou e-mail pessoal** em código, docs ou commits.
+- `gitleaks` no pre-commit (`.githooks/pre-commit`; ative num clone novo com `git config core.hooksPath .githooks` e `brew install gitleaks`) e no CI (`.github/workflows/segredos.yml`, versão e checksum fixos). Ações do GitHub ficam presas por SHA.
